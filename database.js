@@ -1,12 +1,18 @@
 // database.js
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const crypto = require('crypto');
 
 const dbPath = path.resolve(__dirname, 'bingo.db');
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error('[-] Database connection error:', err.message);
   else console.log('[+] Connected to SQLite Database (bingo.db)');
 });
+
+// Password Hashing Helper (SHA-256 + Salt)
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+}
 
 db.serialize(() => {
   // Users Table
@@ -27,9 +33,9 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
+      type TEXT,
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
+      status TEXT DEFAULT 'COMPLETED',
       reference TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
@@ -49,6 +55,24 @@ db.serialize(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Admin Config Table (For Secure Hashed PIN)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_config (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      salt TEXT
+    )
+  `);
+
+  // Set default PIN '1234' securely if not exists
+  db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
+    if (!row) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = hashPassword("1234", salt);
+      db.run("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', ?, ?)", [hash, salt]);
+    }
+  });
 });
 
 const DB = {
@@ -112,7 +136,6 @@ const DB = {
     });
   },
 
-  // ===== ADMIN ADVANCED CONTROLS =====
   getAdminStats: () => {
     return new Promise((resolve, reject) => {
       const stats = {};
@@ -162,11 +185,32 @@ const DB = {
     });
   },
 
-  getPendingRequests: () => {
+  // ===== SECURE ADMIN PASSWORD MANAGEMENT =====
+  verifyAdminPin: (inputPin) => {
+    return new Promise((resolve) => {
+      db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
+        if (err || !row) return resolve(false);
+        const inputHash = hashPassword(inputPin, row.salt);
+        resolve(inputHash === row.value);
+      });
+    });
+  },
+
+  changeAdminPin: (oldPin, newPin) => {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT t.*, u.username FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'PENDING' ORDER BY t.id DESC`, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
+      db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
+        if (err || !row) return reject(new Error('Config not found'));
+        const oldHash = hashPassword(oldPin, row.salt);
+        if (oldHash !== row.value) {
+          return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው! (Old PIN incorrect)'));
+        }
+
+        const newSalt = crypto.randomBytes(16).toString('hex');
+        const newHash = hashPassword(newPin, newSalt);
+        db.run("UPDATE admin_config SET value = ?, salt = ? WHERE key = 'admin_pin'", [newHash, newSalt], (upErr) => {
+          if (upErr) return reject(upErr);
+          resolve(true);
+        });
       });
     });
   }

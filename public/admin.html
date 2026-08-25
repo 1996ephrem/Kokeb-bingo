@@ -23,8 +23,8 @@
     .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
     .header h1 { font-size: 20px; color: #ffd700; }
     
-    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
-    .tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 13px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; overflow-x: auto; }
+    .tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; }
     .tab-btn.active { background: #7928ca; border-color: #ffd700; color: #fff; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -90,6 +90,7 @@
     <button class="tab-btn" onclick="switchTab('rooms')">🎮 የቀጥታ ክፍሎች (Room Control)</button>
     <button class="tab-btn" onclick="switchTab('users')">👥 ተጠቃሚዎች & ዋሌት (Users)</button>
     <button class="tab-btn" onclick="switchTab('broadcast')">📢 መልዕክት ማስተላለፊያ (Broadcast)</button>
+    <button class="tab-btn" onclick="switchTab('security')">🔐 ፒን ቀይር (Security)</button>
   </div>
 
   <!-- TAB 1: DASHBOARD OVERVIEW -->
@@ -152,6 +153,33 @@
     </div>
   </div>
 
+  <!-- TAB 5: SECURITY & CHANGE PIN -->
+  <div id="tab-security" class="panel-section">
+    <div class="box" style="max-width: 420px;">
+      <h3>🔐 የአድሚን ፒን ቁጥር መቀየሪያ</h3>
+      <p style="font-size: 12px; color: #8e8aa8; margin-bottom: 16px;">ፓስወርድህን እዚህ ስትቀይር በዳታቤዝ ውስጥ በ SHA-256 ተደብቆ ይቀመጣል፤ ማንም ሃክ ሊያደርገው አይችልም።</p>
+      
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የአሁኑ (የቆየው) ፒን ቁጥር:</label>
+        <input type="password" id="old-pin-input" placeholder="Current PIN" style="width: 100%;">
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">አዲሱ ፒን ቁጥር (ቢያንስ 4 ዲጂት):</label>
+        <input type="password" id="new-pin-input" placeholder="New PIN" style="width: 100%;">
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">አዲሱን ፒን በድጋሚ ያስገቡ:</label>
+        <input type="password" id="confirm-pin-input" placeholder="Confirm New PIN" style="width: 100%;">
+      </div>
+
+      <button class="btn-sm btn-gold" style="width: 100%; padding: 12px; font-size: 13px;" onclick="changeAdminPin()">
+        💾 ፒኑን ቀይር (UPDATE PIN)
+      </button>
+    </div>
+  </div>
+
   <script>
     let adminPin = sessionStorage.getItem('kokeb_admin_pin') || '';
 
@@ -181,7 +209,7 @@
           document.getElementById('login-overlay').style.display = 'none';
           fetchAdminData();
         } else {
-          errorMsg.innerText = "❌ የተሳሳተ ፒን ቁጥር ነው!";
+          errorMsg.innerText = data.error || "❌ የተሳሳተ ፒን ቁጥር ነው!";
           errorMsg.style.display = 'block';
           document.getElementById('admin-pin-input').value = '';
         }
@@ -336,6 +364,46 @@
       });
       alert("መልዕክቱ ለሁሉም ተጫዋቾች ተልኳል!");
       document.getElementById('broadcast-msg').value = '';
+    }
+
+    // Change Admin PIN API Call
+    async function changeAdminPin() {
+      const oldPin = document.getElementById('old-pin-input').value;
+      const newPin = document.getElementById('new-pin-input').value;
+      const confirmPin = document.getElementById('confirm-pin-input').value;
+
+      if (!oldPin || !newPin || !confirmPin) {
+        return alert("እባክዎን ሁሉንም ሳጥኖች ይሙሉ!");
+      }
+
+      if (newPin !== confirmPin) {
+        return alert("አዲሱ ፒን እና ማረጋገጫው አይመሳሰሉም!");
+      }
+
+      if (newPin.length < 4) {
+        return alert("አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!");
+      }
+
+      try {
+        const res = await fetch('/api/admin/change-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ oldPin, newPin })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("🎉 " + data.message);
+          document.getElementById('old-pin-input').value = '';
+          document.getElementById('new-pin-input').value = '';
+          document.getElementById('confirm-pin-input').value = '';
+          lockAndLogout(); // Force relogin with new PIN
+        } else {
+          alert("❌ " + (data.error || "ፒን መቀየር አልተቻለም!"));
+        }
+      } catch (err) {
+        alert("የሰርቨር ግንኙነት ችግር!");
+      }
     }
 
     setInterval(fetchAdminData, 4000);

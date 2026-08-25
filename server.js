@@ -18,7 +18,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const ADMIN_PIN = process.env.ADMIN_PIN || "1234"; // የአድሚን ፒን ቁጥር (በ .env ውስጥ መቀየር ትችላለህ)
+// Security: Brute Force Rate Limiting for Admin PIN
+const failedPinAttempts = new Map(); // IP -> { count, lockUntil }
 const activeSockets = new Map();
 
 // Game Rooms Configuration
@@ -46,7 +47,7 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
-// ==================== LOBBY & ENGINE ====================
+// LOBBY & ENGINE
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (room.isPaused) return;
@@ -139,7 +140,7 @@ async function endGame(roomName, winnerData, message) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKETS ====================
+// WEBSOCKET EVENTS
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ username, initData }) => {
     try {
@@ -150,7 +151,7 @@ io.on('connection', (socket) => {
         const tgUser = verifyTelegramAuth(initData, process.env.BOT_TOKEN);
         if (tgUser) {
           telegramId = tgUser.id.toString();
-          playerName = tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : '');
+          playerName = tgUser.username ? `@${tgUser.username}` : (tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ''));
         }
       }
 
@@ -166,7 +167,12 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
-      socket.emit('auth_success', { id: user.id, username: user.username, balance: user.balance });
+      socket.emit('auth_success', {
+        id: user.id,
+        username: user.username,
+        balance: user.balance,
+        botUsername: process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot'
+      });
     } catch (err) {
       socket.emit('error_message', 'Authentication failed');
     }
@@ -186,6 +192,11 @@ io.on('connection', (socket) => {
       calledNumbers: Array.from(room.calledNumbers),
       prizePool: Math.floor(room.takenCartelas.size * room.stake * 0.9)
     });
+  });
+
+  // Leave Game Room voluntarily
+  socket.on('leave_room', ({ roomName }) => {
+    socket.leave(roomName);
   });
 
   socket.on('buy_cartelas', async ({ roomName, cartelaIds }) => {
@@ -258,25 +269,62 @@ io.on('connection', (socket) => {
   });
 });
 
-// ==================== ADMIN API & SECURITY ====================
+// ==================== ADMIN API WITH SECURITY ====================
 
-// Admin PIN Middleware
-function adminAuth(req, res, next) {
+// Admin PIN Middleware (Hashed Verification)
+async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
-  if (pin && pin === ADMIN_PIN) return next();
-  return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው! (Invalid PIN)' });
+  if (!pin) return res.status(401).json({ error: 'PIN required' });
+
+  const isValid = await DB.verifyAdminPin(pin);
+  if (isValid) return next();
+  return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
 
-// 1. PIN Verify Endpoint
-app.post('/api/admin/verify-pin', (req, res) => {
-  const { pin } = req.body;
-  if (pin === ADMIN_PIN) {
-    return res.json({ success: true, message: 'Authenticated' });
+// 1. PIN Verify with Anti-Brute Force Protection
+app.post('/api/admin/verify-pin', async (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const attempt = failedPinAttempts.get(ip) || { count: 0, lockUntil: 0 };
+
+  if (attempt.lockUntil > now) {
+    const remMins = Math.ceil((attempt.lockUntil - now) / 60000);
+    return res.status(429).json({ success: false, error: `🚨 አካውንቱ ለደህንነት ተቆልፏል! እባክዎ ከ ${remMins} ደቂቃ በኋላ ይሞክሩ።` });
   }
-  return res.status(401).json({ success: false, error: 'የተሳሳተ ፒን ቁጥር ነው!' });
+
+  const { pin } = req.body;
+  const isValid = await DB.verifyAdminPin(pin);
+
+  if (isValid) {
+    failedPinAttempts.delete(ip); // Reset on success
+    return res.json({ success: true, message: 'Authenticated' });
+  } else {
+    attempt.count++;
+    if (attempt.count >= 5) {
+      attempt.lockUntil = now + 5 * 60 * 1000; // 5 minute lock
+    }
+    failedPinAttempts.set(ip, attempt);
+    const left = 5 - attempt.count;
+    return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
+  }
 });
 
-// 2. Dashboard Stats
+// 2. Change Admin PIN securely
+app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
+  const { oldPin, newPin } = req.body;
+  if (!newPin || newPin.length < 4) {
+    return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
+  }
+
+  try {
+    await DB.changeAdminPin(oldPin, newPin);
+    res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 3. Dashboard Stats
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
@@ -294,33 +342,28 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
-// 3. Adjust User Balance (Live socket update included)
+// 4. Adjust User Balance
 app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   const { userId, amount, reason } = req.body;
   try {
     const newBal = await DB.updateBalance(userId, parseFloat(amount), 'ADMIN_ADJUST', reason);
-    
-    // Find player socket if active and update their screen instantly
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = newBal;
         io.to(sockId).emit('balance_updated', { balance: newBal });
       }
     }
-
     res.json({ success: true, newBalance: newBal });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// 4. Ban / Unban User
+// 5. Ban / Unban User
 app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
     await DB.toggleBanUser(userId);
-
-    // If online, force disconnect
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         io.to(sockId).emit('error_message', '❌ አካውንትዎ በአድሚን ታግዷል!');
@@ -328,14 +371,13 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
         if (s) s.disconnect();
       }
     }
-
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 5. Room Controls
+// 6. Room Controls
 app.post('/api/admin/room-control', adminAuth, (req, res) => {
   const { roomName, action, value } = req.body;
   const room = rooms[roomName];
@@ -358,7 +400,7 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, roomState: room.state, isPaused: room.isPaused, speed: room.callSpeed });
 });
 
-// 6. Global Broadcast
+// 7. Global Broadcast
 app.post('/api/admin/broadcast', adminAuth, (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message required' });
@@ -368,6 +410,6 @@ app.post('/api/admin/broadcast', adminAuth, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Epha Live Bingo Server Running on http://localhost:${PORT}`);
+  console.log(`🚀 Kokeb Live Bingo Server Running on http://localhost:${PORT}`);
   console.log(`👑 Admin Dashboard: http://localhost:${PORT}/admin.html`);
 });

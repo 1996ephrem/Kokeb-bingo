@@ -305,7 +305,7 @@
 </head>
 <body>
 
-  <!-- ==================== AUDIO & SPEECH ENGINE ==================== -->
+  <!-- ==================== AUDIO ENGINE ==================== -->
   <script>
     const SoundFX = {
       ctx: null, muted: false,
@@ -444,10 +444,13 @@
     </button>
   </div>
 
-  <!-- ==================== VIEW 4: LIVE GAME ENGINE ==================== -->
+  <!-- ==================== VIEW 4: LIVE GAME ENGINE (WITH LEAVE BUTTON) ==================== -->
   <div id="screen-game" class="view-screen">
     <div class="app-header" style="margin-bottom: 2px;">
-      <h4 id="game-room-name" style="font-size: 13px;">Beginner Room</h4>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 10px; border-radius: 8px;" onclick="leaveCurrentGame()">🚪 ውጣ (LEAVE)</button>
+        <h4 id="game-room-name" style="font-size: 12.5px;">Beginner</h4>
+      </div>
       <div style="display: flex; align-items: center; gap: 6px;">
         <span style="font-size: 9.5px; color: var(--text-muted);">Auto-Daub</span>
         <div class="toggle-switch" id="autodaub-toggle" onclick="toggleAutoDaub()"></div>
@@ -599,7 +602,7 @@
     </div>
   </div>
 
-  <!-- ==================== REAL-TIME BACKEND INTEGRATION ==================== -->
+  <!-- ==================== REAL-TIME CLIENT SCRIPT ==================== -->
   <script>
     const socket = io();
 
@@ -697,7 +700,7 @@
       }
     };
 
-    let userState = { name: "Player", coins: 1000, lang: 'am' };
+    let userState = { name: "Player", coins: 1000, lang: 'am', botUsername: 'Kokeb_Bingo_Bot' };
     
     let selectionState = {
       roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25,
@@ -782,28 +785,27 @@
     }
 
     window.onload = () => {
-  if (tg?.initDataUnsafe?.user) {
-    const u = tg.initDataUnsafe.user;
-    // ዩዘርኔም ካለው @username ካልሆነ ሙሉ ስሙን ይወስዳል
-    userState.name = u.username ? `@${u.username}` : (u.first_name + (u.last_name ? ` ${u.last_name}` : ''));
-    document.getElementById('hub-username').innerText = userState.name;
-    document.getElementById('hub-avatar').innerText = userState.name.charAt(userState.name.startsWith('@') ? 1 : 0);
-  }
-  applyLanguageTranslations();
-};
+      if (tg?.initDataUnsafe?.user) {
+        const u = tg.initDataUnsafe.user;
+        userState.name = u.username ? `@${u.username}` : (u.first_name + (u.last_name ? ` ${u.last_name}` : ''));
+        document.getElementById('hub-username').innerText = userState.name;
+        document.getElementById('hub-avatar').innerText = userState.name.charAt(userState.name.startsWith('@') ? 1 : 0);
+      }
+      applyLanguageTranslations();
+    };
 
     function authenticateUser() {
-  SoundFX.pop();
-  haptic('medium');
-  // Send verified Telegram data to backend
-  socket.emit('auth_user', { 
-    username: userState.name,
-    initData: window.Telegram?.WebApp?.initData || ''
-  });
+      SoundFX.pop();
+      haptic('medium');
+      socket.emit('auth_user', { 
+        username: userState.name,
+        initData: tg?.initData || ''
+      });
     }
 
     socket.on('auth_success', (userData) => {
       userState.coins = userData.balance;
+      if (userData.botUsername) userState.botUsername = userData.botUsername;
       updateCoinsDisplay();
       switchNav('dashboard');
     });
@@ -882,7 +884,19 @@
     function cancelCartelaSelection() {
       SoundFX.pop();
       selectionState.selectedCartelaIds.clear();
+      socket.emit('leave_room', { roomName: selectionState.roomName });
       switchNav('dashboard');
+    }
+
+    // Leave live game voluntarily
+    function leaveCurrentGame() {
+      if (confirm("እርግጠኛ ነዎት ጨዋታውን ለቀው ወደ ሎቢ መመለስ ይፈልጋሉ?")) {
+        SoundFX.pop();
+        socket.emit('leave_room', { roomName: selectionState.roomName });
+        gameState.isLive = false;
+        selectionState.isPlayerInArena = false;
+        switchNav('dashboard');
+      }
     }
 
     function renderCartelaGrid100() {
@@ -1326,16 +1340,24 @@
       requestAnimationFrame(animateWheel);
     }
 
+    // ACCURATE TELEGRAM REFERRAL DEEP-LINK
+    function getReferralLink() {
+      const cleanUser = userState.name.replace('@', '');
+      return `https://t.me/${userState.botUsername}?start=ref_${encodeURIComponent(cleanUser)}`;
+    }
+
     function shareTelegramReferral() {
       SoundFX.pop();
-      const botUrl = `https://t.me/share/url?url=https://t.me/KokebBingoBot?start=ref_${encodeURIComponent(userState.name)}&text=🌟 ኮከብ ቢንጎን በቴሌብር ይጫወቱ እና በየቀኑ ያሸንፉ!`;
+      const refLink = getReferralLink();
+      const botUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('🌟 ኮከብ ቢንጎን በቴሌብር ይጫወቱ እና በየቀኑ ያሸንፉ!')}`;
       if (tg) tg.openTelegramLink(botUrl);
       else window.open(botUrl, '_blank');
     }
 
     function copyReferralLink() {
       SoundFX.pop();
-      navigator.clipboard.writeText(`https://t.me/KokebBingoBot?start=ref_${encodeURIComponent(userState.name)}`);
+      const refLink = getReferralLink();
+      navigator.clipboard.writeText(refLink);
       showModal("ሊንክ ተቀድቷል", "የሪፈራል ሊንክዎ ተቀድቷል። ለጓደኞችዎ ያጋሩ!", "📋");
     }
   </script>
