@@ -19,7 +19,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Dynamic Bot Username Detection
-let detectedBotUsername = process.env.BOT_USERNAME || 'KokebBingoBot';
+// Exact Bot Username
+let detectedBotUsername = 'Kokeb_Bingo_Bot';
 
 // Automatically fetch your REAL Telegram bot username using BOT_TOKEN
 async function autoDetectBotUsername() {

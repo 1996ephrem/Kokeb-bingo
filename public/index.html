@@ -1340,25 +1340,21 @@
       requestAnimationFrame(animateWheel);
     }
 
-    // Auto-fetch correct bot username on load
-    fetch('/api/bot-info')
-      .then(res => res.json())
-      .then(data => {
-        if (data.botUsername) userState.botUsername = data.botUsername;
-      })
-      .catch(() => {});
+    // EXACT BOT USERNAME
+    const EXACT_BOT_USERNAME = 'Kokeb_Bingo_Bot';
 
     function getReferralLink() {
-      const cleanUser = userState.name.replace('@', '').trim();
-      const botName = userState.botUsername || 'KokebBingoBot';
-      return `https://t.me/${botName}?start=ref_${encodeURIComponent(cleanUser)}`;
+      // Clean username from @ and spaces
+      let cleanUser = userState.name ? userState.name.replace('@', '').trim() : 'Player';
+      if (!cleanUser) cleanUser = 'Player';
+      return `https://t.me/${EXACT_BOT_USERNAME}?start=ref_${encodeURIComponent(cleanUser)}`;
     }
 
     function shareTelegramReferral() {
       SoundFX.pop();
       const refLink = getReferralLink();
-      const shareMsg = `🌟 በኮከብ ቢንጎ የቀጥታ 75-ኳስ ካርቴላ ተጫውተው በቴሌብር ያሸንፉ!\n\n👇 አሁኑኑ ለመጫወት ሊንኩን ይጫኑ:\n${refLink}`;
-      const botUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareMsg)}`;
+      const shareText = `🌟 በኮከብ ቢንጎ የቀጥታ 75-ኳስ ካርቴላ ተጫውተው በቴሌብር ያሸንፉ!\n\n👇 አሁኑኑ ለመጫወት ሊንኩን ይጫኑ:`;
+      const botUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`;
       
       if (tg && tg.openTelegramLink) {
         tg.openTelegramLink(botUrl);
@@ -1370,8 +1366,17 @@
     function copyReferralLink() {
       SoundFX.pop();
       const refLink = getReferralLink();
-      navigator.clipboard.writeText(refLink);
-      showModal("ሊንክ ተቀድቷል", "ትክክለኛው የቦትህ ሪፈራል ሊንክ ተቀድቷል። ለጓደኞችህ አጋራ!", "📋");
+      
+      // Fallback for clipboard copy across all devices
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(refLink).then(() => {
+          showModal("ሊንክ ተቀድቷል", `የቦትህ ሪፈራል ሊንክ:\n${refLink}`, "📋");
+        }).catch(() => {
+          prompt("ሊንኩን ኮፒ አድርገህ ለጓደኞችህ ላክ:", refLink);
+        });
+      } else {
+        prompt("ሊንኩን ኮፒ አድርገህ ለጓደኞችህ ላክ:", refLink);
+      }
     }
   </script>
 </body>
