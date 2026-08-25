@@ -18,8 +18,26 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Security: Brute Force Rate Limiting for Admin PIN
-const failedPinAttempts = new Map(); // IP -> { count, lockUntil }
+// Dynamic Bot Username Detection
+let detectedBotUsername = process.env.BOT_USERNAME || 'KokebBingoBot';
+
+// Automatically fetch your REAL Telegram bot username using BOT_TOKEN
+async function autoDetectBotUsername() {
+  if (!process.env.BOT_TOKEN) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/getMe`);
+    const data = await res.json();
+    if (data.ok && data.result?.username) {
+      detectedBotUsername = data.result.username;
+      console.log(`[+] Auto-detected Telegram Bot: @${detectedBotUsername}`);
+    }
+  } catch (err) {
+    console.error('Bot detection error:', err.message);
+  }
+}
+autoDetectBotUsername();
+
+const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
 // Game Rooms Configuration
@@ -157,7 +175,7 @@ io.on('connection', (socket) => {
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
       if (user.is_banned) {
-        return socket.emit('error_message', '❌ የእርስዎ አካውንት ታግዷል! (Your account is banned)');
+        return socket.emit('error_message', '❌ የእርስዎ አካውንት ታግዷል!');
       }
 
       activeSockets.set(socket.id, {
@@ -167,11 +185,12 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
+      // Send the REAL bot username to frontend
       socket.emit('auth_success', {
         id: user.id,
         username: user.username,
         balance: user.balance,
-        botUsername: process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot'
+        botUsername: detectedBotUsername
       });
     } catch (err) {
       socket.emit('error_message', 'Authentication failed');
@@ -194,7 +213,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Leave Game Room voluntarily
   socket.on('leave_room', ({ roomName }) => {
     socket.leave(roomName);
   });
@@ -269,9 +287,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ==================== ADMIN API WITH SECURITY ====================
-
-// Admin PIN Middleware (Hashed Verification)
+// Admin PIN Middleware
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -281,7 +297,11 @@ async function adminAuth(req, res, next) {
   return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
 
-// 1. PIN Verify with Anti-Brute Force Protection
+// APIs
+app.get('/api/bot-info', (req, res) => {
+  res.json({ botUsername: detectedBotUsername });
+});
+
 app.post('/api/admin/verify-pin', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
@@ -289,33 +309,27 @@ app.post('/api/admin/verify-pin', async (req, res) => {
 
   if (attempt.lockUntil > now) {
     const remMins = Math.ceil((attempt.lockUntil - now) / 60000);
-    return res.status(429).json({ success: false, error: `🚨 አካውንቱ ለደህንነት ተቆልፏል! እባክዎ ከ ${remMins} ደቂቃ በኋላ ይሞክሩ።` });
+    return res.status(429).json({ success: false, error: `🚨 አካውንቱ ተቆልፏል! ከ ${remMins} ደቂቃ በኋላ ይሞክሩ።` });
   }
 
   const { pin } = req.body;
   const isValid = await DB.verifyAdminPin(pin);
 
   if (isValid) {
-    failedPinAttempts.delete(ip); // Reset on success
+    failedPinAttempts.delete(ip);
     return res.json({ success: true, message: 'Authenticated' });
   } else {
     attempt.count++;
-    if (attempt.count >= 5) {
-      attempt.lockUntil = now + 5 * 60 * 1000; // 5 minute lock
-    }
+    if (attempt.count >= 5) attempt.lockUntil = now + 5 * 60 * 1000;
     failedPinAttempts.set(ip, attempt);
     const left = 5 - attempt.count;
     return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
   }
 });
 
-// 2. Change Admin PIN securely
 app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   const { oldPin, newPin } = req.body;
-  if (!newPin || newPin.length < 4) {
-    return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
-  }
-
+  if (!newPin || newPin.length < 4) return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
   try {
     await DB.changeAdminPin(oldPin, newPin);
     res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
@@ -324,7 +338,6 @@ app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   }
 });
 
-// 3. Dashboard Stats
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
@@ -342,7 +355,6 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
-// 4. Adjust User Balance
 app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   const { userId, amount, reason } = req.body;
   try {
@@ -359,7 +371,6 @@ app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   }
 });
 
-// 5. Ban / Unban User
 app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
@@ -377,30 +388,23 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   }
 });
 
-// 6. Room Controls
 app.post('/api/admin/room-control', adminAuth, (req, res) => {
   const { roomName, action, value } = req.body;
   const room = rooms[roomName];
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
-  if (action === 'TOGGLE_PAUSE') {
-    room.isPaused = !room.isPaused;
-  } else if (action === 'SET_SPEED') {
-    room.callSpeed = parseInt(value) || 2500;
-  } else if (action === 'FORCE_START') {
-    if (room.state === 'LOBBY') {
-      clearInterval(room.timerInterval);
-      startRoomGame(roomName);
-    }
+  if (action === 'TOGGLE_PAUSE') room.isPaused = !room.isPaused;
+  else if (action === 'SET_SPEED') room.callSpeed = parseInt(value) || 2500;
+  else if (action === 'FORCE_START' && room.state === 'LOBBY') {
+    clearInterval(room.timerInterval);
+    startRoomGame(roomName);
   } else if (action === 'RESTART_LOBBY') {
     if (room.gameInterval) clearInterval(room.gameInterval);
     startRoomLobby(roomName);
   }
-
   res.json({ success: true, roomState: room.state, isPaused: room.isPaused, speed: room.callSpeed });
 });
 
-// 7. Global Broadcast
 app.post('/api/admin/broadcast', adminAuth, (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message required' });
