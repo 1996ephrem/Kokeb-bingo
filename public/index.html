@@ -782,19 +782,24 @@
     }
 
     window.onload = () => {
-      if (tg?.initDataUnsafe?.user) {
-        const u = tg.initDataUnsafe.user;
-        userState.name = u.first_name + (u.last_name ? ` ${u.last_name}` : '');
-        document.getElementById('hub-username').innerText = userState.name;
-        document.getElementById('hub-avatar').innerText = userState.name.charAt(0);
-      }
-      applyLanguageTranslations();
-    };
+  if (tg?.initDataUnsafe?.user) {
+    const u = tg.initDataUnsafe.user;
+    // ዩዘርኔም ካለው @username ካልሆነ ሙሉ ስሙን ይወስዳል
+    userState.name = u.username ? `@${u.username}` : (u.first_name + (u.last_name ? ` ${u.last_name}` : ''));
+    document.getElementById('hub-username').innerText = userState.name;
+    document.getElementById('hub-avatar').innerText = userState.name.charAt(userState.name.startsWith('@') ? 1 : 0);
+  }
+  applyLanguageTranslations();
+};
 
     function authenticateUser() {
-      SoundFX.pop();
-      haptic('medium');
-      socket.emit('auth_user', { username: userState.name });
+  SoundFX.pop();
+  haptic('medium');
+  // Send verified Telegram data to backend
+  socket.emit('auth_user', { 
+    username: userState.name,
+    initData: window.Telegram?.WebApp?.initData || ''
+  });
     }
 
     socket.on('auth_success', (userData) => {
