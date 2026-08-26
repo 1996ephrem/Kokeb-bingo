@@ -857,7 +857,7 @@
       }
     }
 
-    // ==================== REAL WITHDRAWAL REQUEST (CASHOUT) ====================
+   // FIXED WITHDRAWAL REQUEST (NO DOUBLE DEDUCTION)
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amountStr = document.getElementById('withdraw-amount-input').value.trim();
@@ -887,7 +887,10 @@
 
         const data = await res.json();
         if (res.ok && data.success) {
-          userState.coins -= amount;
+          // Update to exact server balance (No double deduction)
+          if (typeof data.remainingBalance === 'number') {
+            userState.coins = data.remainingBalance;
+          }
           updateCoinsDisplay();
           SoundFX.win();
           showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በአጭር ደቂቃ ወደ ${phone} በቴሌብር ይላክሎታል።`, "⚡");

@@ -18,7 +18,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
+// Exact Bot Username
+let detectedBotUsername = 'Kokeb_Bingo_Bot';
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-your-chapa-key';
 
 const failedPinAttempts = new Map();
@@ -49,7 +50,7 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
-// LOBBY & ENGINE
+// ==================== LOBBY & ENGINE ====================
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (room.isPaused) return;
@@ -132,17 +133,26 @@ async function endGame(roomName, winnerData, message) {
   if (room.gameInterval) clearInterval(room.gameInterval);
 
   if (winnerData) {
-    await DB.saveGameRound(roomName, winnerData.username, winnerData.cartelaId, winnerData.prize, room.takenCartelas.size, room.drawnCount);
+    await DB.saveGameRound(
+      roomName,
+      winnerData.username,
+      winnerData.cartelaId,
+      winnerData.prize,
+      room.takenCartelas.size,
+      room.drawnCount
+    );
   }
 
   io.to(roomName).emit('game_finished', { winner: winnerData, message });
 
-  setTimeout(() => { startRoomLobby(roomName); }, 5000);
+  setTimeout(() => {
+    startRoomLobby(roomName);
+  }, 5000);
 }
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// WEBSOCKET EVENTS
+// ==================== WEBSOCKET EVENTS ====================
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ username, initData }) => {
     try {
@@ -159,7 +169,7 @@ io.on('connection', (socket) => {
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
       if (user.is_banned) {
-        return socket.emit('error_message', '❌ የእርስዎ አካውንት ታግዷል!');
+        return socket.emit('error_message', '❌ የእርስዎ አካውንት ታግዷል! (Your account is banned)');
       }
 
       activeSockets.set(socket.id, {
@@ -217,10 +227,19 @@ io.on('connection', (socket) => {
       cartelaIds.forEach(id => {
         const markedMatrix = Array.from({ length: 5 }, () => Array(5).fill(false));
         markedMatrix[2][2] = true;
-        room.takenCartelas.set(id, { socketId: socket.id, dbId: player.dbId, username: player.username, markedMatrix });
+        room.takenCartelas.set(id, {
+          socketId: socket.id,
+          dbId: player.dbId,
+          username: player.username,
+          markedMatrix
+        });
       });
 
-      socket.emit('cartelas_bought_success', { balance: newBalance, boughtIds: cartelaIds });
+      socket.emit('cartelas_bought_success', {
+        balance: newBalance,
+        boughtIds: cartelaIds
+      });
+
       io.to(roomName).emit('cartelas_locked', {
         takenIds: Array.from(room.takenCartelas.keys()),
         totalTaken: room.takenCartelas.size,
@@ -254,7 +273,11 @@ io.on('connection', (socket) => {
         const updatedBalance = await DB.updateBalance(player.dbId, prize, 'WIN', roomName);
         player.balance = updatedBalance;
         socket.emit('balance_updated', { balance: updatedBalance });
-        endGame(roomName, { username: player.username, cartelaId, prize }, `🎉 ቢንጎ! ${player.username} በካርቴላ #${cartelaId} ${prize} ETB አሸነፈ!`);
+        endGame(
+          roomName,
+          { username: player.username, cartelaId, prize },
+          `🎉 ቢንጎ! ${player.username} በካርቴላ #${cartelaId} ${prize} ETB አሸነፈ!`
+        );
       } catch (dbErr) {}
     } else {
       socket.emit('error_message', 'ቢንጎ አልተሟላም! እባክዎን መስመሩን ያረጋግጡ።');
@@ -314,7 +337,6 @@ app.post('/api/payment/initialize', async (req, res) => {
     if (chapaData.status === 'success' && chapaData.data?.checkout_url) {
       res.json({ success: true, checkoutUrl: chapaData.data.checkout_url, txRef });
     } else {
-      // Fallback for Test Mode
       res.json({
         success: true,
         checkoutUrl: chapaData.data?.checkout_url || null,
@@ -340,7 +362,6 @@ app.post('/api/payment/webhook', async (req, res) => {
       const credited = await DB.recordDeposit(user.id, amount, txRef);
 
       if (credited) {
-        // Notify user via active socket
         for (const [sockId, pInfo] of activeSockets.entries()) {
           if (pInfo.dbId === user.id) {
             pInfo.balance += amount;
@@ -356,7 +377,7 @@ app.post('/api/payment/webhook', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// 3. User Withdrawal Request
+// 3. User Withdrawal Request (FIXED: Exact Balance Return & Socket Sync)
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber } = req.body;
   if (!amount || amount < 50) {
@@ -369,7 +390,7 @@ app.post('/api/payment/withdraw', async (req, res) => {
   try {
     const result = await DB.requestWithdrawal(userId, parseFloat(amount), phoneNumber);
     
-    // Update live socket balance
+    // Update active socket balance in memory
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = result.remainingBalance;
@@ -377,13 +398,18 @@ app.post('/api/payment/withdraw', async (req, res) => {
       }
     }
 
-    res.json({ success: true, message: 'የማውጣት ጥያቄዎ በተሳካ ሁኔታ ተልኳል! በቴሌብር ይላክሎታል።', txRef: result.txRef });
+    res.json({ 
+      success: true, 
+      message: 'የማውጣት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!', 
+      txRef: result.txRef,
+      remainingBalance: result.remainingBalance 
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// ==================== ADMIN WITHDRAWAL APIS ====================
+// ==================== ADMIN WITHDRAWAL APIS & SECURITY ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -392,11 +418,44 @@ async function adminAuth(req, res, next) {
   return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
 
+app.get('/api/bot-info', (req, res) => {
+  res.json({ botUsername: detectedBotUsername });
+});
+
 app.post('/api/admin/verify-pin', async (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const attempt = failedPinAttempts.get(ip) || { count: 0, lockUntil: 0 };
+
+  if (attempt.lockUntil > now) {
+    const remMins = Math.ceil((attempt.lockUntil - now) / 60000);
+    return res.status(429).json({ success: false, error: `🚨 አካውንቱ ተቆልፏል! ከ ${remMins} ደቂቃ በኋላ ይሞክሩ።` });
+  }
+
   const { pin } = req.body;
   const isValid = await DB.verifyAdminPin(pin);
-  if (isValid) return res.json({ success: true, message: 'Authenticated' });
-  return res.status(401).json({ success: false, error: 'የተሳሳተ ፒን ቁጥር ነው!' });
+
+  if (isValid) {
+    failedPinAttempts.delete(ip);
+    return res.json({ success: true, message: 'Authenticated' });
+  } else {
+    attempt.count++;
+    if (attempt.count >= 5) attempt.lockUntil = now + 5 * 60 * 1000;
+    failedPinAttempts.set(ip, attempt);
+    const left = 5 - attempt.count;
+    return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
+  }
+});
+
+app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
+  const { oldPin, newPin } = req.body;
+  if (!newPin || newPin.length < 4) return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
+  try {
+    await DB.changeAdminPin(oldPin, newPin);
+    res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.get('/api/admin/pending-withdrawals', adminAuth, async (req, res) => {
@@ -466,6 +525,13 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
     await DB.toggleBanUser(userId);
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === userId) {
+        io.to(sockId).emit('error_message', '❌ አካውንትዎ በአድሚን ታግዷል!');
+        const s = io.sockets.sockets.get(sockId);
+        if (s) s.disconnect();
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
