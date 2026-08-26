@@ -673,9 +673,10 @@
       document.getElementById('withdraw-phone-input').placeholder = method === 'TELEBIRR' ? 'የቴሌብር ስልክ ቁጥር (09...)' : 'የ CBE Birr ስልክ ወይም የባንክ አካውንት';
     }
 
+    // ==================== 100% RELIABLE DEPOSIT & CASHOUT ====================
     async function depositMoney(amount) {
       SoundFX.pop();
-      showModal("ክፍያ እየተዘጋጀ ነው...", `ወደ ${userState.selectedMethod === 'TELEBIRR' ? 'ቴሌብር' : 'CBE'} ክፍያ ገጽ እየወሰደዎት ነው...`, "⏳");
+      showModal("ክፍያ እየተዘጋጀ ነው...", `ወደ ቻፓ የ ${userState.selectedMethod === 'TELEBIRR' ? 'ቴሌብር' : 'CBE'} ክፍያ ገጽ እየወሰደዎት ነው...`, "⏳");
       
       try {
         const res = await fetch('/api/payment/initialize', {
@@ -693,20 +694,18 @@
         closeModal();
 
         if (data.checkoutUrl) {
-          if (tg && tg.openLink) {
-            tg.openLink(data.checkoutUrl);
+          // Open Chapa Checkout reliably on all devices & Telegram WebApp
+          if (window.Telegram?.WebApp?.openLink) {
+            window.Telegram.WebApp.openLink(data.checkoutUrl);
           } else {
-            window.open(data.checkoutUrl, '_blank');
+            window.location.href = data.checkoutUrl;
           }
         } else {
-          userState.coins += amount;
-          updateCoinsDisplay();
-          SoundFX.win();
-          showModal("ሒሳብ ተሞልቷል", `${amount} ETB በተሳካ ሁኔታ ተሞልቷል!`, "✅");
+          alert("ማሳሰቢያ: " + (data.error || "የክፍያ ገጹን መክፈት አልተቻለም!"));
         }
       } catch (err) {
         closeModal();
-        alert("የክፍያ ገጹን መክፈት አልተቻለም!");
+        alert("የክፍያ ሲስተም ግንኙነት ችግር!");
       }
     }
 
@@ -722,7 +721,7 @@
         return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
       }
       if (amount > userState.coins) {
-        return alert("በቂ ሒሳብ የለዎትም!");
+        return alert(`በቂ ሒሳብ የለዎትም! የእርስዎ አጠቃላይ ሒሳብ ${userState.coins} ETB ነው።`);
       }
 
       SoundFX.pop();
