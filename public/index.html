@@ -114,6 +114,17 @@
     .method-pill { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 10px; text-align: center; font-weight: bold; font-size: 12px; cursor: pointer; }
     .method-pill.active { background: #7928ca; border-color: var(--accent-cyan); color: #fff; }
 
+    .payment-instruction-box { background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+    .account-highlight { font-size: 14px; font-weight: bold; color: var(--accent-gold); margin: 4px 0; }
+
+    /* Transactions History Table */
+    .tx-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+    .tx-table th, .tx-table td { padding: 6px 4px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .tx-badge { padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
+    .tx-pending { background: rgba(241, 196, 15, 0.2); color: #f1c40f; }
+    .tx-completed { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
+    .tx-rejected { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+
     /* Nav */
     .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: rgba(12, 8, 29, 0.96); backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); justify-content: space-around; align-items: center; z-index: 999; }
     body.with-nav .bottom-nav { display: flex; }
@@ -378,18 +389,18 @@
     <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">በጨዋታው ውስጥ ያሸነፉ እውነተኛ ተጫዋቾች ዝርዝር</p>
 
     <div id="real-leaderboard-container">
-      <p style="text-align: center; color: #8e8aa8; font-size: 12px; padding: 20px;">እስካሁን ምንም አሸናፊ የለም! የመጀመሪያው አሸናፊ ይሁኑ 🌟</p>
+      <p style="text-align: center; color: #8e8aa8; font-size: 12px; padding: 20px;">እስካሁን የተመዘገበ አሸናፊ የለም! የመጀመሪያው አሸናፊ ይሁኑ 🌟</p>
     </div>
   </div>
 
-  <!-- VIEW 8: REAL WALLET (TELEBIRR & CBE BIRR) -->
+  <!-- VIEW 8: WALLET WITH TELEBIRR & CBE MANUAL DETAILS -->
   <div id="screen-wallet" class="view-screen">
     <h3 style="color: var(--accent-gold); margin-bottom: 2px;" data-i18n="wallet_title">🪙 የሂሳብ ቦርሳ (Wallet)</h3>
-    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና ሲቢኢ ብር</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና ሲቢኢ ብር</p>
 
-    <div style="background: rgba(255,215,0,0.1); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 14px; text-align: center; margin-bottom: 14px;">
+    <div style="background: rgba(255,215,0,0.1); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 12px; text-align: center; margin-bottom: 12px;">
       <span style="font-size: 11px; color: var(--text-muted);" data-i18n="total_bal">አጠቃላይ ቀሪ ሒሳብ</span>
-      <h2 style="font-size: 28px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">10</span> ETB</h2>
+      <h2 style="font-size: 26px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">10</span> ETB</h2>
     </div>
 
     <!-- WALLET METHOD TOGGLE -->
@@ -398,22 +409,47 @@
       <div class="method-pill" id="pill-cbe" onclick="selectPaymentMethod('CBE_BIRR')">🟣 CBE Birr</div>
     </div>
 
-    <!-- DEPOSIT SECTION -->
-    <h4 style="margin-bottom: 6px; font-size: 13px;" id="deposit-header-lbl">ሒሳብ ሙላ (Deposit via Telebirr)</h4>
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px;">
-      <button class="btn btn-primary" onclick="depositMoney(50)">+50 ETB</button>
-      <button class="btn btn-primary" onclick="depositMoney(100)">+100 ETB</button>
-      <button class="btn btn-primary" onclick="depositMoney(250)">+250 ETB</button>
-      <button class="btn btn-primary" onclick="depositMoney(500)">+500 ETB</button>
-      <button class="btn btn-primary" onclick="depositMoney(1000)">+1,000 ETB</button>
-      <button class="btn btn-gold" onclick="depositMoney(2000)">+2,000 ETB</button>
+    <!-- DEPOSIT SECTION WITH DIRECT TRANSFER INFO -->
+    <div class="payment-instruction-box">
+      <span style="font-size: 11px; color: #ffd700; font-weight: bold;">📥 ብር ለማስገባት (Deposit Instructions):</span>
+      <p style="font-size: 11px; color: #dcdde1; margin-top: 4px;">
+        1. ብሩን ወደሚከተለው <span id="deposit-channel-name">ቴሌብር</span> ቁጥር ይላኩ፡
+      </p>
+      <div class="account-highlight">📱 <span id="deposit-account-num">0997575739</span> (Ephrem Shitu)</div>
+      <p style="font-size: 10.5px; color: var(--text-muted);">
+        2. ልከው ሲጨርሱ በ SMS የደረሶትን <b style="color:#00ffcc;">የትራንዛክሽን ቁጥር (Txn ID)</b> ከታች ሞልተው ይላኩ።
+      </p>
     </div>
 
-    <!-- CASHOUT SECTION (PHONE + AMOUNT INPUTS) -->
-    <h4 style="margin-top: 10px; margin-bottom: 6px; font-size: 13px;" id="cashout-header-lbl">ብር አውጣ (Cashout to Telebirr)</h4>
-    <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት ቁጥር" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 12px;">
-    <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 12px;">
-    <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="submitWithdrawal()" data-i18n="btn_cashout">ብር አውጣ (REQUEST CASHOUT)</button>
+    <!-- DEPOSIT SUBMISSION FORM -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; margin-bottom: 14px;">
+      <h5 style="margin-bottom: 6px; font-size: 11.5px; color: var(--accent-cyan);">የላኩበትን መረጃ ያስገቡ (Submit Deposit):</h5>
+      <input type="tel" id="deposit-phone-input" placeholder="የላኩበት ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
+      <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ለምሳሌ 100 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
+      <input type="text" id="deposit-ref-input" placeholder="የትራንዛክሽን መለያ ቁጥር (Txn ID/Ref)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
+      <button class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 12px;" onclick="submitDepositRequest()">📥 የማስገቢያ ጥያቄ ላክ (SUBMIT DEPOSIT)</button>
+    </div>
+
+    <!-- CASHOUT SECTION -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; margin-bottom: 14px;">
+      <h5 style="margin-bottom: 6px; font-size: 11.5px; color: var(--accent-green);" id="cashout-header-lbl">ብር አውጣ (Cashout to Telebirr):</h5>
+      <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
+      <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
+      <button class="btn btn-success" style="width: 100%; padding: 10px; font-size: 12px;" onclick="submitWithdrawal()" data-i18n="btn_cashout">ብር አውጣ (REQUEST CASHOUT)</button>
+    </div>
+
+    <!-- RECENT USER TRANSACTIONS TABLE -->
+    <h5 style="margin-bottom: 4px; font-size: 12px; color: #8e8aa8;">የቅርብ ጊዜ ዝውውሮች (My Transactions):</h5>
+    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 6px; max-height: 150px; overflow-y: auto;">
+      <table class="tx-table">
+        <thead>
+          <tr><th>አይነት</th><th>መጠን</th><th>ሁኔታ</th><th>ቀን</th></tr>
+        </thead>
+        <tbody id="my-tx-body">
+          <tr><td colspan="4" style="text-align: center; color: #8e8aa8;">ምንም ዝውውር የለም</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- BOTTOM NAV -->
@@ -525,7 +561,6 @@
       }
     };
 
-    // User starts with strictly 10.0 ETB starter balance
     let userState = { dbId: 1, name: "Player", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR' };
     
     let selectionState = {
@@ -600,6 +635,9 @@
       if (screenName === 'leaderboard') {
         fetchRealLeaderboard();
       }
+      if (screenName === 'wallet') {
+        fetchMyTransactions();
+      }
     }
 
     function showScreen(screenId) {
@@ -648,7 +686,6 @@
       switchNav('dashboard');
     });
 
-    // BAN ENFORCEMENT
     socket.on('account_banned', ({ message }) => {
       document.getElementById('banned-overlay').style.display = 'flex';
       SoundFX.error();
@@ -660,52 +697,62 @@
       document.getElementById('wallet-balance').innerText = userState.coins;
     }
 
-    // ==================== PAYMENT METHODS SELECTION ====================
+    // ==================== MANUAL VERIFIED PAYMENT METHODS ====================
     function selectPaymentMethod(method) {
       SoundFX.pop();
       userState.selectedMethod = method;
       document.getElementById('pill-telebirr').classList.toggle('active', method === 'TELEBIRR');
       document.getElementById('pill-cbe').classList.toggle('active', method === 'CBE_BIRR');
       
-      const name = method === 'TELEBIRR' ? 'Telebirr' : 'CBE Birr';
-      document.getElementById('deposit-header-lbl').innerText = `ሒሳብ ሙላ (Deposit via ${name})`;
-      document.getElementById('cashout-header-lbl').innerText = `ብር አውጣ (Cashout to ${name})`;
+      const name = method === 'TELEBIRR' ? 'ቴሌብር' : 'CBE Birr';
+      document.getElementById('deposit-channel-name').innerText = name;
+      document.getElementById('cashout-header-lbl').innerText = `ብር አውጣ (Cashout to ${name}):`;
       document.getElementById('withdraw-phone-input').placeholder = method === 'TELEBIRR' ? 'የቴሌብር ስልክ ቁጥር (09...)' : 'የ CBE Birr ስልክ ወይም የባንክ አካውንት';
     }
 
-    // ==================== 100% RELIABLE DEPOSIT & CASHOUT ====================
-    async function depositMoney(amount) {
+    async function submitDepositRequest() {
+      const phone = document.getElementById('deposit-phone-input').value.trim();
+      const amountStr = document.getElementById('deposit-amount-input').value.trim();
+      const txRef = document.getElementById('deposit-ref-input').value.trim();
+      const amount = parseFloat(amountStr);
+
+      if (!phone || phone.length < 9) {
+        return alert("እባክዎን የላኩበትን ትክክለኛ ስልክ ቁጥር ያስገቡ!");
+      }
+      if (!amount || isNaN(amount) || amount < 10) {
+        return alert("ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!");
+      }
+      if (!txRef || txRef.length < 4) {
+        return alert("እባክዎን ከቴሌብር/ሲቢኢ በ SMS የደረሶትን የትራንዛክሽን ቁጥር (Txn ID/Ref) ያስገቡ!");
+      }
+
       SoundFX.pop();
-      showModal("ክፍያ እየተዘጋጀ ነው...", `ወደ ቻፓ የ ${userState.selectedMethod === 'TELEBIRR' ? 'ቴሌብር' : 'CBE'} ክፍያ ገጽ እየወሰደዎት ነው...`, "⏳");
-      
       try {
-        const res = await fetch('/api/payment/initialize', {
+        const res = await fetch('/api/payment/deposit-request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            userId: userState.dbId || 1,
             amount,
-            telegramId: userState.name.replace('@', ''),
-            username: userState.name,
+            phoneNumber: phone,
+            txRef: txRef,
             method: userState.selectedMethod
           })
         });
 
         const data = await res.json();
-        closeModal();
-
-        if (data.checkoutUrl) {
-          // Open Chapa Checkout reliably on all devices & Telegram WebApp
-          if (window.Telegram?.WebApp?.openLink) {
-            window.Telegram.WebApp.openLink(data.checkoutUrl);
-          } else {
-            window.location.href = data.checkoutUrl;
-          }
+        if (res.ok && data.success) {
+          SoundFX.win();
+          showModal("ጥያቄዎ ተልኳል! ⏳", `የ ${amount} ETB ማስገቢያ ጥያቄዎ ደርሶናል! አድሚኑ እንደተመለከተው ወዲያውኑ ገቢ ይደረጋል።`, "✅");
+          document.getElementById('deposit-phone-input').value = '';
+          document.getElementById('deposit-amount-input').value = '';
+          document.getElementById('deposit-ref-input').value = '';
+          fetchMyTransactions();
         } else {
-          alert("ማሳሰቢያ: " + (data.error || "የክፍያ ገጹን መክፈት አልተቻለም!"));
+          alert(data.error || "ጥያቄው አልተሳካም!");
         }
-      } catch (err) {
-        closeModal();
-        alert("የክፍያ ሲስተም ግንኙነት ችግር!");
+      } catch (e) {
+        alert("የሰርቨር ግንኙነት ችግር!");
       }
     }
 
@@ -747,6 +794,7 @@
           showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በአጭር ደቂቃ ወደ ${phone} ይላክሎታል።`, "⚡");
           document.getElementById('withdraw-phone-input').value = '';
           document.getElementById('withdraw-amount-input').value = '';
+          fetchMyTransactions();
         } else {
           alert(data.error || "ጥያቄው አልተሳካም!");
         }
@@ -755,7 +803,32 @@
       }
     }
 
-    // ==================== REAL LEADERBOARD FETCH ====================
+    async function fetchMyTransactions() {
+      const tbody = document.getElementById('my-tx-body');
+      try {
+        const res = await fetch(`/api/payment/my-transactions?userId=${userState.dbId || 1}`);
+        const data = await res.json();
+
+        if (data.transactions && data.transactions.length > 0) {
+          tbody.innerHTML = data.transactions.map(t => {
+            const badgeClass = t.status === 'PENDING' ? 'tx-pending' : t.status === 'COMPLETED' ? 'tx-completed' : 'tx-rejected';
+            const badgeText = t.status === 'PENDING' ? '⏳ በመጠባበቅ ላይ' : t.status === 'COMPLETED' ? '✅ ተጠናቋል' : '❌ ውድቅ ሆኗል';
+            const typeText = t.type === 'DEPOSIT' ? '📥 ማስገባት' : '📤 ማውጣት';
+            return `
+              <tr>
+                <td><b>${typeText}</b></td>
+                <td><b style="color:#ffd700;">${Math.abs(t.amount)} ETB</b></td>
+                <td><span class="tx-badge ${badgeClass}">${badgeText}</span></td>
+                <td><small style="color:#8e8aa8;">${new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</small></td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #8e8aa8;">ምንም ዝውውር የለም</td></tr>`;
+        }
+      } catch (e) {}
+    }
+
     async function fetchRealLeaderboard() {
       const container = document.getElementById('real-leaderboard-container');
       try {

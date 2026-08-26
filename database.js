@@ -14,7 +14,7 @@ function hashPassword(password, salt) {
 }
 
 db.serialize(() => {
-  // Users Table (Default balance = EXACTLY 10.0 ETB)
+  // Users Table
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,9 +37,9 @@ db.serialize(() => {
       type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
       amount REAL,
       status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
-      reference TEXT UNIQUE,
+      reference TEXT,
       phone_number TEXT,
-      payment_method TEXT DEFAULT 'TELEBIRR', -- 'TELEBIRR' or 'CBE_BIRR'
+      payment_method TEXT DEFAULT 'TELEBIRR',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
@@ -88,7 +88,6 @@ const DB = {
         if (err) return reject(err);
         if (row) return resolve(row);
 
-        // Welcome Bonus: 10.0 ETB ONLY
         const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned) VALUES (?, ?, ?, 10.0, 0)');
         stmt.run(telegramId, username || 'Player', firstName || 'User', function (insertErr) {
           if (insertErr) return reject(insertErr);
@@ -129,27 +128,21 @@ const DB = {
     });
   },
 
-  recordDeposit: (userId, amount, txRef, paymentMethod = 'TELEBIRR') => {
+  // 1. Submit Deposit Request (Status: PENDING)
+  requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT * FROM transactions WHERE reference = ?', [txRef], (err, tx) => {
-          if (tx) { db.run('ROLLBACK'); return resolve(false); }
-
-          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, userId], (upErr) => {
-            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run('INSERT INTO transactions (user_id, type, amount, status, reference, payment_method) VALUES (?, ?, ?, ?, ?, ?)',
-              [userId, 'DEPOSIT', amount, 'COMPLETED', txRef, paymentMethod], (inErr) => {
-                if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
-                db.run('COMMIT');
-                resolve(true);
-              });
-          });
-        });
-      });
+      db.run(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [userId, 'DEPOSIT', amount, 'PENDING', txRef, phoneNumber, paymentMethod],
+        function (err) {
+          if (err) return reject(err);
+          resolve({ success: true, txId: this.lastID });
+        }
+      );
     });
   },
 
+  // 2. Submit Withdrawal Request (Status: PENDING)
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -177,6 +170,66 @@ const DB = {
     });
   },
 
+  // Get User's Personal Transactions History
+  getUserTransactions: (userId) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW") ORDER BY id DESC LIMIT 15',
+        [userId],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        }
+      );
+    });
+  },
+
+  // Admin Pending Deposits
+  getPendingDeposits: () => {
+    return new Promise((resolve, reject) => {
+      db.all(`
+        SELECT t.*, u.username, u.telegram_id 
+        FROM transactions t 
+        JOIN users u ON t.user_id = u.id 
+        WHERE t.type = 'DEPOSIT' AND t.status = 'PENDING' 
+        ORDER BY t.id DESC
+      `, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+  },
+
+  approveDeposit: (txId) => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING" AND type = "DEPOSIT"', [txId], (err, tx) => {
+          if (err || !tx) { db.run('ROLLBACK'); return reject(err || new Error('Transaction not found')); }
+
+          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [tx.amount, tx.user_id], (upErr) => {
+            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
+            db.run("UPDATE transactions SET status = 'COMPLETED' WHERE id = ?", [txId], (inErr) => {
+              if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
+              db.run('COMMIT');
+              resolve({ success: true, userId: tx.user_id, amount: tx.amount });
+            });
+          });
+        });
+      });
+    });
+  },
+
+  rejectDeposit: (txId) => {
+    return new Promise((resolve, reject) => {
+      db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ? AND status = 'PENDING'", [txId], function (err) {
+        if (err) return reject(err);
+        resolve(this.changes > 0);
+      });
+    });
+  },
+
+  // Admin Pending Withdrawals
   getPendingWithdrawals: () => {
     return new Promise((resolve, reject) => {
       db.all(`
@@ -235,7 +288,6 @@ const DB = {
     });
   },
 
-  // ===== REAL LEADERBOARD FROM ACTUAL WINS =====
   getRealLeaderboard: () => {
     return new Promise((resolve, reject) => {
       db.all(`
