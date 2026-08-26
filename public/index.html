@@ -803,16 +803,28 @@
       }
     }
 
+    // Realtime Transactions Table Renderer
     async function fetchMyTransactions() {
       const tbody = document.getElementById('my-tx-body');
+      if (!tbody) return;
+
       try {
         const res = await fetch(`/api/payment/my-transactions?userId=${userState.dbId || 1}`);
         const data = await res.json();
 
         if (data.transactions && data.transactions.length > 0) {
           tbody.innerHTML = data.transactions.map(t => {
-            const badgeClass = t.status === 'PENDING' ? 'tx-pending' : t.status === 'COMPLETED' ? 'tx-completed' : 'tx-rejected';
-            const badgeText = t.status === 'PENDING' ? '⏳ በመጠባበቅ ላይ' : t.status === 'COMPLETED' ? '✅ ተጠናቋል' : '❌ ውድቅ ሆኗል';
+            let badgeClass = 'tx-pending';
+            let badgeText = '⏳ በመጠባበቅ ላይ';
+
+            if (t.status === 'COMPLETED') {
+              badgeClass = 'tx-completed';
+              badgeText = '✅ ተጠናቋል (ገብቷል)';
+            } else if (t.status === 'REJECTED') {
+              badgeClass = 'tx-rejected';
+              badgeText = '❌ ውድቅ ሆኗል';
+            }
+
             const typeText = t.type === 'DEPOSIT' ? '📥 ማስገባት' : '📤 ማውጣት';
             return `
               <tr>
@@ -828,6 +840,14 @@
         }
       } catch (e) {}
     }
+
+    // ተጫዋቹ ዋሌት ገጽ ላይ እያለ በየ 3 ሰከንዱ ራሱ ሰንጠረዡን እንዲያድስ
+    setInterval(() => {
+      const walletScreen = document.getElementById('screen-wallet');
+      if (walletScreen && walletScreen.classList.contains('active')) {
+        fetchMyTransactions();
+      }
+    }, 3000);
 
     async function fetchRealLeaderboard() {
       const container = document.getElementById('real-leaderboard-container');
@@ -1052,6 +1072,19 @@
 
       if (gameState.autoDaub) executeAutoDaub();
       checkNearWinStatus();
+    });
+
+    // Realtime Deposit Approval Listener
+    socket.on('deposit_approved', (data) => {
+      SoundFX.win();
+      showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
+      fetchMyTransactions(); // ሁኔታውን ወዲያውኑ ወደ "✅ ተጠናቋል" ይቀይረዋል
+    });
+
+    socket.on('balance_updated', ({ balance }) => {
+      userState.coins = balance;
+      updateCoinsDisplay();
+      fetchMyTransactions(); // ሰንጠረዡን በሪል-ታይም ያድሳል
     });
 
     function updateRecentCallsStrip(callText) {

@@ -435,13 +435,20 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.approveDeposit(txId);
+    
+    // ለተጫዋቹ በሪል-ታይም ባላንሱንና የድል መልእክቱን ይልካል
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance += result.amount;
         io.to(sockId).emit('balance_updated', { balance: pInfo.balance });
-        io.to(sockId).emit('error_message', `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል!`);
+        io.to(sockId).emit('deposit_approved', {
+          txId: txId,
+          amount: result.amount,
+          message: `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!`
+        });
       }
     }
+
     res.json({ success: true, message: 'ማስገቢያው ጸድቋል፤ ለተጫዋቹ ገቢ ተደርጓል!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
