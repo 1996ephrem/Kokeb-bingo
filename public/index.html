@@ -800,20 +800,20 @@
     function authenticateUser() {
       SoundFX.pop();
       haptic('medium');
+      
+      // Stable Device ID for testing / persistent login
+      let deviceId = localStorage.getItem('kokeb_device_id');
+      if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('kokeb_device_id', deviceId);
+      }
+
       socket.emit('auth_user', { 
         username: userState.name,
-        initData: tg?.initData || ''
+        initData: tg?.initData || '',
+        deviceId: deviceId
       });
     }
-
-    socket.on('auth_success', (userData) => {
-      userState.dbId = userData.id;
-      userState.coins = userData.balance;
-      if (userData.botUsername) userState.botUsername = userData.botUsername;
-      updateCoinsDisplay();
-      switchNav('dashboard');
-    });
-
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins;
       document.getElementById('cartela-coins').innerText = userState.coins;

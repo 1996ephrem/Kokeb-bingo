@@ -14,33 +14,37 @@ function hashPassword(password, salt) {
 }
 
 db.serialize(() => {
-  // Users Table
+  // Users Table (Default balance = 10.0 ETB)
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id TEXT UNIQUE,
       username TEXT,
       first_name TEXT,
-      balance REAL DEFAULT 100.0,
+      balance REAL DEFAULT 10.0,
       is_banned INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0", () => {});
 
   // Transactions Ledger
   db.run(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
+      type TEXT,
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
+      status TEXT DEFAULT 'COMPLETED',
       reference TEXT UNIQUE,
       phone_number TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
   `);
+
+  db.run("ALTER TABLE transactions ADD COLUMN phone_number TEXT", () => {});
 
   // Game Rounds History
   db.run(`
@@ -82,8 +86,9 @@ const DB = {
         if (err) return reject(err);
         if (row) return resolve(row);
 
-        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance) VALUES (?, ?, ?, ?)');
-        stmt.run(telegramId, username || 'Player', firstName || 'User', 100.0, function (insertErr) {
+        // Welcome Bonus: EXACTLY 10.0 ETB
+        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned) VALUES (?, ?, ?, ?, 0)');
+        stmt.run(telegramId, username || 'Player', firstName || 'User', 10.0, function (insertErr) {
           if (insertErr) return reject(insertErr);
           db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
             if (fetchErr) return reject(fetchErr);
@@ -100,7 +105,7 @@ const DB = {
         db.run('BEGIN TRANSACTION');
         db.get('SELECT balance, is_banned FROM users WHERE id = ?', [userId], (err, user) => {
           if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
-          if (user.is_banned) { db.run('ROLLBACK'); return reject(new Error('User is banned')); }
+          if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
 
           const newBalance = user.balance + amountChange;
           if (newBalance < 0) { db.run('ROLLBACK'); return reject(new Error('Insufficient balance')); }
@@ -122,16 +127,12 @@ const DB = {
     });
   },
 
-  // Record Deposit Transaction
   recordDeposit: (userId, amount, txRef) => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
         db.get('SELECT * FROM transactions WHERE reference = ?', [txRef], (err, tx) => {
-          if (tx) {
-            db.run('ROLLBACK');
-            return resolve(false); // Already processed
-          }
+          if (tx) { db.run('ROLLBACK'); return resolve(false); }
 
           db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, userId], (upErr) => {
             if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
@@ -147,14 +148,14 @@ const DB = {
     });
   },
 
-  // Request Withdrawal (Cashout)
   requestWithdrawal: (userId, amount, phoneNumber) => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        db.get('SELECT balance FROM users WHERE id = ?', [userId], (err, user) => {
+        db.get('SELECT balance, is_banned FROM users WHERE id = ?', [userId], (err, user) => {
           if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
-          if (user.balance < amount) { db.run('ROLLBACK'); return reject(new Error('በቂ ሒሳብ የለዎትም! (Insufficient Balance)')); }
+          if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
+          if (user.balance < amount) { db.run('ROLLBACK'); return reject(new Error('በቂ ሒሳብ የለዎትም!')); }
 
           const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
           db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
@@ -174,7 +175,6 @@ const DB = {
     });
   },
 
-  // Admin Approve / Reject Withdrawal
   getPendingWithdrawals: () => {
     return new Promise((resolve, reject) => {
       db.all(`
@@ -206,7 +206,6 @@ const DB = {
         db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING"', [txId], (err, tx) => {
           if (err || !tx) { db.run('ROLLBACK'); return reject(err || new Error('Transaction not found')); }
 
-          // Refund the balance to user
           db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [Math.abs(tx.amount), tx.user_id], (upErr) => {
             if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
             db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ?", [txId], (inErr) => {
@@ -298,9 +297,7 @@ const DB = {
       db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
         if (err || !row) return reject(new Error('Config not found'));
         const oldHash = hashPassword(oldPin, row.salt);
-        if (oldHash !== row.value) {
-          return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!'));
-        }
+        if (oldHash !== row.value) return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!'));
 
         const newSalt = crypto.randomBytes(16).toString('hex');
         const newHash = hashPassword(newPin, newSalt);

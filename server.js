@@ -18,7 +18,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Exact Bot Username
 let detectedBotUsername = 'Kokeb_Bingo_Bot';
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-your-chapa-key';
 
@@ -50,7 +49,7 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
-// ==================== LOBBY & ENGINE ====================
+// LOBBY & ENGINE
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (room.isPaused) return;
@@ -144,19 +143,16 @@ async function endGame(roomName, winnerData, message) {
   }
 
   io.to(roomName).emit('game_finished', { winner: winnerData, message });
-
-  setTimeout(() => {
-    startRoomLobby(roomName);
-  }, 5000);
+  setTimeout(() => { startRoomLobby(roomName); }, 5000);
 }
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKET EVENTS ====================
+// WEBSOCKET EVENTS
 io.on('connection', (socket) => {
-  socket.on('auth_user', async ({ username, initData }) => {
+  socket.on('auth_user', async ({ username, initData, deviceId }) => {
     try {
-      let telegramId = `demo_${socket.id.substring(0, 5)}`;
+      let telegramId = deviceId || `demo_${socket.id.substring(0, 5)}`;
       let playerName = username || 'Player';
 
       if (initData && process.env.BOT_TOKEN) {
@@ -168,8 +164,12 @@ io.on('connection', (socket) => {
       }
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
-      if (user.is_banned) {
-        return socket.emit('error_message', '❌ የእርስዎ አካውንት ታግዷል! (Your account is banned)');
+      
+      // STRICT BAN CHECK
+      if (user.is_banned === 1) {
+        socket.emit('error_message', '❌ የእርስዎ አካውንት በአድሚን ታግዷል! መጫወት አይችሉም። (Account is Banned)');
+        setTimeout(() => socket.disconnect(true), 1000);
+        return;
       }
 
       activeSockets.set(socket.id, {
@@ -294,8 +294,6 @@ io.on('connection', (socket) => {
 });
 
 // ==================== CHAPA PAYMENT GATEWAY API ====================
-
-// 1. Initialize Deposit (Telebirr / CBE via Chapa)
 app.post('/api/payment/initialize', async (req, res) => {
   const { amount, telegramId, username } = req.body;
   if (!amount || amount < 10) {
@@ -333,7 +331,6 @@ app.post('/api/payment/initialize', async (req, res) => {
     });
 
     const chapaData = await chapaRes.json();
-
     if (chapaData.status === 'success' && chapaData.data?.checkout_url) {
       res.json({ success: true, checkoutUrl: chapaData.data.checkout_url, txRef });
     } else {
@@ -348,7 +345,6 @@ app.post('/api/payment/initialize', async (req, res) => {
   }
 });
 
-// 2. Chapa Automated Webhook (Credits User Instantly)
 app.post('/api/payment/webhook', async (req, res) => {
   const event = req.body;
   if (event && (event.status === 'success' || event.event === 'charge.success')) {
@@ -377,7 +373,7 @@ app.post('/api/payment/webhook', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// 3. User Withdrawal Request (FIXED: Exact Balance Return & Socket Sync)
+// WITHDRAWAL REQUEST
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber } = req.body;
   if (!amount || amount < 50) {
@@ -390,7 +386,6 @@ app.post('/api/payment/withdraw', async (req, res) => {
   try {
     const result = await DB.requestWithdrawal(userId, parseFloat(amount), phoneNumber);
     
-    // Update active socket balance in memory
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = result.remainingBalance;
@@ -521,15 +516,16 @@ app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   }
 });
 
+// REALTIME BAN & FORCE DISCONNECT
 app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
     await DB.toggleBanUser(userId);
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
-        io.to(sockId).emit('error_message', '❌ አካውንትዎ በአድሚን ታግዷል!');
+        io.to(sockId).emit('error_message', '❌ የእርስዎ አካውንት በአድሚን ታግዷል! (Banned)');
         const s = io.sockets.sockets.get(sockId);
-        if (s) s.disconnect();
+        if (s) s.disconnect(true);
       }
     }
     res.json({ success: true });
