@@ -18,8 +18,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Exact Bot Username & Embedded Chapa Test Key
 let detectedBotUsername = 'Kokeb_Bingo_Bot';
-const CHAPA_SECRET_KEY = (process.env.CHAPA_SECRET_KEY || '').trim();
+const CHAPA_SECRET_KEY = (process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-33CrCAcWKvK6R9gm4LDgUFyH7otzEq6f').trim();
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
@@ -49,7 +50,7 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
-// LOBBY & ENGINE
+// ==================== LOBBY & ENGINE ====================
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (room.isPaused) return;
@@ -148,7 +149,7 @@ async function endGame(roomName, winnerData, message) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// WEBSOCKET EVENTS
+// ==================== WEBSOCKET EVENTS ====================
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ username, initData, deviceId }) => {
     try {
@@ -165,6 +166,7 @@ io.on('connection', (socket) => {
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
       
+      // Strict Ban Verification
       if (user.is_banned === 1 || user.is_banned === '1') {
         socket.emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
         setTimeout(() => socket.disconnect(true), 800);
@@ -302,10 +304,12 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// ==================== CHAPA PAYMENT INITIALIZE (FIXED) ====================
+// ==================== CHAPA PAYMENT INITIALIZATION ====================
 app.post('/api/payment/initialize', async (req, res) => {
   const { amount, telegramId, username, method } = req.body;
-  if (!amount || amount < 10) {
+  const depositAmount = parseFloat(amount);
+
+  if (!depositAmount || isNaN(depositAmount) || depositAmount < 10) {
     return res.status(400).json({ error: 'ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!' });
   }
 
@@ -315,22 +319,23 @@ app.post('/api/payment/initialize', async (req, res) => {
   const callbackUrl = `${protocol}://${host}/api/payment/webhook`;
   const returnUrl = `${protocol}://${host}`;
 
-  const cleanUser = (telegramId || 'player').replace(/[^a-zA-Z0-9]/g, '') || 'player';
-
   try {
     const chapaPayload = {
-      amount: amount.toString(),
+      amount: depositAmount.toString(),
       currency: 'ETB',
-      email: `${cleanUser}@kokebbingo.com`,
+      email: 'customer@kokebbingo.com',
       first_name: username || 'Player',
+      last_name: 'Kokeb',
       tx_ref: txRef,
       callback_url: callbackUrl,
       return_url: returnUrl,
       customization: {
         title: `Kokeb Bingo Deposit (${method || 'Telebirr'}) 🌟`,
-        description: `Deposit ${amount} ETB to Kokeb Bingo Wallet`
+        description: `Deposit ${depositAmount} ETB to Kokeb Bingo Wallet`
       }
     };
+
+    console.log('[Sending to Chapa with Key]:', CHAPA_SECRET_KEY.substring(0, 15) + '...');
 
     const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
       method: 'POST',
@@ -342,7 +347,7 @@ app.post('/api/payment/initialize', async (req, res) => {
     });
 
     const chapaData = await chapaRes.json();
-    console.log('[Chapa Init Response]:', chapaData);
+    console.log('[Chapa Response]:', chapaData);
 
     if (chapaData.status === 'success' && chapaData.data?.checkout_url) {
       res.json({ success: true, checkoutUrl: chapaData.data.checkout_url, txRef });
@@ -355,7 +360,7 @@ app.post('/api/payment/initialize', async (req, res) => {
   }
 });
 
-// Chapa Webhook
+// Chapa Webhook & Server-to-Server Direct Verification
 app.post('/api/payment/webhook', async (req, res) => {
   const event = req.body;
   const txRef = event?.tx_ref || event?.data?.tx_ref;
@@ -392,7 +397,7 @@ app.post('/api/payment/webhook', async (req, res) => {
   res.status(200).send('OK');
 });
 
-// WITHDRAWAL REQUEST (WITH EXACT BALANCE CHECK)
+// WITHDRAWAL REQUEST
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber, method } = req.body;
   const withdrawAmount = parseFloat(amount);
