@@ -34,9 +34,9 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
+      type TEXT,
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
+      status TEXT DEFAULT 'COMPLETED',
       reference TEXT,
       phone_number TEXT,
       payment_method TEXT DEFAULT 'TELEBIRR',
@@ -128,6 +128,7 @@ const DB = {
     });
   },
 
+  // 1. Submit Deposit Request
   requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.run(
@@ -141,6 +142,7 @@ const DB = {
     });
   },
 
+  // 2. Submit Withdrawal Request
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -181,12 +183,13 @@ const DB = {
     });
   },
 
+  // FIXED: LEFT JOIN guarantees pending deposits ALWAYS appear on admin
   getPendingDeposits: () => {
     return new Promise((resolve, reject) => {
       db.all(`
-        SELECT t.*, u.username, u.telegram_id 
+        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id 
         FROM transactions t 
-        JOIN users u ON t.user_id = u.id 
+        LEFT JOIN users u ON t.user_id = u.id 
         WHERE t.type = 'DEPOSIT' AND t.status = 'PENDING' 
         ORDER BY t.id DESC
       `, (err, rows) => {
@@ -225,12 +228,13 @@ const DB = {
     });
   },
 
+  // FIXED: LEFT JOIN for pending withdrawals
   getPendingWithdrawals: () => {
     return new Promise((resolve, reject) => {
       db.all(`
-        SELECT t.*, u.username, u.telegram_id, u.balance as current_user_balance 
+        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.balance as current_user_balance 
         FROM transactions t 
-        JOIN users u ON t.user_id = u.id 
+        LEFT JOIN users u ON t.user_id = u.id 
         WHERE t.type = 'WITHDRAW' AND t.status = 'PENDING' 
         ORDER BY t.id DESC
       `, (err, rows) => {
@@ -269,7 +273,6 @@ const DB = {
     });
   },
 
-  // ===== NEW 1: TODAY'S FINANCIAL SUMMARY =====
   getTodayFinancialStats: () => {
     return new Promise((resolve, reject) => {
       const today = new Date().toISOString().split('T')[0];
@@ -306,13 +309,12 @@ const DB = {
     });
   },
 
-  // ===== NEW 2: ALL TRANSACTIONS ARCHIVE WITH SEARCH & FILTER =====
   getTransactionArchive: (type = 'ALL', status = 'ALL', search = '') => {
     return new Promise((resolve, reject) => {
       let query = `
-        SELECT t.*, u.username, u.telegram_id 
+        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id 
         FROM transactions t 
-        JOIN users u ON t.user_id = u.id 
+        LEFT JOIN users u ON t.user_id = u.id 
         WHERE 1=1
       `;
       const params = [];
@@ -333,7 +335,6 @@ const DB = {
     });
   },
 
-  // ===== NEW 3: DETAILED USER PROFILE =====
   getUserDetailedProfile: (userId) => {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {

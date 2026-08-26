@@ -307,8 +307,9 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ==================== PAYMENT APIS ====================
+// 1. Submit Manual Deposit Request (Guaranteed User Match)
 app.post('/api/payment/deposit-request', async (req, res) => {
-  const { userId, amount, phoneNumber, txRef, method } = req.body;
+  const { userId, telegramId, username, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
 
   if (!depositAmount || isNaN(depositAmount) || depositAmount < 10) {
@@ -322,9 +323,18 @@ app.post('/api/payment/deposit-request', async (req, res) => {
   }
 
   try {
-    await DB.requestDeposit(userId, depositAmount, phoneNumber, txRef.trim(), method || 'TELEBIRR');
+    let targetUserId = userId;
+
+    // If userId not found, auto find or create user in DB
+    if (!targetUserId) {
+      const user = await DB.getOrCreateUser(telegramId || username || 'player', username || 'Player', username || 'Player');
+      targetUserId = user.id;
+    }
+
+    await DB.requestDeposit(targetUserId, depositAmount, phoneNumber, txRef.trim(), method || 'TELEBIRR');
     res.json({ success: true, message: 'የማስገቢያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! አድሚኑ እንደተመለከተው ባላንስዎ ይሞላል።' });
   } catch (err) {
+    console.error('Deposit request error:', err);
     res.status(400).json({ error: 'ጥያቄውን መላክ አልተቻለም!' });
   }
 });
