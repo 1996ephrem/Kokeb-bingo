@@ -128,7 +128,6 @@ const DB = {
     });
   },
 
-  // 1. Submit Deposit Request (Status: PENDING)
   requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.run(
@@ -142,7 +141,6 @@ const DB = {
     });
   },
 
-  // 2. Submit Withdrawal Request (Status: PENDING)
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -170,7 +168,6 @@ const DB = {
     });
   },
 
-  // Get User's Personal Transactions History
   getUserTransactions: (userId) => {
     return new Promise((resolve, reject) => {
       db.all(
@@ -184,7 +181,6 @@ const DB = {
     });
   },
 
-  // Admin Pending Deposits
   getPendingDeposits: () => {
     return new Promise((resolve, reject) => {
       db.all(`
@@ -229,7 +225,6 @@ const DB = {
     });
   },
 
-  // Admin Pending Withdrawals
   getPendingWithdrawals: () => {
     return new Promise((resolve, reject) => {
       db.all(`
@@ -267,6 +262,105 @@ const DB = {
               if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
               db.run('COMMIT');
               resolve(true);
+            });
+          });
+        });
+      });
+    });
+  },
+
+  // ===== NEW 1: TODAY'S FINANCIAL SUMMARY =====
+  getTodayFinancialStats: () => {
+    return new Promise((resolve, reject) => {
+      const today = new Date().toISOString().split('T')[0];
+      db.get(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as today_deposits,
+          COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as today_withdrawals
+        FROM transactions 
+        WHERE DATE(created_at) = DATE(?)
+      `, [today], (err, row) => {
+        if (err) return reject(err);
+
+        db.get(`
+          SELECT 
+            COALESCE(SUM(prize_pool), 0) as today_payouts,
+            COUNT(*) as today_rounds
+          FROM game_rounds 
+          WHERE DATE(created_at) = DATE(?)
+        `, [today], (err2, gRow) => {
+          if (err2) return reject(err2);
+          const deposits = row.today_deposits;
+          const payouts = gRow.today_payouts;
+          const estProfit = Math.floor(payouts * 0.111);
+
+          resolve({
+            todayDeposits: deposits,
+            todayWithdrawals: row.today_withdrawals,
+            todayPayouts: payouts,
+            todayRounds: gRow.today_rounds,
+            todayProfit: estProfit
+          });
+        });
+      });
+    });
+  },
+
+  // ===== NEW 2: ALL TRANSACTIONS ARCHIVE WITH SEARCH & FILTER =====
+  getTransactionArchive: (type = 'ALL', status = 'ALL', search = '') => {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT t.*, u.username, u.telegram_id 
+        FROM transactions t 
+        JOIN users u ON t.user_id = u.id 
+        WHERE 1=1
+      `;
+      const params = [];
+
+      if (type !== 'ALL') { query += ` AND t.type = ?`; params.push(type); }
+      if (status !== 'ALL') { query += ` AND t.status = ?`; params.push(status); }
+      if (search) {
+        query += ` AND (u.username LIKE ? OR t.phone_number LIKE ? OR t.reference LIKE ?)`;
+        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      }
+
+      query += ` ORDER BY t.id DESC LIMIT 100`;
+
+      db.all(query, params, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+  },
+
+  // ===== NEW 3: DETAILED USER PROFILE =====
+  getUserDetailedProfile: (userId) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err || !user) return reject(err || new Error('User not found'));
+
+        db.get(`
+          SELECT 
+            COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as total_deposited,
+            COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as total_withdrawn,
+            COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) ELSE 0 END), 0) as total_bet_amount,
+            COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount ELSE 0 END), 0) as total_won_amount
+          FROM transactions 
+          WHERE user_id = ?
+        `, [userId], (err2, stats) => {
+          if (err2) return reject(err2);
+
+          db.get('SELECT COUNT(*) as win_count FROM game_rounds WHERE winner_username = ?', [user.username], (err3, wRow) => {
+            if (err3) return reject(err3);
+            resolve({
+              user,
+              stats: {
+                totalDeposited: stats.total_deposited,
+                totalWithdrawn: stats.total_withdrawn,
+                totalBet: stats.total_bet_amount,
+                totalWon: stats.total_won_amount,
+                winCount: wRow.win_count || 0
+              }
             });
           });
         });

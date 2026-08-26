@@ -19,10 +19,12 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 let detectedBotUsername = 'Kokeb_Bingo_Bot';
+let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 10;
+
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
-// Game Rooms Configuration
+// Game Rooms Configuration (Live Dynamic Config)
 const rooms = {
   Beginner: createRoomState('Beginner', 10, 2500),
   Turbo: createRoomState('Turbo', 25, 1400),
@@ -63,7 +65,8 @@ function startRoomLobby(roomName) {
   io.to(roomName).emit('room_reset', {
     roomName,
     cartelas: room.cartelas,
-    timer: room.timer
+    timer: room.timer,
+    stake: room.stake
   });
 
   if (room.timerInterval) clearInterval(room.timerInterval);
@@ -89,7 +92,7 @@ function startRoomGame(roomName) {
   room.state = 'PLAYING';
 
   const totalPot = room.takenCartelas.size * room.stake;
-  const houseRake = (totalPot * (parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 10)) / 100;
+  const houseRake = (totalPot * globalCommissionPercent) / 100;
   const prizePool = Math.floor(totalPot - houseRake);
 
   io.to(roomName).emit('game_started', {
@@ -199,7 +202,7 @@ io.on('connection', (socket) => {
       cartelas: room.cartelas,
       takenCartelaIds: Array.from(room.takenCartelas.keys()),
       calledNumbers: Array.from(room.calledNumbers),
-      prizePool: Math.floor(room.takenCartelas.size * room.stake * 0.9)
+      prizePool: Math.floor(room.takenCartelas.size * room.stake * ((100 - globalCommissionPercent) / 100))
     });
   });
 
@@ -237,10 +240,13 @@ io.on('connection', (socket) => {
         boughtIds: cartelaIds
       });
 
+      const totalPot = room.takenCartelas.size * room.stake;
+      const prizePool = Math.floor(totalPot * ((100 - globalCommissionPercent) / 100));
+
       io.to(roomName).emit('cartelas_locked', {
         takenIds: Array.from(room.takenCartelas.keys()),
         totalTaken: room.takenCartelas.size,
-        prizePool: Math.floor(room.takenCartelas.size * room.stake * 0.9)
+        prizePool: prizePool
       });
     } catch (err) {
       socket.emit('error_message', err.message || 'ግዢው አልተሳካም');
@@ -265,7 +271,7 @@ io.on('connection', (socket) => {
     const cardGrid = room.cartelas[cartelaId];
     if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
       const totalPot = room.takenCartelas.size * room.stake;
-      const prize = Math.floor(totalPot * 0.9);
+      const prize = Math.floor(totalPot * ((100 - globalCommissionPercent) / 100));
       try {
         const updatedBalance = await DB.updateBalance(player.dbId, prize, 'WIN', roomName);
         player.balance = updatedBalance;
@@ -300,9 +306,7 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// ==================== MANUAL VERIFIED DEPOSITS & CASHOUTS ====================
-
-// 1. Submit Manual Deposit Request
+// ==================== PAYMENT APIS ====================
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -325,7 +329,6 @@ app.post('/api/payment/deposit-request', async (req, res) => {
   }
 });
 
-// 2. Fetch User Transaction History
 app.get('/api/payment/my-transactions', async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json({ transactions: [] });
@@ -337,7 +340,6 @@ app.get('/api/payment/my-transactions', async (req, res) => {
   }
 });
 
-// 3. User Withdrawal Request
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber, method } = req.body;
   const withdrawAmount = parseFloat(amount);
@@ -370,7 +372,7 @@ app.post('/api/payment/withdraw', async (req, res) => {
   }
 });
 
-// ==================== ADMIN WITHDRAWALS & DEPOSITS APIS ====================
+// ==================== ADVANCED ADMIN APIS ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -433,16 +435,13 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.approveDeposit(txId);
-    
-    // Instantly notify player via socket if online!
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance += result.amount;
         io.to(sockId).emit('balance_updated', { balance: pInfo.balance });
-        io.to(sockId).emit('error_message', `🎉 እንኳን ደስ አለዎት! የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቆ ገቢ ሆኗል!`);
+        io.to(sockId).emit('error_message', `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል!`);
       }
     }
-
     res.json({ success: true, message: 'ማስገቢያው ጸድቋል፤ ለተጫዋቹ ገቢ ተደርጓል!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -489,23 +488,58 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
+// Admin Dashboard Overview & Today Stats
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
+    const todayStats = await DB.getTodayFinancialStats();
+    
     stats.onlinePlayers = activeSockets.size;
+    stats.globalCommission = globalCommissionPercent;
     stats.activeRooms = {
-      Beginner: { state: rooms.Beginner.state, cardsSold: rooms.Beginner.takenCartelas.size, speed: rooms.Beginner.callSpeed, isPaused: rooms.Beginner.isPaused },
-      Turbo: { state: rooms.Turbo.state, cardsSold: rooms.Turbo.takenCartelas.size, speed: rooms.Turbo.callSpeed, isPaused: rooms.Turbo.isPaused },
-      VIP: { state: rooms.VIP.state, cardsSold: rooms.VIP.takenCartelas.size, speed: rooms.VIP.callSpeed, isPaused: rooms.VIP.isPaused }
+      Beginner: { stake: rooms.Beginner.stake, state: rooms.Beginner.state, cardsSold: rooms.Beginner.takenCartelas.size, speed: rooms.Beginner.callSpeed, isPaused: rooms.Beginner.isPaused },
+      Turbo: { stake: rooms.Turbo.stake, state: rooms.Turbo.state, cardsSold: rooms.Turbo.takenCartelas.size, speed: rooms.Turbo.callSpeed, isPaused: rooms.Turbo.isPaused },
+      VIP: { stake: rooms.VIP.stake, state: rooms.VIP.state, cardsSold: rooms.VIP.takenCartelas.size, speed: rooms.VIP.callSpeed, isPaused: rooms.VIP.isPaused }
     };
     const users = await DB.getAllUsers(req.query.search);
     const games = await DB.getRecentGames();
     const pendingDeposits = await DB.getPendingDeposits();
     const pendingWithdrawals = await DB.getPendingWithdrawals();
-    res.json({ stats, users, games, pendingDeposits, pendingWithdrawals });
+    res.json({ stats, todayStats, users, games, pendingDeposits, pendingWithdrawals });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Admin Transactions Archive (Search & Filter)
+app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
+  const { type, status, search } = req.query;
+  try {
+    const list = await DB.getTransactionArchive(type, status, search);
+    res.json({ success: true, transactions: list });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin User Detailed Profile
+app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
+  try {
+    const profile = await DB.getUserDetailedProfile(req.params.userId);
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// Admin Update Room Stake & Global Commission Rate
+app.post('/api/admin/update-settings', adminAuth, (req, res) => {
+  const { commission, beginnerStake, turboStake, vipStake } = req.body;
+  if (commission) globalCommissionPercent = parseInt(commission) || 10;
+  if (beginnerStake) rooms.Beginner.stake = parseInt(beginnerStake) || 10;
+  if (turboStake) rooms.Turbo.stake = parseInt(turboStake) || 25;
+  if (vipStake) rooms.VIP.stake = parseInt(vipStake) || 100;
+  res.json({ success: true, message: 'የክፍሎች ዋጋ እና ኮሚሽን በተሳካ ሁኔታ ተቀይሯል!' });
 });
 
 app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
