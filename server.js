@@ -165,10 +165,10 @@ io.on('connection', (socket) => {
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
       
-      // STRICT BAN CHECK
-      if (user.is_banned === 1) {
-        socket.emit('error_message', '❌ የእርስዎ አካውንት በአድሚን ታግዷል! መጫወት አይችሉም። (Account is Banned)');
-        setTimeout(() => socket.disconnect(true), 1000);
+      // 100% STRICT BAN BLOCK
+      if (user.is_banned === 1 || user.is_banned === '1') {
+        socket.emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል! መጫወት አይችሉም።' });
+        setTimeout(() => socket.disconnect(true), 800);
         return;
       }
 
@@ -293,9 +293,19 @@ io.on('connection', (socket) => {
   });
 });
 
-// ==================== CHAPA PAYMENT GATEWAY API ====================
+// ==================== REAL LEADERBOARD API ====================
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const leaders = await DB.getRealLeaderboard();
+    res.json({ success: true, leaders });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== PAYMENT APIS (TELEBIRR & CBE) ====================
 app.post('/api/payment/initialize', async (req, res) => {
-  const { amount, telegramId, username } = req.body;
+  const { amount, telegramId, username, method } = req.body;
   if (!amount || amount < 10) {
     return res.status(400).json({ error: 'ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!' });
   }
@@ -316,7 +326,7 @@ app.post('/api/payment/initialize', async (req, res) => {
       callback_url: callbackUrl,
       return_url: returnUrl,
       customization: {
-        title: 'Kokeb Bingo Deposit 🌟',
+        title: `Kokeb Bingo Deposit (${method || 'Telebirr'}) 🌟`,
         description: `Deposit ${amount} ETB to Kokeb Bingo Wallet`
       }
     };
@@ -375,16 +385,16 @@ app.post('/api/payment/webhook', async (req, res) => {
 
 // WITHDRAWAL REQUEST
 app.post('/api/payment/withdraw', async (req, res) => {
-  const { userId, amount, phoneNumber } = req.body;
+  const { userId, amount, phoneNumber, method } = req.body;
   if (!amount || amount < 50) {
     return res.status(400).json({ error: 'ዝቅተኛው የማውጫ መጠን 50 ETB ነው!' });
   }
   if (!phoneNumber || phoneNumber.length < 9) {
-    return res.status(400).json({ error: 'ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ!' });
+    return res.status(400).json({ error: 'ትክክለኛ የስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!' });
   }
 
   try {
-    const result = await DB.requestWithdrawal(userId, parseFloat(amount), phoneNumber);
+    const result = await DB.requestWithdrawal(userId, parseFloat(amount), phoneNumber, method || 'TELEBIRR');
     
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
@@ -404,7 +414,7 @@ app.post('/api/payment/withdraw', async (req, res) => {
   }
 });
 
-// ==================== ADMIN WITHDRAWAL APIS & SECURITY ====================
+// ==================== ADMIN SECURITY & MANAGEMENT ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -520,15 +530,17 @@ app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
 app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
-    await DB.toggleBanUser(userId);
+    const isBanned = await DB.toggleBanUser(userId);
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
-        io.to(sockId).emit('error_message', '❌ የእርስዎ አካውንት በአድሚን ታግዷል! (Banned)');
-        const s = io.sockets.sockets.get(sockId);
-        if (s) s.disconnect(true);
+        if (isBanned === 1) {
+          io.to(sockId).emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
+          const s = io.sockets.sockets.get(sockId);
+          if (s) s.disconnect(true);
+        }
       }
     }
-    res.json({ success: true });
+    res.json({ success: true, isBanned });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

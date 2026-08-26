@@ -14,7 +14,7 @@ function hashPassword(password, salt) {
 }
 
 db.serialize(() => {
-  // Users Table (Default balance = 10.0 ETB)
+  // Users Table (Default balance = EXACTLY 10.0 ETB)
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,17 +34,19 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT,
+      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED',
+      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
       reference TEXT UNIQUE,
       phone_number TEXT,
+      payment_method TEXT DEFAULT 'TELEBIRR', -- 'TELEBIRR' or 'CBE_BIRR'
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
   `);
 
   db.run("ALTER TABLE transactions ADD COLUMN phone_number TEXT", () => {});
+  db.run("ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'TELEBIRR'", () => {});
 
   // Game Rounds History
   db.run(`
@@ -86,9 +88,9 @@ const DB = {
         if (err) return reject(err);
         if (row) return resolve(row);
 
-        // Welcome Bonus: EXACTLY 10.0 ETB
-        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned) VALUES (?, ?, ?, ?, 0)');
-        stmt.run(telegramId, username || 'Player', firstName || 'User', 10.0, function (insertErr) {
+        // Welcome Bonus: 10.0 ETB ONLY
+        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned) VALUES (?, ?, ?, 10.0, 0)');
+        stmt.run(telegramId, username || 'Player', firstName || 'User', function (insertErr) {
           if (insertErr) return reject(insertErr);
           db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
             if (fetchErr) return reject(fetchErr);
@@ -127,7 +129,7 @@ const DB = {
     });
   },
 
-  recordDeposit: (userId, amount, txRef) => {
+  recordDeposit: (userId, amount, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
@@ -136,8 +138,8 @@ const DB = {
 
           db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, userId], (upErr) => {
             if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run('INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
-              [userId, 'DEPOSIT', amount, 'COMPLETED', txRef], (inErr) => {
+            db.run('INSERT INTO transactions (user_id, type, amount, status, reference, payment_method) VALUES (?, ?, ?, ?, ?, ?)',
+              [userId, 'DEPOSIT', amount, 'COMPLETED', txRef, paymentMethod], (inErr) => {
                 if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
                 db.run('COMMIT');
                 resolve(true);
@@ -148,7 +150,7 @@ const DB = {
     });
   },
 
-  requestWithdrawal: (userId, amount, phoneNumber) => {
+  requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
@@ -161,8 +163,8 @@ const DB = {
           db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
             if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
             db.run(
-              'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, ?, ?, ?, ?, ?)',
-              [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber],
+              'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber, paymentMethod],
               (txErr) => {
                 if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
                 db.run('COMMIT');
@@ -233,6 +235,26 @@ const DB = {
     });
   },
 
+  // ===== REAL LEADERBOARD FROM ACTUAL WINS =====
+  getRealLeaderboard: () => {
+    return new Promise((resolve, reject) => {
+      db.all(`
+        SELECT 
+          winner_username as username, 
+          COUNT(*) as total_wins, 
+          SUM(prize_pool) as total_won 
+        FROM game_rounds 
+        WHERE winner_username IS NOT NULL AND winner_username != ''
+        GROUP BY winner_username 
+        ORDER BY total_won DESC 
+        LIMIT 10
+      `, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+  },
+
   getAdminStats: () => {
     return new Promise((resolve, reject) => {
       const stats = {};
@@ -268,7 +290,9 @@ const DB = {
     return new Promise((resolve, reject) => {
       db.run('UPDATE users SET is_banned = CASE WHEN is_banned = 1 THEN 0 ELSE 1 END WHERE id = ?', [userId], function (err) {
         if (err) return reject(err);
-        resolve(true);
+        db.get('SELECT is_banned FROM users WHERE id = ?', [userId], (gErr, row) => {
+          resolve(row ? row.is_banned : 1);
+        });
       });
     });
   },

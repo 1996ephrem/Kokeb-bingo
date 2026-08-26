@@ -22,79 +22,25 @@
       --text-muted: #8e8aa8;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body {
-      background: var(--bg-gradient);
-      color: #ffffff;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-      font-size: 14px;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+    body { background: var(--bg-gradient); color: #ffffff; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; font-size: 14px; }
     body.with-nav { padding-bottom: 70px; }
 
-    .view-screen {
-      display: none;
-      flex-direction: column;
-      width: 100%;
-      min-height: 100vh;
-      padding: 12px;
-    }
+    .view-screen { display: none; flex-direction: column; width: 100%; min-height: 100vh; padding: 12px; }
     .view-screen.active { display: flex; }
     body.with-nav .view-screen { min-height: calc(100vh - 70px); }
 
     /* Header */
-    .app-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0 10px 0;
-    }
+    .app-header { display: flex; justify-content: space-between; align-items: center; padding: 4px 0 10px 0; }
     .user-profile { display: flex; align-items: center; gap: 8px; }
-    .user-avatar-sm {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: linear-gradient(135deg, #ff007f, #7928ca);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 14px; border: 2px solid var(--accent-gold);
-    }
+    .user-avatar-sm { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #ff007f, #7928ca); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 2px solid var(--accent-gold); }
     .header-actions { display: flex; align-items: center; gap: 6px; }
-    .balance-badge {
-      background: rgba(255, 215, 0, 0.12);
-      border: 1px solid var(--accent-gold);
-      border-radius: 20px; padding: 4px 10px;
-      color: var(--accent-gold); font-weight: 800;
-      font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;
-    }
-    .icon-btn {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: var(--card-bg); border: 1px solid var(--card-border);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: #fff; font-size: 14px;
-    }
-    .lang-pill {
-      background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-border);
-      border-radius: 14px; padding: 4px 8px; font-size: 11px;
-      font-weight: 800; cursor: pointer; color: #fff;
-    }
+    .balance-badge { background: rgba(255, 215, 0, 0.12); border: 1px solid var(--accent-gold); border-radius: 20px; padding: 4px 10px; color: var(--accent-gold); font-weight: 800; font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .icon-btn { width: 32px; height: 32px; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; font-size: 14px; }
+    .lang-pill { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-border); border-radius: 14px; padding: 4px 8px; font-size: 11px; font-weight: 800; cursor: pointer; color: #fff; }
 
     /* Buttons */
-    .btn {
-      padding: 12px 16px; border: none; border-radius: 12px;
-      font-weight: 800; font-size: 13px; color: white;
-      cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-      transition: transform 0.1s; display: flex; align-items: center;
-      justify-content: center; gap: 6px;
-    }
+    .btn { padding: 12px 16px; border: none; border-radius: 12px; font-weight: 800; font-size: 13px; color: white; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); transition: transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .btn:active { transform: scale(0.96); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .btn-primary { background: linear-gradient(135deg, #7928ca 0%, #ff007f 100%); }
@@ -102,90 +48,31 @@
     .btn-gold { background: linear-gradient(135deg, #ffe259 0%, #ffa751 100%); color: #0c081d; }
     .btn-danger { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
 
-    /* Live Ticker */
-    .live-ticker {
-      background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 10px; padding: 6px 10px; display: flex;
-      align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11px;
-      white-space: nowrap; overflow: hidden;
-    }
-    .live-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green);
-      animation: pulse 1.5s infinite; flex-shrink: 0;
-    }
-
     /* Cards */
-    .room-card {
-      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%);
-      border: 1px solid var(--card-border); border-radius: 16px;
-      padding: 14px; display: flex; justify-content: space-between;
-      align-items: center; margin-bottom: 10px;
-    }
+    .room-card { background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid var(--card-border); border-radius: 16px; padding: 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 
     /* Cartela Grid */
-    .timer-banner {
-      background: linear-gradient(135deg, #ff416c 0%, #8a2387 100%);
-      border-radius: 14px; padding: 12px; text-align: center;
-      margin-bottom: 10px; box-shadow: 0 6px 20px rgba(255, 65, 108, 0.3);
-    }
-    .cartelas-grid {
-      display: grid; grid-template-columns: repeat(5, 1fr);
-      gap: 6px; max-height: 52vh; overflow-y: auto; padding-right: 2px;
-    }
-    .cartela-btn {
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px; padding: 8px 4px; display: flex;
-      flex-direction: column; align-items: center; justify-content: center;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .cartela-btn.selected {
-      background: linear-gradient(135deg, #00ff87 0%, #60efff 100%);
-      border-color: #ffffff; box-shadow: 0 0 10px #00ff87; color: #0c081d;
-    }
+    .timer-banner { background: linear-gradient(135deg, #ff416c 0%, #8a2387 100%); border-radius: 14px; padding: 12px; text-align: center; margin-bottom: 10px; box-shadow: 0 6px 20px rgba(255, 65, 108, 0.3); }
+    .cartelas-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 52vh; overflow-y: auto; padding-right: 2px; }
+    .cartela-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .cartela-btn.selected { background: linear-gradient(135deg, #00ff87 0%, #60efff 100%); border-color: #ffffff; box-shadow: 0 0 10px #00ff87; color: #0c081d; }
     .cartela-btn.selected .c-num, .cartela-btn.selected .c-tag { color: #0c081d !important; }
-    .cartela-btn.taken {
-      background: rgba(255,255,255,0.02); opacity: 0.25;
-      border-color: transparent; cursor: not-allowed;
-    }
+    .cartela-btn.taken { background: rgba(255,255,255,0.02); opacity: 0.25; border-color: transparent; cursor: not-allowed; }
 
     /* Arena */
-    .waiting-bar {
-      background: linear-gradient(90deg, #9b51e0, #ff416c);
-      padding: 6px 10px; border-radius: 8px; font-size: 11px;
-      text-align: center; margin-bottom: 6px; font-weight: 800;
-      animation: pulse 1.5s infinite;
-    }
-    .stats-card {
-      width: 100%; background: rgba(18, 13, 38, 0.7);
-      border-radius: 12px; padding: 6px 10px; display: flex;
-      justify-content: space-between; align-items: center;
-      margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, 0.08);
-    }
+    .waiting-bar { background: linear-gradient(90deg, #9b51e0, #ff416c); padding: 6px 10px; border-radius: 8px; font-size: 11px; text-align: center; margin-bottom: 6px; font-weight: 800; animation: pulse 1.5s infinite; }
+    .stats-card { width: 100%; background: rgba(18, 13, 38, 0.7); border-radius: 12px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, 0.08); }
     .stat-item { text-align: center; }
     .stat-label { font-size: 8px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
     .stat-value { font-size: 12px; font-weight: 800; }
 
-    .recent-calls-bar {
-      display: flex; align-items: center; gap: 4px;
-      background: rgba(255,255,255,0.03); padding: 4px 6px;
-      border-radius: 8px; margin-bottom: 6px; overflow-x: auto;
-    }
-    .recent-chip {
-      padding: 2px 6px; border-radius: 6px; font-size: 9px;
-      font-weight: 800; background: #231b42; border: 1px solid rgba(255,255,255,0.1); color: #fff; flex-shrink: 0;
-    }
+    .recent-calls-bar { display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.03); padding: 4px 6px; border-radius: 8px; margin-bottom: 6px; overflow-x: auto; }
+    .recent-chip { padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 800; background: #231b42; border: 1px solid rgba(255,255,255,0.1); color: #fff; flex-shrink: 0; }
 
     .game-layout { display: flex; gap: 6px; flex: 1; position: relative; }
-    .full-board {
-      background: rgba(14, 10, 32, 0.85); border-radius: 10px;
-      padding: 4px; display: flex; gap: 2px; border: 1px solid var(--card-border);
-    }
+    .full-board { background: rgba(14, 10, 32, 0.85); border-radius: 10px; padding: 4px; display: flex; gap: 2px; border: 1px solid var(--card-border); }
     .board-column { display: flex; flex-direction: column; gap: 2px; }
-    .cell {
-      width: 16px; height: 16px; border-radius: 50%; display: flex;
-      align-items: center; justify-content: center; font-size: 7.5px; font-weight: 800;
-    }
+    .cell { width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7.5px; font-weight: 800; }
     .header-cell { color: #fff; }
     .header-b { background: #3498db; }
     .header-i { background: #2ecc71; }
@@ -195,117 +82,68 @@
     .num-cell { background: #ffffff; color: #2c3e50; }
     .num-cell.called { background: var(--accent-green); color: #0c081d; box-shadow: 0 0 6px var(--accent-green); }
 
-    .right-section {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; gap: 6px; max-height: 70vh; overflow-y: auto;
-    }
-    .call-sphere {
-      width: 78px; height: 78px; border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #4a2882 0%, #150d2e 100%);
-      box-shadow: 0 6px 20px rgba(121, 40, 202, 0.5); display: flex;
-      flex-direction: column; justify-content: center; align-items: center;
-      border: 2px solid var(--accent-cyan); flex-shrink: 0;
-    }
+    .right-section { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; max-height: 70vh; overflow-y: auto; }
+    .call-sphere { width: 78px; height: 78px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4a2882 0%, #150d2e 100%); box-shadow: 0 6px 20px rgba(121, 40, 202, 0.5); display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid var(--accent-cyan); flex-shrink: 0; }
     .call-sphere-num { font-size: 20px; font-weight: 900; font-family: monospace; color: var(--accent-cyan); line-height: 1; }
     .call-amharic-label { font-size: 8px; color: var(--accent-gold); font-weight: 800; margin-top: 2px; }
 
-    .player-card {
-      background: rgba(235, 240, 250, 0.95); border-radius: 10px;
-      padding: 4px; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      border: 2px solid transparent; transition: all 0.2s;
-    }
-    .player-card.near-win {
-      border-color: var(--accent-gold); box-shadow: 0 0 14px rgba(255, 215, 0, 0.6);
-      animation: pulse 1s infinite;
-    }
+    .player-card { background: rgba(235, 240, 250, 0.95); border-radius: 10px; padding: 4px; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 2px solid transparent; transition: all 0.2s; }
+    .player-card.near-win { border-color: var(--accent-gold); box-shadow: 0 0 14px rgba(255, 215, 0, 0.6); animation: pulse 1s infinite; }
     .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; color: #111; font-size: 10px; font-weight: 800; }
     .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
     .card-header-cell { height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 8px; }
-    .card-num-cell {
-      background: #ffffff; height: 23px; border-radius: 4px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 9.5px; color: #1a162b; cursor: pointer;
-    }
+    .card-num-cell { background: #ffffff; height: 23px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9.5px; color: #1a162b; cursor: pointer; }
     .card-num-cell.marked { background: linear-gradient(135deg, #7928ca, #ff007f); color: white; }
     .card-num-cell.star { background: #7928ca; color: var(--accent-gold); font-size: 11px; }
 
-    .reaction-bar {
-      display: flex; gap: 6px; background: rgba(255,255,255,0.06);
-      padding: 4px 8px; border-radius: 16px; justify-content: center;
-      border: 1px solid var(--card-border);
-    }
+    .reaction-bar { display: flex; gap: 6px; background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 16px; justify-content: center; border: 1px solid var(--card-border); }
     .reaction-btn { font-size: 16px; cursor: pointer; }
-    .floating-emoji {
-      position: absolute; bottom: 30px; font-size: 24px; pointer-events: none;
-      animation: floatEmoji 2.2s ease-out forwards; z-index: 100;
-    }
-    @keyframes floatEmoji {
-      0% { transform: translateY(0) scale(0.6); opacity: 1; }
-      100% { transform: translateY(-240px) scale(1.3); opacity: 0; }
-    }
+    .floating-emoji { position: absolute; bottom: 30px; font-size: 24px; pointer-events: none; animation: floatEmoji 2.2s ease-out forwards; z-index: 100; }
+    @keyframes floatEmoji { 0% { transform: translateY(0) scale(0.6); opacity: 1; } 100% { transform: translateY(-240px) scale(1.3); opacity: 0; } }
 
     /* Wheel */
-    .wheel-container {
-      position: relative; width: 260px; height: 260px;
-      margin: 10px auto; display: flex; align-items: center; justify-content: center;
-    }
+    .wheel-container { position: relative; width: 260px; height: 260px; margin: 10px auto; display: flex; align-items: center; justify-content: center; }
     #spin-canvas { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 25px rgba(121, 40, 202, 0.6); border: 3px solid var(--accent-gold); }
-    .wheel-pointer {
-      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
-      font-size: 24px; z-index: 10; color: var(--accent-gold);
-    }
+    .wheel-pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: 24px; z-index: 10; color: var(--accent-gold); }
 
     /* Leaderboard */
-    .leader-row {
-      background: rgba(255,255,255,0.04); border: 1px solid var(--card-border);
-      border-radius: 12px; padding: 10px 12px; display: flex;
-      justify-content: space-between; align-items: center; margin-bottom: 8px;
-    }
+    .leader-row { background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    /* Wallet Section Styling */
+    .method-selector { display: flex; gap: 8px; margin-bottom: 12px; }
+    .method-pill { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 10px; text-align: center; font-weight: bold; font-size: 12px; cursor: pointer; }
+    .method-pill.active { background: #7928ca; border-color: var(--accent-cyan); color: #fff; }
 
     /* Nav */
-    .bottom-nav {
-      display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 65px;
-      background: rgba(12, 8, 29, 0.96); backdrop-filter: blur(12px);
-      border-top: 1px solid var(--card-border); justify-content: space-around;
-      align-items: center; z-index: 999;
-    }
+    .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: rgba(12, 8, 29, 0.96); backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); justify-content: space-around; align-items: center; z-index: 999; }
     body.with-nav .bottom-nav { display: flex; }
-    .nav-item {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      color: var(--text-muted); font-size: 10px; font-weight: 700; cursor: pointer;
-    }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-muted); font-size: 10px; font-weight: 700; cursor: pointer; }
     .nav-item.active { color: var(--accent-cyan); }
     .nav-item .nav-icon { font-size: 17px; }
 
-    /* Toggle */
-    .toggle-switch {
-      width: 30px; height: 16px; background: #57606f; border-radius: 10px; position: relative; cursor: pointer;
-    }
+    .toggle-switch { width: 30px; height: 16px; background: #57606f; border-radius: 10px; position: relative; cursor: pointer; }
     .toggle-switch.active { background: var(--accent-green); }
-    .toggle-switch::after {
-      content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: white; border-radius: 50%; transition: 0.2s;
-    }
+    .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: white; border-radius: 50%; transition: 0.2s; }
     .toggle-switch.active::after { transform: translateX(14px); }
 
     /* Modal */
-    .app-modal-overlay {
-      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px);
-      justify-content: center; align-items: center; z-index: 1000; padding: 16px;
-    }
+    .app-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px); justify-content: center; align-items: center; z-index: 1000; padding: 16px; }
     .app-modal-overlay.active { display: flex; }
-    .app-modal-box {
-      background: #191238; border: 1px solid var(--card-border);
-      border-radius: 20px; padding: 22px 18px; text-align: center;
-      max-width: 310px; width: 100%; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-    }
+    .app-modal-box { background: #191238; border: 1px solid var(--card-border); border-radius: 20px; padding: 22px 18px; text-align: center; max-width: 310px; width: 100%; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
 
     @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; filter: brightness(1.2); } 100% { opacity: 0.8; } }
   </style>
 </head>
 <body>
 
-  <!-- ==================== AUDIO ENGINE ==================== -->
+  <!-- BAN OVERLAY -->
+  <div id="banned-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0c081d; z-index: 99999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
+    <div style="font-size: 60px; margin-bottom: 12px;">⛔</div>
+    <h2 style="color: #ff4757; margin-bottom: 8px;">አካውንትዎ ታግዷል!</h2>
+    <p style="font-size: 13px; color: #8e8aa8; line-height: 1.5; max-width: 280px;">ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።</p>
+  </div>
+
+  <!-- AUDIO ENGINE -->
   <script>
     const SoundFX = {
       ctx: null, muted: false,
@@ -350,7 +188,7 @@
     }
   </script>
 
-  <!-- ==================== MODAL ==================== -->
+  <!-- MODAL -->
   <div id="game-modal" class="app-modal-overlay">
     <div class="app-modal-box">
       <div style="font-size: 38px; margin-bottom: 8px;" id="modal-icon">🎉</div>
@@ -360,7 +198,7 @@
     </div>
   </div>
 
-  <!-- ==================== VIEW 1: AUTH ==================== -->
+  <!-- VIEW 1: AUTH -->
   <div id="screen-auth" class="view-screen active">
     <div style="text-align: center; margin: auto; max-width: 320px;">
       <div style="font-size: 50px; margin-bottom: 8px;">🌟</div>
@@ -370,7 +208,7 @@
     </div>
   </div>
 
-  <!-- ==================== VIEW 2: LOBBY ==================== -->
+  <!-- VIEW 2: LOBBY -->
   <div id="screen-dashboard" class="view-screen">
     <div class="app-header">
       <div class="user-profile">
@@ -383,13 +221,8 @@
       <div class="header-actions">
         <div class="icon-btn" onclick="toggleMute()" id="mute-btn">🔊</div>
         <div class="lang-pill" onclick="toggleLanguage()" id="lang-btn">🇪🇹 AM</div>
-        <div class="balance-badge" onclick="switchNav('wallet')">🪙 <span id="hub-coins">1000</span> +</div>
+        <div class="balance-badge" onclick="switchNav('wallet')">🪙 <span id="hub-coins">10</span> +</div>
       </div>
-    </div>
-
-    <div class="live-ticker">
-      <div class="live-dot"></div>
-      <span id="ticker-text">🔴 ዳዊት 450 ETB በኮከብ ቱርቦ አሸነፈ! • አበበ ካርቴላ #23 መረጠ</span>
     </div>
 
     <h3 style="margin-bottom: 10px; font-size: 14px;" data-i18n="lounges_title">የጨዋታ ክፍሎች (Game Lounges)</h3>
@@ -419,12 +252,12 @@
     </div>
   </div>
 
-  <!-- ==================== VIEW 3: CARTELA SELECTION ==================== -->
+  <!-- VIEW 3: CARTELA SELECTION -->
   <div id="screen-cartela-select" class="view-screen">
     <div class="app-header">
       <button class="btn btn-danger" style="padding: 4px 10px; font-size: 11px;" onclick="cancelCartelaSelection()" data-i18n="btn_back">← ተመለስ</button>
       <h4 id="room-title" style="font-size: 13px;">Cartela Selection</h4>
-      <div class="balance-badge" style="padding: 4px 8px; font-size: 11px;">🪙 <span id="cartela-coins">1000</span></div>
+      <div class="balance-badge" style="padding: 4px 8px; font-size: 11px;">🪙 <span id="cartela-coins">10</span></div>
     </div>
 
     <div class="timer-banner">
@@ -444,7 +277,7 @@
     </button>
   </div>
 
-  <!-- ==================== VIEW 4: LIVE GAME ENGINE ==================== -->
+  <!-- VIEW 4: LIVE GAME ENGINE -->
   <div id="screen-game" class="view-screen">
     <div class="app-header" style="margin-bottom: 2px;">
       <div style="display: flex; align-items: center; gap: 6px;">
@@ -499,7 +332,7 @@
     </div>
   </div>
 
-  <!-- ==================== VIEW 5: SPIN WHEEL ==================== -->
+  <!-- VIEW 5: SPIN WHEEL -->
   <div id="screen-spin" class="view-screen">
     <h3 style="text-align: center; color: var(--accent-gold); margin-top: 4px;" data-i18n="spin_title">🎡 ዕለታዊ እድል (Daily Spin)</h3>
     <p style="text-align: center; font-size: 11px; color: var(--text-muted);" data-i18n="spin_sub">በየ 24 ሰዓቱ ነፃ ሽልማቶችን ያሸንፉ!</p>
@@ -515,7 +348,7 @@
     <p style="text-align: center; font-size: 10.5px; color: var(--text-muted);" id="spin-timer-msg"></p>
   </div>
 
-  <!-- ==================== VIEW 6: REFERRALS ==================== -->
+  <!-- VIEW 6: REFERRALS -->
   <div id="screen-referral" class="view-screen">
     <h3 style="color: var(--accent-cyan); margin-bottom: 2px;" data-i18n="ref_title">👥 ጋብዘው ያትርፉ (Refer & Earn)</h3>
     <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;" data-i18n="ref_sub">ጓደኛዎ ሲመዘገብ 5 ETB ያግኙ!</p>
@@ -523,11 +356,11 @@
     <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 12px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <span style="font-size: 11px; color: var(--text-muted);" data-i18n="ref_count_lbl">የተጋበዙ ሰዎች:</span>
-        <b style="color: var(--accent-green);" id="ref-count">12</b>
+        <b style="color: var(--accent-green);" id="ref-count">0</b>
       </div>
       <div style="display: flex; justify-content: space-between;">
         <span style="font-size: 11px; color: var(--text-muted);" data-i18n="ref_earn_lbl">የተገኘ ገቢ:</span>
-        <b style="color: var(--accent-gold);" id="ref-earnings">60 ETB</b>
+        <b style="color: var(--accent-gold);" id="ref-earnings">0 ETB</b>
       </div>
     </div>
 
@@ -539,38 +372,35 @@
     </button>
   </div>
 
-  <!-- ==================== VIEW 7: LEADERBOARD ==================== -->
+  <!-- VIEW 7: REAL LEADERBOARD -->
   <div id="screen-leaderboard" class="view-screen">
     <h3 style="color: var(--accent-gold); margin-bottom: 2px;" data-i18n="lead_title">🏆 የሳምንቱ ምርጥ አሸናፊዎች</h3>
-    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;" data-i18n="lead_sub">እሁድ ለሚወጡ ከፍተኛ አሸናፊዎች 1,000 ETB ጉርሻ!</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">በጨዋታው ውስጥ ያሸነፉ እውነተኛ ተጫዋቾች ዝርዝር</p>
 
-    <div class="leader-row" style="border-color: #ffd700;">
-      <div><b>🥇 1. ዳዊት ገ/ማርያም</b><div style="font-size: 9px; color: var(--text-muted);">48 ዙር አሸነፈ</div></div>
-      <b style="color: var(--accent-gold);">14,800 ETB</b>
-    </div>
-    <div class="leader-row" style="border-color: #c0c0c0;">
-      <div><b>🥈 2. ሰላም አለሙ</b><div style="font-size: 9px; color: var(--text-muted);">32 ዙር አሸነፈ</div></div>
-      <b style="color: #c0c0c0;">9,450 ETB</b>
-    </div>
-    <div class="leader-row" style="border-color: #cd7f32;">
-      <div><b>🥉 3. ኪዱስ ዮሐንስ</b><div style="font-size: 9px; color: var(--text-muted);">26 ዙር አሸነፈ</div></div>
-      <b style="color: #cd7f32;">6,200 ETB</b>
+    <div id="real-leaderboard-container">
+      <p style="text-align: center; color: #8e8aa8; font-size: 12px; padding: 20px;">እስካሁን ምንም አሸናፊ የለም! የመጀመሪያው አሸናፊ ይሁኑ 🌟</p>
     </div>
   </div>
 
-  <!-- ==================== VIEW 8: WALLET (UPDATED WITH REAL CASH OUT) ==================== -->
+  <!-- VIEW 8: REAL WALLET (TELEBIRR & CBE BIRR) -->
   <div id="screen-wallet" class="view-screen">
     <h3 style="color: var(--accent-gold); margin-bottom: 2px;" data-i18n="wallet_title">🪙 የሂሳብ ቦርሳ (Wallet)</h3>
-    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;" data-i18n="wallet_sub">ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና CBE</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና ሲቢኢ ብር</p>
 
     <div style="background: rgba(255,215,0,0.1); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 14px; text-align: center; margin-bottom: 14px;">
       <span style="font-size: 11px; color: var(--text-muted);" data-i18n="total_bal">አጠቃላይ ቀሪ ሒሳብ</span>
-      <h2 style="font-size: 28px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">100</span> ETB</h2>
+      <h2 style="font-size: 28px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">10</span> ETB</h2>
     </div>
 
-    <!-- REAL CHAPA DEPOSITS -->
-    <h4 style="margin-bottom: 6px; font-size: 13px;" data-i18n="deposit_hdr">ሒሳብ ሙላ (Deposit via Telebirr)</h4>
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px;">
+    <!-- WALLET METHOD TOGGLE -->
+    <div class="method-selector">
+      <div class="method-pill active" id="pill-telebirr" onclick="selectPaymentMethod('TELEBIRR')">🟢 Telebirr</div>
+      <div class="method-pill" id="pill-cbe" onclick="selectPaymentMethod('CBE_BIRR')">🟣 CBE Birr</div>
+    </div>
+
+    <!-- DEPOSIT SECTION -->
+    <h4 style="margin-bottom: 6px; font-size: 13px;" id="deposit-header-lbl">ሒሳብ ሙላ (Deposit via Telebirr)</h4>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px;">
       <button class="btn btn-primary" onclick="depositMoney(50)">+50 ETB</button>
       <button class="btn btn-primary" onclick="depositMoney(100)">+100 ETB</button>
       <button class="btn btn-primary" onclick="depositMoney(250)">+250 ETB</button>
@@ -579,14 +409,14 @@
       <button class="btn btn-gold" onclick="depositMoney(2000)">+2,000 ETB</button>
     </div>
 
-    <!-- REAL WITHDRAWAL FORM -->
-    <h4 style="margin-bottom: 6px; font-size: 13px;" data-i18n="cashout_hdr">ወደ ቴሌብር አውጣ (Cashout)</h4>
-    <input type="tel" id="withdraw-phone-input" placeholder="09... የቴሌብር ስልክ ቁጥር" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 12px;">
+    <!-- CASHOUT SECTION (PHONE + AMOUNT INPUTS) -->
+    <h4 style="margin-top: 10px; margin-bottom: 6px; font-size: 13px;" id="cashout-header-lbl">ብር አውጣ (Cashout to Telebirr)</h4>
+    <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት ቁጥር" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 12px;">
     <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 12px;">
     <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="submitWithdrawal()" data-i18n="btn_cashout">ብር አውጣ (REQUEST CASHOUT)</button>
   </div>
 
-  <!-- ==================== BOTTOM NAV ==================== -->
+  <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <div class="nav-item active" onclick="switchNav('dashboard')" id="nav-dashboard">
       <div class="nav-icon">🎮</div><span data-i18n="nav_game">ጨዋታ</span>
@@ -605,7 +435,7 @@
     </div>
   </div>
 
-  <!-- ==================== REAL-TIME CLIENT SCRIPT ==================== -->
+  <!-- REAL-TIME JAVASCRIPT -->
   <script>
     const socket = io();
 
@@ -648,12 +478,8 @@
         ref_share: "✈️ በቴሌግራም አጋራ (SHARE)",
         ref_copy: "📋 ሊንክ ቅዳ (COPY LINK)",
         lead_title: "🏆 የሳምንቱ ምርጥ አሸናፊዎች",
-        lead_sub: "እሁድ ለሚወጡ ከፍተኛ አሸናፊዎች 1,000 ETB ጉርሻ!",
         wallet_title: "🪙 የሂሳብ ቦርሳ (Wallet)",
-        wallet_sub: "ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና CBE",
         total_bal: "አጠቃላይ ቀሪ ሒሳብ",
-        deposit_hdr: "ሒሳብ ሙላ (Deposit via Telebirr)",
-        cashout_hdr: "ወደ ቴሌብር አውጣ (Cashout)",
         btn_cashout: "ብር አውጣ (REQUEST CASHOUT)",
         nav_game: "ጨዋታ", nav_spin: "እድል", nav_ref: "ሪፈራል", nav_lead: "ደረጃ", nav_wal: "ዋሌት"
       },
@@ -691,19 +517,16 @@
         ref_earn_lbl: "Earned Bonus:",
         ref_share: "✈️ SHARE ON TELEGRAM",
         ref_copy: "📋 COPY INVITE LINK",
-        lead_title: "🏆 Weekly Top Winners",
-        lead_sub: "Sunday 1,000 ETB bonus for #1 ranked player!",
+        lead_title: "🏆 Top Winners",
         wallet_title: "🪙 In-App Wallet",
-        wallet_sub: "Instant top-ups and cashouts via Telebirr.",
         total_bal: "Total Active Balance",
-        deposit_hdr: "Deposit via Telebirr",
-        cashout_hdr: "Cashout to Telebirr",
         btn_cashout: "REQUEST CASHOUT",
         nav_game: "Game", nav_spin: "Spin", nav_ref: "Referrals", nav_lead: "Ranks", nav_wal: "Wallet"
       }
     };
 
-    let userState = { dbId: 1, name: "Player", coins: 100, lang: 'am', botUsername: 'Kokeb_Bingo_Bot' };
+    // User starts with strictly 10.0 ETB starter balance
+    let userState = { dbId: 1, name: "Player", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR' };
     
     let selectionState = {
       roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25,
@@ -774,6 +597,9 @@
         drawSpinWheel();
         updateSpinTimerDisplay();
       }
+      if (screenName === 'leaderboard') {
+        fetchRealLeaderboard();
+      }
     }
 
     function showScreen(screenId) {
@@ -800,8 +626,7 @@
     function authenticateUser() {
       SoundFX.pop();
       haptic('medium');
-      
-      // Stable Device ID for testing / persistent login
+
       let deviceId = localStorage.getItem('kokeb_device_id');
       if (!deviceId) {
         deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
@@ -814,16 +639,43 @@
         deviceId: deviceId
       });
     }
+
+    socket.on('auth_success', (userData) => {
+      userState.dbId = userData.id;
+      userState.coins = userData.balance;
+      if (userData.botUsername) userState.botUsername = userData.botUsername;
+      updateCoinsDisplay();
+      switchNav('dashboard');
+    });
+
+    // BAN ENFORCEMENT
+    socket.on('account_banned', ({ message }) => {
+      document.getElementById('banned-overlay').style.display = 'flex';
+      SoundFX.error();
+    });
+
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins;
       document.getElementById('cartela-coins').innerText = userState.coins;
       document.getElementById('wallet-balance').innerText = userState.coins;
     }
 
-    // ==================== REAL CHAPA DEPOSIT (TELEBIRR / CBE) ====================
+    // ==================== PAYMENT METHODS SELECTION ====================
+    function selectPaymentMethod(method) {
+      SoundFX.pop();
+      userState.selectedMethod = method;
+      document.getElementById('pill-telebirr').classList.toggle('active', method === 'TELEBIRR');
+      document.getElementById('pill-cbe').classList.toggle('active', method === 'CBE_BIRR');
+      
+      const name = method === 'TELEBIRR' ? 'Telebirr' : 'CBE Birr';
+      document.getElementById('deposit-header-lbl').innerText = `ሒሳብ ሙላ (Deposit via ${name})`;
+      document.getElementById('cashout-header-lbl').innerText = `ብር አውጣ (Cashout to ${name})`;
+      document.getElementById('withdraw-phone-input').placeholder = method === 'TELEBIRR' ? 'የቴሌብር ስልክ ቁጥር (09...)' : 'የ CBE Birr ስልክ ወይም የባንክ አካውንት';
+    }
+
     async function depositMoney(amount) {
       SoundFX.pop();
-      showModal("ክፍያ እየተዘጋጀ ነው...", "ወደ ቴሌብር ክፍያ ገጽ እየወሰደዎት ነው...", "⏳");
+      showModal("ክፍያ እየተዘጋጀ ነው...", `ወደ ${userState.selectedMethod === 'TELEBIRR' ? 'ቴሌብር' : 'CBE'} ክፍያ ገጽ እየወሰደዎት ነው...`, "⏳");
       
       try {
         const res = await fetch('/api/payment/initialize', {
@@ -832,7 +684,8 @@
           body: JSON.stringify({
             amount,
             telegramId: userState.name.replace('@', ''),
-            username: userState.name
+            username: userState.name,
+            method: userState.selectedMethod
           })
         });
 
@@ -857,14 +710,13 @@
       }
     }
 
-   // FIXED WITHDRAWAL REQUEST (NO DOUBLE DEDUCTION)
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amountStr = document.getElementById('withdraw-amount-input').value.trim();
       const amount = parseFloat(amountStr);
 
       if (!phone || phone.length < 9) {
-        return alert("እባክዎን ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ!");
+        return alert("እባክዎን ትክክለኛ ስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!");
       }
       if (!amount || isNaN(amount) || amount < 50) {
         return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
@@ -881,19 +733,19 @@
           body: JSON.stringify({
             userId: userState.dbId || 1,
             amount,
-            phoneNumber: phone
+            phoneNumber: phone,
+            method: userState.selectedMethod
           })
         });
 
         const data = await res.json();
         if (res.ok && data.success) {
-          // Update to exact server balance (No double deduction)
           if (typeof data.remainingBalance === 'number') {
             userState.coins = data.remainingBalance;
           }
           updateCoinsDisplay();
           SoundFX.win();
-          showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በአጭር ደቂቃ ወደ ${phone} በቴሌብር ይላክሎታል።`, "⚡");
+          showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በአጭር ደቂቃ ወደ ${phone} ይላክሎታል።`, "⚡");
           document.getElementById('withdraw-phone-input').value = '';
           document.getElementById('withdraw-amount-input').value = '';
         } else {
@@ -901,6 +753,36 @@
         }
       } catch (e) {
         alert("የሰርቨር ግንኙነት ችግር!");
+      }
+    }
+
+    // ==================== REAL LEADERBOARD FETCH ====================
+    async function fetchRealLeaderboard() {
+      const container = document.getElementById('real-leaderboard-container');
+      try {
+        const res = await fetch('/api/leaderboard');
+        const data = await res.json();
+
+        if (data.leaders && data.leaders.length > 0) {
+          const medals = ['🥇 1.', '🥈 2.', '🥉 3.'];
+          container.innerHTML = data.leaders.map((l, idx) => {
+            const rankLabel = idx < 3 ? medals[idx] : `${idx + 1}.`;
+            const color = idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#ffffff';
+            return `
+              <div class="leader-row" style="border-color: ${color};">
+                <div>
+                  <b style="color:${color};">${rankLabel} ${l.username}</b>
+                  <div style="font-size: 9px; color: var(--text-muted);">${l.total_wins} ዙር አሸነፈ</div>
+                </div>
+                <b style="color: var(--accent-gold);">${l.total_won.toLocaleString()} ETB</b>
+              </div>
+            `;
+          }).join('');
+        } else {
+          container.innerHTML = `<p style="text-align: center; color: #8e8aa8; font-size: 12px; padding: 20px;">እስካሁን የተመዘገበ አሸናፊ የለም! የመጀመሪያው አሸናፊ ይሁኑ 🌟</p>`;
+        }
+      } catch (e) {
+        container.innerHTML = `<p style="text-align: center; color: #ff4757; font-size: 12px; padding: 20px;">መረጃውን ማግኘት አልተቻለም!</p>`;
       }
     }
 
@@ -1421,7 +1303,6 @@
       requestAnimationFrame(animateWheel);
     }
 
-    // ==================== REFERRAL SYSTEM (FIXED) ====================
     function getReferralLink() {
       const rawUser = userState.name || 'Player';
       const cleanUser = rawUser.replace(/[^a-zA-Z0-9_]/g, '');
