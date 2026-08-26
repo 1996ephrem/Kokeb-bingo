@@ -87,6 +87,7 @@
   <!-- TABS -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 አጠቃላይ እይታ (Dashboard)</button>
+    <button class="tab-btn" onclick="switchTab('withdrawals')">💳 የማውጫ ጥያቄዎች (Cashouts)</button>
     <button class="tab-btn" onclick="switchTab('rooms')">🎮 የቀጥታ ክፍሎች (Room Control)</button>
     <button class="tab-btn" onclick="switchTab('users')">👥 ተጠቃሚዎች & ዋሌት (Users)</button>
     <button class="tab-btn" onclick="switchTab('broadcast')">📢 መልዕክት ማስተላለፊያ (Broadcast)</button>
@@ -114,7 +115,30 @@
     </div>
   </div>
 
-  <!-- TAB 2: LIVE ROOMS CONTROL -->
+  <!-- TAB 2: PENDING WITHDRAWALS QUEUE -->
+  <div id="tab-withdrawals" class="panel-section">
+    <div class="box">
+      <h3>💳 የተጠየቁ የገንዘብ ማውጫ ጥያቄዎች (Pending Cashouts)</h3>
+      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 12px;">ተጫዋቾች ወደ ቴሌብር እንዲላክላቸው የጠየቁት ብር እዚህ ጋር ይመጣል፤ በቴሌብር ስልካቸው ልከህ ስትጨርስ **"አጽድቅ (APPROVE)"** ን ተጫን።</p>
+      <table>
+        <thead>
+          <tr>
+            <th>ተጫዋች</th>
+            <th>የቴሌብር ስልክ ቁጥር</th>
+            <th>የጠየቀው ብር</th>
+            <th>የመለያ ቁጥር (Ref)</th>
+            <th>ቀን</th>
+            <th>እርምጃዎች (Actions)</th>
+          </tr>
+        </thead>
+        <tbody id="withdrawals-table-body">
+          <tr><td colspan="6" style="text-align: center; color: #8e8aa8;">ምንም ያልተከፈለ ጥያቄ የለም</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 3: LIVE ROOMS CONTROL -->
   <div id="tab-rooms" class="panel-section">
     <div class="box">
       <h3>🎮 የቀጥታ ጨዋታ ክፍሎችን መቆጣጠር</h3>
@@ -127,7 +151,7 @@
     </div>
   </div>
 
-  <!-- TAB 3: USERS & BALANCE ADJUSTMENT -->
+  <!-- TAB 4: USERS & BALANCE ADJUSTMENT -->
   <div id="tab-users" class="panel-section">
     <div class="box">
       <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
@@ -143,7 +167,7 @@
     </div>
   </div>
 
-  <!-- TAB 4: BROADCAST MESSAGE -->
+  <!-- TAB 5: BROADCAST MESSAGE -->
   <div id="tab-broadcast" class="panel-section">
     <div class="box" style="max-width: 500px;">
       <h3>📢 ለሁሉም ተጫዋቾች የቀጥታ መልዕክት ላክ</h3>
@@ -153,7 +177,7 @@
     </div>
   </div>
 
-  <!-- TAB 5: SECURITY & CHANGE PIN -->
+  <!-- TAB 6: SECURITY & CHANGE PIN -->
   <div id="tab-security" class="panel-section">
     <div class="box" style="max-width: 420px;">
       <h3>🔐 የአድሚን ፒን ቁጥር መቀየሪያ</h3>
@@ -264,12 +288,14 @@
 
         const data = await res.json();
 
+        // 1. Overview Stats
         document.getElementById('stat-online').innerText = `${data.stats.onlinePlayers} ተጫዋቾች`;
         document.getElementById('stat-profit').innerText = `${data.stats.estimatedProfit.toLocaleString()} ETB`;
         document.getElementById('stat-payouts').innerText = `${data.stats.totalPayouts.toLocaleString()} ETB`;
         document.getElementById('stat-users').innerText = data.stats.totalUsers;
         document.getElementById('stat-cards').innerText = `${data.stats.totalCartelasSold}`;
 
+        // 2. Games History
         document.getElementById('games-table-body').innerHTML = data.games.map(g => `
           <tr>
             <td><b>${g.room_name}</b></td>
@@ -280,6 +306,27 @@
           </tr>
         `).join('');
 
+        // 3. Pending Withdrawals Queue
+        const withTbody = document.getElementById('withdrawals-table-body');
+        if (data.pendingWithdrawals && data.pendingWithdrawals.length > 0) {
+          withTbody.innerHTML = data.pendingWithdrawals.map(w => `
+            <tr>
+              <td><b>${w.username}</b></td>
+              <td><code style="color:#00ffcc; font-size:13px;">${w.phone_number || 'N/A'}</code></td>
+              <td style="color: #ffd700; font-weight: bold;">${Math.abs(w.amount)} ETB</td>
+              <td><small>${w.reference}</small></td>
+              <td>${new Date(w.created_at).toLocaleTimeString()}</td>
+              <td>
+                <button class="btn-sm btn-green" onclick="approveWithdrawal(${w.id})">✅ አጽድቅ (APPROVE)</button>
+                <button class="btn-sm btn-red" onclick="rejectWithdrawal(${w.id})">❌ መልስ (REJECT)</button>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          withTbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #8e8aa8;">ምንም ያልተከፈለ ጥያቄ የለም</td></tr>`;
+        }
+
+        // 4. Room Controls
         document.getElementById('rooms-control-body').innerHTML = Object.keys(data.stats.activeRooms).map(name => {
           const r = data.stats.activeRooms[name];
           return `
@@ -297,6 +344,7 @@
           `;
         }).join('');
 
+        // 5. Users List
         document.getElementById('users-table-body').innerHTML = data.users.map(u => `
           <tr>
             <td>#${u.id}</td>
@@ -316,6 +364,27 @@
         `).join('');
 
       } catch (err) { console.error(err); }
+    }
+
+    // Approve / Reject Cashouts
+    async function approveWithdrawal(txId) {
+      if (!confirm("ይህንን ክፍያ በቴሌብር ልከህ ጨርሰሃል? (ማጽደቅ ትፈልጋለህ?)")) return;
+      await fetch('/api/admin/approve-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+        body: JSON.stringify({ txId })
+      });
+      fetchAdminData();
+    }
+
+    async function rejectWithdrawal(txId) {
+      if (!confirm("ጥያቄውን ውድቅ አድርገህ ብሩን ወደ ተጫዋቹ ዋሌት መመለስ ትፈልጋለህ?")) return;
+      await fetch('/api/admin/reject-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+        body: JSON.stringify({ txId })
+      });
+      fetchAdminData();
     }
 
     async function adjustBalance(userId, amount) {
@@ -366,23 +435,14 @@
       document.getElementById('broadcast-msg').value = '';
     }
 
-    // Change Admin PIN API Call
     async function changeAdminPin() {
       const oldPin = document.getElementById('old-pin-input').value;
       const newPin = document.getElementById('new-pin-input').value;
       const confirmPin = document.getElementById('confirm-pin-input').value;
 
-      if (!oldPin || !newPin || !confirmPin) {
-        return alert("እባክዎን ሁሉንም ሳጥኖች ይሙሉ!");
-      }
-
-      if (newPin !== confirmPin) {
-        return alert("አዲሱ ፒን እና ማረጋገጫው አይመሳሰሉም!");
-      }
-
-      if (newPin.length < 4) {
-        return alert("አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!");
-      }
+      if (!oldPin || !newPin || !confirmPin) return alert("እባክዎን ሁሉንም ሳጥኖች ይሙሉ!");
+      if (newPin !== confirmPin) return alert("አዲሱ ፒን እና ማረጋገጫው አይመሳሰሉም!");
+      if (newPin.length < 4) return alert("አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!");
 
       try {
         const res = await fetch('/api/admin/change-pin', {
@@ -397,7 +457,7 @@
           document.getElementById('old-pin-input').value = '';
           document.getElementById('new-pin-input').value = '';
           document.getElementById('confirm-pin-input').value = '';
-          lockAndLogout(); // Force relogin with new PIN
+          lockAndLogout();
         } else {
           alert("❌ " + (data.error || "ፒን መቀየር አልተቻለም!"));
         }

@@ -18,25 +18,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Dynamic Bot Username Detection
-// Exact Bot Username
-let detectedBotUsername = 'Kokeb_Bingo_Bot';
-
-// Automatically fetch your REAL Telegram bot username using BOT_TOKEN
-async function autoDetectBotUsername() {
-  if (!process.env.BOT_TOKEN) return;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/getMe`);
-    const data = await res.json();
-    if (data.ok && data.result?.username) {
-      detectedBotUsername = data.result.username;
-      console.log(`[+] Auto-detected Telegram Bot: @${detectedBotUsername}`);
-    }
-  } catch (err) {
-    console.error('Bot detection error:', err.message);
-  }
-}
-autoDetectBotUsername();
+let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
+const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-your-chapa-key';
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
@@ -186,7 +169,6 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
-      // Send the REAL bot username to frontend
       socket.emit('auth_success', {
         id: user.id,
         username: user.username,
@@ -288,54 +270,161 @@ io.on('connection', (socket) => {
   });
 });
 
-// Admin PIN Middleware
+// ==================== CHAPA PAYMENT GATEWAY API ====================
+
+// 1. Initialize Deposit (Telebirr / CBE via Chapa)
+app.post('/api/payment/initialize', async (req, res) => {
+  const { amount, telegramId, username } = req.body;
+  if (!amount || amount < 10) {
+    return res.status(400).json({ error: 'ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!' });
+  }
+
+  const txRef = 'KOKEB_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+  const host = req.get('host');
+  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const callbackUrl = `${protocol}://${host}/api/payment/webhook`;
+  const returnUrl = `${protocol}://${host}`;
+
+  try {
+    const chapaPayload = {
+      amount: amount.toString(),
+      currency: 'ETB',
+      email: `${(telegramId || 'player').replace(/[^a-zA-Z0-9]/g, '')}@kokebbingo.com`,
+      first_name: username || 'Player',
+      tx_ref: txRef,
+      callback_url: callbackUrl,
+      return_url: returnUrl,
+      customization: {
+        title: 'Kokeb Bingo Deposit 🌟',
+        description: `Deposit ${amount} ETB to Kokeb Bingo Wallet`
+      }
+    };
+
+    const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CHAPA_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(chapaPayload)
+    });
+
+    const chapaData = await chapaRes.json();
+
+    if (chapaData.status === 'success' && chapaData.data?.checkout_url) {
+      res.json({ success: true, checkoutUrl: chapaData.data.checkout_url, txRef });
+    } else {
+      // Fallback for Test Mode
+      res.json({
+        success: true,
+        checkoutUrl: chapaData.data?.checkout_url || null,
+        message: chapaData.message || 'Payment initialized'
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'የክፍያ ሲስተሙን ማገናኘት አልተቻለም!' });
+  }
+});
+
+// 2. Chapa Automated Webhook (Credits User Instantly)
+app.post('/api/payment/webhook', async (req, res) => {
+  const event = req.body;
+  if (event && (event.status === 'success' || event.event === 'charge.success')) {
+    const txRef = event.tx_ref || event.data?.tx_ref;
+    const amount = parseFloat(event.amount || event.data?.amount);
+    const email = event.email || event.data?.email || '';
+
+    try {
+      const tgIdMatch = email.split('@')[0];
+      const user = await DB.getOrCreateUser(tgIdMatch);
+      const credited = await DB.recordDeposit(user.id, amount, txRef);
+
+      if (credited) {
+        // Notify user via active socket
+        for (const [sockId, pInfo] of activeSockets.entries()) {
+          if (pInfo.dbId === user.id) {
+            pInfo.balance += amount;
+            io.to(sockId).emit('balance_updated', { balance: pInfo.balance });
+          }
+        }
+      }
+      return res.status(200).send('Webhook Processed');
+    } catch (e) {
+      console.error('Webhook error:', e);
+    }
+  }
+  res.status(200).send('OK');
+});
+
+// 3. User Withdrawal Request
+app.post('/api/payment/withdraw', async (req, res) => {
+  const { userId, amount, phoneNumber } = req.body;
+  if (!amount || amount < 50) {
+    return res.status(400).json({ error: 'ዝቅተኛው የማውጫ መጠን 50 ETB ነው!' });
+  }
+  if (!phoneNumber || phoneNumber.length < 9) {
+    return res.status(400).json({ error: 'ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ!' });
+  }
+
+  try {
+    const result = await DB.requestWithdrawal(userId, parseFloat(amount), phoneNumber);
+    
+    // Update live socket balance
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === userId) {
+        pInfo.balance = result.remainingBalance;
+        io.to(sockId).emit('balance_updated', { balance: result.remainingBalance });
+      }
+    }
+
+    res.json({ success: true, message: 'የማውጣት ጥያቄዎ በተሳካ ሁኔታ ተልኳል! በቴሌብር ይላክሎታል።', txRef: result.txRef });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ==================== ADMIN WITHDRAWAL APIS ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
-
   const isValid = await DB.verifyAdminPin(pin);
   if (isValid) return next();
   return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
 
-// APIs
-app.get('/api/bot-info', (req, res) => {
-  res.json({ botUsername: detectedBotUsername });
-});
-
 app.post('/api/admin/verify-pin', async (req, res) => {
-  const ip = req.ip || req.connection.remoteAddress;
-  const now = Date.now();
-  const attempt = failedPinAttempts.get(ip) || { count: 0, lockUntil: 0 };
-
-  if (attempt.lockUntil > now) {
-    const remMins = Math.ceil((attempt.lockUntil - now) / 60000);
-    return res.status(429).json({ success: false, error: `🚨 አካውንቱ ተቆልፏል! ከ ${remMins} ደቂቃ በኋላ ይሞክሩ።` });
-  }
-
   const { pin } = req.body;
   const isValid = await DB.verifyAdminPin(pin);
+  if (isValid) return res.json({ success: true, message: 'Authenticated' });
+  return res.status(401).json({ success: false, error: 'የተሳሳተ ፒን ቁጥር ነው!' });
+});
 
-  if (isValid) {
-    failedPinAttempts.delete(ip);
-    return res.json({ success: true, message: 'Authenticated' });
-  } else {
-    attempt.count++;
-    if (attempt.count >= 5) attempt.lockUntil = now + 5 * 60 * 1000;
-    failedPinAttempts.set(ip, attempt);
-    const left = 5 - attempt.count;
-    return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
+app.get('/api/admin/pending-withdrawals', adminAuth, async (req, res) => {
+  try {
+    const list = await DB.getPendingWithdrawals();
+    res.json({ success: true, withdrawals: list });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
-  const { oldPin, newPin } = req.body;
-  if (!newPin || newPin.length < 4) return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
+app.post('/api/admin/approve-withdrawal', adminAuth, async (req, res) => {
+  const { txId } = req.body;
   try {
-    await DB.changeAdminPin(oldPin, newPin);
-    res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
+    await DB.approveWithdrawal(txId);
+    res.json({ success: true, message: 'ክፍያው ጸድቋል!' });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
+  const { txId } = req.body;
+  try {
+    await DB.rejectWithdrawal(txId);
+    res.json({ success: true, message: 'ጥያቄው ውድቅ ተደርጎ ብሩ ለተጫዋቹ ተመልሷል!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -350,7 +439,8 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
     };
     const users = await DB.getAllUsers(req.query.search);
     const games = await DB.getRecentGames();
-    res.json({ stats, users, games });
+    const pendingWithdrawals = await DB.getPendingWithdrawals();
+    res.json({ stats, users, games, pendingWithdrawals });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -376,13 +466,6 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
     await DB.toggleBanUser(userId);
-    for (const [sockId, pInfo] of activeSockets.entries()) {
-      if (pInfo.dbId === userId) {
-        io.to(sockId).emit('error_message', '❌ አካውንትዎ በአድሚን ታግዷል!');
-        const s = io.sockets.sockets.get(sockId);
-        if (s) s.disconnect();
-      }
-    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -415,6 +498,6 @@ app.post('/api/admin/broadcast', adminAuth, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Kokeb Live Bingo Server Running on http://localhost:${PORT}`);
+  console.log(`🚀 Kokeb Live Bingo Running on http://localhost:${PORT}`);
   console.log(`👑 Admin Dashboard: http://localhost:${PORT}/admin.html`);
 });

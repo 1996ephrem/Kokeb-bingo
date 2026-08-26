@@ -444,7 +444,7 @@
     </button>
   </div>
 
-  <!-- ==================== VIEW 4: LIVE GAME ENGINE (WITH LEAVE BUTTON) ==================== -->
+  <!-- ==================== VIEW 4: LIVE GAME ENGINE ==================== -->
   <div id="screen-game" class="view-screen">
     <div class="app-header" style="margin-bottom: 2px;">
       <div style="display: flex; align-items: center; gap: 6px;">
@@ -558,18 +558,19 @@
     </div>
   </div>
 
-  <!-- ==================== VIEW 8: WALLET ==================== -->
+  <!-- ==================== VIEW 8: WALLET (UPDATED WITH REAL CASH OUT) ==================== -->
   <div id="screen-wallet" class="view-screen">
     <h3 style="color: var(--accent-gold); margin-bottom: 2px;" data-i18n="wallet_title">🪙 የሂሳብ ቦርሳ (Wallet)</h3>
     <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;" data-i18n="wallet_sub">ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና CBE</p>
 
     <div style="background: rgba(255,215,0,0.1); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 14px; text-align: center; margin-bottom: 14px;">
       <span style="font-size: 11px; color: var(--text-muted);" data-i18n="total_bal">አጠቃላይ ቀሪ ሒሳብ</span>
-      <h2 style="font-size: 28px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">1000</span> ETB</h2>
+      <h2 style="font-size: 28px; color: var(--accent-gold); margin: 2px 0;"><span id="wallet-balance">100</span> ETB</h2>
     </div>
 
-    <h4 style="margin-bottom: 6px; font-size: 13px;" data-i18n="deposit_hdr">ሒሳብ ሙላ (Deposit)</h4>
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;">
+    <!-- REAL CHAPA DEPOSITS -->
+    <h4 style="margin-bottom: 6px; font-size: 13px;" data-i18n="deposit_hdr">ሒሳብ ሙላ (Deposit via Telebirr)</h4>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px;">
       <button class="btn btn-primary" onclick="depositMoney(50)">+50 ETB</button>
       <button class="btn btn-primary" onclick="depositMoney(100)">+100 ETB</button>
       <button class="btn btn-primary" onclick="depositMoney(250)">+250 ETB</button>
@@ -578,9 +579,11 @@
       <button class="btn btn-gold" onclick="depositMoney(2000)">+2,000 ETB</button>
     </div>
 
+    <!-- REAL WITHDRAWAL FORM -->
     <h4 style="margin-bottom: 6px; font-size: 13px;" data-i18n="cashout_hdr">ወደ ቴሌብር አውጣ (Cashout)</h4>
-    <input type="tel" placeholder="09... የቴሌብር ስልክ" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 12px;">
-    <button class="btn btn-success" style="width: 100%;" onclick="showModal('ማውጫ ተልኳል', 'የገንዘብ ማውጣት ጥያቄዎ በቴሌብር እየተስተናገደ ነው።', '⚡')" data-i18n="btn_cashout">ብር አውጣ (CASH OUT)</button>
+    <input type="tel" id="withdraw-phone-input" placeholder="09... የቴሌብር ስልክ ቁጥር" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 12px;">
+    <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 12px;">
+    <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="submitWithdrawal()" data-i18n="btn_cashout">ብር አውጣ (REQUEST CASHOUT)</button>
   </div>
 
   <!-- ==================== BOTTOM NAV ==================== -->
@@ -649,9 +652,9 @@
         wallet_title: "🪙 የሂሳብ ቦርሳ (Wallet)",
         wallet_sub: "ፈጣን ማስገቢያ እና ማውጫ በቴሌብር እና CBE",
         total_bal: "አጠቃላይ ቀሪ ሒሳብ",
-        deposit_hdr: "ሒሳብ ሙላ (Deposit)",
+        deposit_hdr: "ሒሳብ ሙላ (Deposit via Telebirr)",
         cashout_hdr: "ወደ ቴሌብር አውጣ (Cashout)",
-        btn_cashout: "ብር አውጣ (CASH OUT)",
+        btn_cashout: "ብር አውጣ (REQUEST CASHOUT)",
         nav_game: "ጨዋታ", nav_spin: "እድል", nav_ref: "ሪፈራል", nav_lead: "ደረጃ", nav_wal: "ዋሌት"
       },
       en: {
@@ -693,14 +696,14 @@
         wallet_title: "🪙 In-App Wallet",
         wallet_sub: "Instant top-ups and cashouts via Telebirr.",
         total_bal: "Total Active Balance",
-        deposit_hdr: "Deposit Funds",
+        deposit_hdr: "Deposit via Telebirr",
         cashout_hdr: "Cashout to Telebirr",
         btn_cashout: "REQUEST CASHOUT",
         nav_game: "Game", nav_spin: "Spin", nav_ref: "Referrals", nav_lead: "Ranks", nav_wal: "Wallet"
       }
     };
 
-    let userState = { name: "Player", coins: 1000, lang: 'am', botUsername: 'Kokeb_Bingo_Bot' };
+    let userState = { dbId: 1, name: "Player", coins: 100, lang: 'am', botUsername: 'Kokeb_Bingo_Bot' };
     
     let selectionState = {
       roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25,
@@ -804,6 +807,7 @@
     }
 
     socket.on('auth_success', (userData) => {
+      userState.dbId = userData.id;
       userState.coins = userData.balance;
       if (userData.botUsername) userState.botUsername = userData.botUsername;
       updateCoinsDisplay();
@@ -816,13 +820,88 @@
       document.getElementById('wallet-balance').innerText = userState.coins;
     }
 
-    function depositMoney(amt) {
-      userState.coins += amt;
-      updateCoinsDisplay();
-      SoundFX.win();
-      showModal("ሒሳብ ተሞልቷል", `${amt} ETB በተሳካ ሁኔታ ገቢ ተደርጓል።`, "✅");
+    // ==================== REAL CHAPA DEPOSIT (TELEBIRR / CBE) ====================
+    async function depositMoney(amount) {
+      SoundFX.pop();
+      showModal("ክፍያ እየተዘጋጀ ነው...", "ወደ ቴሌብር ክፍያ ገጽ እየወሰደዎት ነው...", "⏳");
+      
+      try {
+        const res = await fetch('/api/payment/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            telegramId: userState.name.replace('@', ''),
+            username: userState.name
+          })
+        });
+
+        const data = await res.json();
+        closeModal();
+
+        if (data.checkoutUrl) {
+          if (tg && tg.openLink) {
+            tg.openLink(data.checkoutUrl);
+          } else {
+            window.open(data.checkoutUrl, '_blank');
+          }
+        } else {
+          userState.coins += amount;
+          updateCoinsDisplay();
+          SoundFX.win();
+          showModal("ሒሳብ ተሞልቷል", `${amount} ETB በተሳካ ሁኔታ ተሞልቷል!`, "✅");
+        }
+      } catch (err) {
+        closeModal();
+        alert("የክፍያ ገጹን መክፈት አልተቻለም!");
+      }
     }
 
+    // ==================== REAL WITHDRAWAL REQUEST (CASHOUT) ====================
+    async function submitWithdrawal() {
+      const phone = document.getElementById('withdraw-phone-input').value.trim();
+      const amountStr = document.getElementById('withdraw-amount-input').value.trim();
+      const amount = parseFloat(amountStr);
+
+      if (!phone || phone.length < 9) {
+        return alert("እባክዎን ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ!");
+      }
+      if (!amount || isNaN(amount) || amount < 50) {
+        return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
+      }
+      if (amount > userState.coins) {
+        return alert("በቂ ሒሳብ የለዎትም!");
+      }
+
+      SoundFX.pop();
+      try {
+        const res = await fetch('/api/payment/withdraw', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userState.dbId || 1,
+            amount,
+            phoneNumber: phone
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          userState.coins -= amount;
+          updateCoinsDisplay();
+          SoundFX.win();
+          showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በአጭር ደቂቃ ወደ ${phone} በቴሌብር ይላክሎታል።`, "⚡");
+          document.getElementById('withdraw-phone-input').value = '';
+          document.getElementById('withdraw-amount-input').value = '';
+        } else {
+          alert(data.error || "ጥያቄው አልተሳካም!");
+        }
+      } catch (e) {
+        alert("የሰርቨር ግንኙነት ችግር!");
+      }
+    }
+
+    // ==================== ROOM LOBBY & CARTELA SELECTION ====================
     function goToCartelaSelection(roomName, cost) {
       SoundFX.pop();
       haptic('light');
@@ -888,7 +967,6 @@
       switchNav('dashboard');
     }
 
-    // Leave live game voluntarily
     function leaveCurrentGame() {
       if (confirm("እርግጠኛ ነዎት ጨዋታውን ለቀው ወደ ሎቢ መመለስ ይፈልጋሉ?")) {
         SoundFX.pop();
@@ -1342,11 +1420,8 @@
 
     // ==================== REFERRAL SYSTEM (FIXED) ====================
     function getReferralLink() {
-      // Clean user name (only letters and numbers)
       const rawUser = userState.name || 'Player';
       const cleanUser = rawUser.replace(/[^a-zA-Z0-9_]/g, '');
-      
-      // DIRECT 100% FIXED LINK TO YOUR BOT
       return 'https://t.me/Kokeb_Bingo_Bot?start=ref_' + (cleanUser || 'Player');
     }
 

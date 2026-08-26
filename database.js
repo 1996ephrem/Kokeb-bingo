@@ -9,7 +9,6 @@ const db = new sqlite3.Database(dbPath, (err) => {
   else console.log('[+] Connected to SQLite Database (bingo.db)');
 });
 
-// Password Hashing Helper (SHA-256 + Salt)
 function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
 }
@@ -22,7 +21,7 @@ db.serialize(() => {
       telegram_id TEXT UNIQUE,
       username TEXT,
       first_name TEXT,
-      balance REAL DEFAULT 1000.0,
+      balance REAL DEFAULT 100.0,
       is_banned INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -33,10 +32,11 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT,
+      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'ADMIN_ADJUST'
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED',
-      reference TEXT,
+      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
+      reference TEXT UNIQUE,
+      phone_number TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
@@ -56,7 +56,7 @@ db.serialize(() => {
     )
   `);
 
-  // Admin Config Table (For Secure Hashed PIN)
+  // Admin Config Table
   db.run(`
     CREATE TABLE IF NOT EXISTS admin_config (
       key TEXT PRIMARY KEY,
@@ -65,7 +65,7 @@ db.serialize(() => {
     )
   `);
 
-  // Set default PIN '1234' securely if not exists
+  // Default PIN 1234
   db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
     if (!row) {
       const salt = crypto.randomBytes(16).toString('hex');
@@ -83,7 +83,7 @@ const DB = {
         if (row) return resolve(row);
 
         const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance) VALUES (?, ?, ?, ?)');
-        stmt.run(telegramId, username || 'Player', firstName || 'User', 1000.0, function (insertErr) {
+        stmt.run(telegramId, username || 'Player', firstName || 'User', 100.0, function (insertErr) {
           if (insertErr) return reject(insertErr);
           db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
             if (fetchErr) return reject(fetchErr);
@@ -116,6 +116,104 @@ const DB = {
                 resolve(newBalance);
               }
             );
+          });
+        });
+      });
+    });
+  },
+
+  // Record Deposit Transaction
+  recordDeposit: (userId, amount, txRef) => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.get('SELECT * FROM transactions WHERE reference = ?', [txRef], (err, tx) => {
+          if (tx) {
+            db.run('ROLLBACK');
+            return resolve(false); // Already processed
+          }
+
+          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, userId], (upErr) => {
+            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
+            db.run('INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
+              [userId, 'DEPOSIT', amount, 'COMPLETED', txRef], (inErr) => {
+                if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
+                db.run('COMMIT');
+                resolve(true);
+              });
+          });
+        });
+      });
+    });
+  },
+
+  // Request Withdrawal (Cashout)
+  requestWithdrawal: (userId, amount, phoneNumber) => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.get('SELECT balance FROM users WHERE id = ?', [userId], (err, user) => {
+          if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
+          if (user.balance < amount) { db.run('ROLLBACK'); return reject(new Error('በቂ ሒሳብ የለዎትም! (Insufficient Balance)')); }
+
+          const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+          db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
+            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
+            db.run(
+              'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, ?, ?, ?, ?, ?)',
+              [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber],
+              (txErr) => {
+                if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
+                db.run('COMMIT');
+                resolve({ success: true, txRef, remainingBalance: user.balance - amount });
+              }
+            );
+          });
+        });
+      });
+    });
+  },
+
+  // Admin Approve / Reject Withdrawal
+  getPendingWithdrawals: () => {
+    return new Promise((resolve, reject) => {
+      db.all(`
+        SELECT t.*, u.username, u.telegram_id, u.balance as current_user_balance 
+        FROM transactions t 
+        JOIN users u ON t.user_id = u.id 
+        WHERE t.type = 'WITHDRAW' AND t.status = 'PENDING' 
+        ORDER BY t.id DESC
+      `, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+  },
+
+  approveWithdrawal: (txId) => {
+    return new Promise((resolve, reject) => {
+      db.run("UPDATE transactions SET status = 'COMPLETED' WHERE id = ? AND status = 'PENDING'", [txId], function(err) {
+        if (err) return reject(err);
+        resolve(this.changes > 0);
+      });
+    });
+  },
+
+  rejectWithdrawal: (txId) => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING"', [txId], (err, tx) => {
+          if (err || !tx) { db.run('ROLLBACK'); return reject(err || new Error('Transaction not found')); }
+
+          // Refund the balance to user
+          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [Math.abs(tx.amount), tx.user_id], (upErr) => {
+            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
+            db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ?", [txId], (inErr) => {
+              if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
+              db.run('COMMIT');
+              resolve(true);
+            });
           });
         });
       });
@@ -185,7 +283,6 @@ const DB = {
     });
   },
 
-  // ===== SECURE ADMIN PASSWORD MANAGEMENT =====
   verifyAdminPin: (inputPin) => {
     return new Promise((resolve) => {
       db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
@@ -202,7 +299,7 @@ const DB = {
         if (err || !row) return reject(new Error('Config not found'));
         const oldHash = hashPassword(oldPin, row.salt);
         if (oldHash !== row.value) {
-          return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው! (Old PIN incorrect)'));
+          return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!'));
         }
 
         const newSalt = crypto.randomBytes(16).toString('hex');
