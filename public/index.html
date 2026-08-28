@@ -38,6 +38,7 @@
     .balance-badge { background: rgba(255, 215, 0, 0.12); border: 1px solid var(--accent-gold); border-radius: 20px; padding: 4px 10px; color: var(--accent-gold); font-weight: 800; font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
     .icon-btn { width: 32px; height: 32px; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--card-border); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; font-size: 14px; }
     .lang-pill { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-border); border-radius: 14px; padding: 4px 8px; font-size: 11px; font-weight: 800; cursor: pointer; color: #fff; }
+    .guide-btn { background: linear-gradient(135deg, #7928ca, #ff007f); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 4px 8px; font-size: 11px; font-weight: 800; cursor: pointer; color: #fff; }
 
     /* Buttons */
     .btn { padding: 12px 16px; border: none; border-radius: 12px; font-weight: 800; font-size: 13px; color: white; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.4); transition: transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -117,7 +118,6 @@
     .payment-instruction-box { background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
     .account-highlight { font-size: 14px; font-weight: bold; color: var(--accent-gold); margin: 4px 0; }
 
-    /* Transactions History Table */
     .tx-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
     .tx-table th, .tx-table td { padding: 6px 4px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); }
     .tx-badge { padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: bold; }
@@ -140,7 +140,11 @@
     /* Modal */
     .app-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px); justify-content: center; align-items: center; z-index: 1000; padding: 16px; }
     .app-modal-overlay.active { display: flex; }
-    .app-modal-box { background: #191238; border: 1px solid var(--card-border); border-radius: 20px; padding: 22px 18px; text-align: center; max-width: 310px; width: 100%; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+    .app-modal-box { background: #191238; border: 1px solid var(--card-border); border-radius: 20px; padding: 22px 18px; text-align: center; max-width: 320px; width: 100%; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+
+    /* Guide Modal Card */
+    .guide-box { background: #161033; border: 1px solid rgba(255,215,0,0.3); border-radius: 18px; padding: 18px; max-width: 340px; width: 100%; max-height: 82vh; overflow-y: auto; text-align: left; }
+    .guide-step { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
 
     @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; filter: brightness(1.2); } 100% { opacity: 0.8; } }
   </style>
@@ -152,6 +156,38 @@
     <div style="font-size: 60px; margin-bottom: 12px;">⛔</div>
     <h2 style="color: #ff4757; margin-bottom: 8px;">አካውንትዎ ታግዷል!</h2>
     <p style="font-size: 13px; color: #8e8aa8; line-height: 1.5; max-width: 280px;">ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።</p>
+  </div>
+
+  <!-- HOW TO PLAY GUIDE MODAL -->
+  <div id="guide-modal" class="app-modal-overlay">
+    <div class="guide-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="color: var(--accent-gold);">📖 የአጨዋወት መመሪያ</h3>
+        <button class="btn-sm btn-danger" style="padding: 2px 8px;" onclick="closeGuide()">✕</button>
+      </div>
+
+      <div class="guide-step">
+        <b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ (Deposit):</b>
+        <p style="font-size: 11px; color: #dcdde1; margin-top: 2px;">ዋሌት ገብተው በቴሌብር ወይም ሲቢኢ ብር የፈለጉትን መጠን ይላኩ። ከቴሌብር የደረሶትን Txn ID ሲያስገቡ ወዲያውኑ ይሞላልዎታል።</p>
+      </div>
+
+      <div class="guide-step">
+        <b style="color: var(--accent-cyan);">2. ክፍልና ካርቴላ ይምረጡ (Choose Cards):</b>
+        <p style="font-size: 11px; color: #dcdde1; margin-top: 2px;">የሚፈልጉትን ክፍል (10፣ 25 ወይም 100 ብር) ይምረጡ፤ ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይቁረጡ።</p>
+      </div>
+
+      <div class="guide-step">
+        <b style="color: #ffd700;">3. ኳሶችን ይከታተሉ (Track Calls):</b>
+        <p style="font-size: 11px; color: #dcdde1; margin-top: 2px;">ኳሶች ሲወጡ በካርቴላዎ ላይ ማርክ ያድርጉ (ቀላሉ መንገድ "Auto-Daub" ማብራት ነው)።</p>
+      </div>
+
+      <div class="guide-step">
+        <b style="color: #ff007f;">4. አሸንፈው ብር ያውጡ (Win & Cashout):</b>
+        <p style="font-size: 11px; color: #dcdde1; margin-top: 2px;">1 መስመር (አግድም፣ ቁልቁል፣ ሰያፍ) ወይም 4 ማዕዘን ሲሞላልዎ ወዲያውኑ <b>"🏆 CLAIM BINGO"</b> ይጫኑ። ያሸነፉትን ብር በቴሌብር ማውጣት ይችላሉ!</p>
+      </div>
+
+      <button class="btn btn-success" style="width: 100%; padding: 10px; margin-top: 6px; font-size: 12px;" onclick="closeGuide()">ገባኝ (GOT IT!)</button>
+    </div>
   </div>
 
   <!-- AUDIO ENGINE -->
@@ -230,6 +266,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <button class="guide-btn" onclick="openGuide()">📖 GUIDE</button>
         <div class="icon-btn" onclick="toggleMute()" id="mute-btn">🔊</div>
         <div class="lang-pill" onclick="toggleLanguage()" id="lang-btn">🇪🇹 AM</div>
         <div class="balance-badge" onclick="switchNav('wallet')">🪙 <span id="hub-coins">10</span> +</div>
@@ -595,6 +632,15 @@
       SoundFX.pop();
     }
 
+    function openGuide() {
+      SoundFX.pop();
+      document.getElementById('guide-modal').classList.add('active');
+    }
+
+    function closeGuide() {
+      document.getElementById('guide-modal').classList.remove('active');
+    }
+
     function applyLanguageTranslations() {
       const dict = translations[userState.lang];
       document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -691,13 +737,26 @@
       SoundFX.error();
     });
 
+    // Realtime Deposit Approval Listener
+    socket.on('deposit_approved', (data) => {
+      SoundFX.win();
+      showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
+      fetchMyTransactions();
+    });
+
+    socket.on('balance_updated', ({ balance }) => {
+      userState.coins = balance;
+      updateCoinsDisplay();
+      fetchMyTransactions();
+    });
+
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins;
       document.getElementById('cartela-coins').innerText = userState.coins;
       document.getElementById('wallet-balance').innerText = userState.coins;
     }
 
-    // ==================== MANUAL VERIFIED PAYMENT METHODS ====================
+    // ==================== MANUAL PAYMENT METHODS ====================
     function selectPaymentMethod(method) {
       SoundFX.pop();
       userState.selectedMethod = method;
@@ -716,15 +775,9 @@
       const txRef = document.getElementById('deposit-ref-input').value.trim();
       const amount = parseFloat(amountStr);
 
-      if (!phone || phone.length < 9) {
-        return alert("እባክዎን የላኩበትን ትክክለኛ ስልክ ቁጥር ያስገቡ!");
-      }
-      if (!amount || isNaN(amount) || amount < 10) {
-        return alert("ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!");
-      }
-      if (!txRef || txRef.length < 4) {
-        return alert("እባክዎን ከቴሌብር/ሲቢኢ በ SMS የደረሶትን የትራንዛክሽን ቁጥር (Txn ID/Ref) ያስገቡ!");
-      }
+      if (!phone || phone.length < 9) return alert("እባክዎን የላኩበትን ትክክለኛ ስልክ ቁጥር ያስገቡ!");
+      if (!amount || isNaN(amount) || amount < 10) return alert("ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!");
+      if (!txRef || txRef.length < 4) return alert("እባክዎን ከቴሌብር/ሲቢኢ በ SMS የደረሶትን የትራንዛክሽን ቁጥር (Txn ID/Ref) ያስገቡ!");
 
       SoundFX.pop();
       try {
@@ -732,9 +785,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: userState.dbId,
-            telegramId: userState.name.replace('@', ''),
-            username: userState.name,
+            userId: userState.dbId || 1,
             amount,
             phoneNumber: phone,
             txRef: txRef,
@@ -763,15 +814,9 @@
       const amountStr = document.getElementById('withdraw-amount-input').value.trim();
       const amount = parseFloat(amountStr);
 
-      if (!phone || phone.length < 9) {
-        return alert("እባክዎን ትክክለኛ ስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!");
-      }
-      if (!amount || isNaN(amount) || amount < 50) {
-        return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
-      }
-      if (amount > userState.coins) {
-        return alert(`በቂ ሒሳብ የለዎትም! የእርስዎ አጠቃላይ ሒሳብ ${userState.coins} ETB ነው።`);
-      }
+      if (!phone || phone.length < 9) return alert("እባክዎን ትክክለኛ ስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!");
+      if (!amount || isNaN(amount) || amount < 50) return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
+      if (amount > userState.coins) return alert(`በቂ ሒሳብ የለዎትም! የእርስዎ አጠቃላይ ሒሳብ ${userState.coins} ETB ነው።`);
 
       SoundFX.pop();
       try {
@@ -805,7 +850,6 @@
       }
     }
 
-    // Realtime Transactions Table Renderer
     async function fetchMyTransactions() {
       const tbody = document.getElementById('my-tx-body');
       if (!tbody) return;
@@ -842,14 +886,6 @@
         }
       } catch (e) {}
     }
-
-    // ተጫዋቹ ዋሌት ገጽ ላይ እያለ በየ 3 ሰከንዱ ራሱ ሰንጠረዡን እንዲያድስ
-    setInterval(() => {
-      const walletScreen = document.getElementById('screen-wallet');
-      if (walletScreen && walletScreen.classList.contains('active')) {
-        fetchMyTransactions();
-      }
-    }, 3000);
 
     async function fetchRealLeaderboard() {
       const container = document.getElementById('real-leaderboard-container');
@@ -1076,19 +1112,6 @@
       checkNearWinStatus();
     });
 
-    // Realtime Deposit Approval Listener
-    socket.on('deposit_approved', (data) => {
-      SoundFX.win();
-      showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
-      fetchMyTransactions(); // ሁኔታውን ወዲያውኑ ወደ "✅ ተጠናቋል" ይቀይረዋል
-    });
-
-    socket.on('balance_updated', ({ balance }) => {
-      userState.coins = balance;
-      updateCoinsDisplay();
-      fetchMyTransactions(); // ሰንጠረዡን በሪል-ታይም ያድሳል
-    });
-
     function updateRecentCallsStrip(callText) {
       gameState.recentCalls.unshift(callText);
       if (gameState.recentCalls.length > 5) gameState.recentCalls.pop();
@@ -1248,11 +1271,6 @@
       });
     }
 
-    socket.on('balance_updated', ({ balance }) => {
-      userState.coins = balance;
-      updateCoinsDisplay();
-    });
-
     socket.on('game_finished', ({ winner, message }) => {
       gameState.isLive = false;
       document.getElementById('claim-bingo-btn').disabled = true;
@@ -1293,13 +1311,14 @@
       setTimeout(() => span.remove(), 2200);
     });
 
+    // ==================== REDUCED REALISTIC WHEEL PRIZES ====================
     const wheelPrizes = [
-      { label: "5 ETB", value: 5 },
-      { label: "10 ETB", value: 10 },
+      { label: "1 ETB", value: 1 },
+      { label: "2 ETB", value: 2 },
       { label: "0 ETB", value: 0 },
-      { label: "50 ETB", value: 50 },
+      { label: "5 ETB", value: 5 },
       { label: "Try Again", value: 0 },
-      { label: "25 ETB", value: 25 }
+      { label: "10 ETB", value: 10 }
     ];
     const wheelColors = ["#7928ca", "#ff007f", "#00ff87", "#ffd700", "#ff4757", "#00e5ff"];
     let currentWheelAngle = 0;
@@ -1397,10 +1416,25 @@
 
           const prize = wheelPrizes[winningIndex];
           if (prize.value > 0) {
-            userState.coins += prize.value;
-            updateCoinsDisplay();
+            // SYNC REAL REWARD WITH BACKEND DATABASE
+            fetch('/api/spin/claim', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: userState.dbId || 1,
+                prizeValue: prize.value
+              })
+            }).then(r => r.json()).then(res => {
+              if (res.newBalance) userState.coins = res.newBalance;
+              else userState.coins += prize.value;
+              updateCoinsDisplay();
+            }).catch(() => {
+              userState.coins += prize.value;
+              updateCoinsDisplay();
+            });
+
             SoundFX.win();
-            showModal("እንኳን ደስ አለዎት!", `🎉 ${prize.label} የዕድል ሽልማት አሸንፈዋል!`, "🎁");
+            showModal("እንኳን ደስ አለዎት!", `🎉 ${prize.label} የዕድል ሽልማት አሸንፈዋል! አሁን ካርቴላ ቆርጠው መጫወት ይችላሉ!`, "🎁");
           } else {
             SoundFX.pop();
             showModal("እንደገና ይሞክሩ", "ዛሬ እድል አልቀናዎትም። ነገ እንደገና ይሞክሩ!", "😊");

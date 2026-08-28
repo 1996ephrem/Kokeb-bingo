@@ -24,7 +24,7 @@ let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
-// Game Rooms Configuration (Live Dynamic Config)
+// Game Rooms Configuration
 const rooms = {
   Beginner: createRoomState('Beginner', 10, 2500),
   Turbo: createRoomState('Turbo', 25, 1400),
@@ -306,10 +306,40 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// ==================== REAL DAILY SPIN CLAIM API (FIXED) ====================
+app.post('/api/spin/claim', async (req, res) => {
+  const { userId, prizeValue } = req.body;
+  const prize = parseFloat(prizeValue);
+
+  if (isNaN(prize) || prize <= 0) {
+    return res.json({ success: true, message: 'No coins won' });
+  }
+
+  // Maximum allowed single spin prize (Anti-cheat)
+  if (prize > 10) {
+    return res.status(400).json({ error: 'Invalid prize amount!' });
+  }
+
+  try {
+    const newBal = await DB.updateBalance(userId, prize, 'SPIN_REWARD', 'Daily Lucky Spin');
+    
+    // Update live socket balance
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === userId) {
+        pInfo.balance = newBal;
+        io.to(sockId).emit('balance_updated', { balance: newBal });
+      }
+    }
+
+    res.json({ success: true, newBalance: newBal });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ==================== PAYMENT APIS ====================
-// 1. Submit Manual Deposit Request (Guaranteed User Match)
 app.post('/api/payment/deposit-request', async (req, res) => {
-  const { userId, telegramId, username, amount, phoneNumber, txRef, method } = req.body;
+  const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
 
   if (!depositAmount || isNaN(depositAmount) || depositAmount < 10) {
@@ -323,18 +353,9 @@ app.post('/api/payment/deposit-request', async (req, res) => {
   }
 
   try {
-    let targetUserId = userId;
-
-    // If userId not found, auto find or create user in DB
-    if (!targetUserId) {
-      const user = await DB.getOrCreateUser(telegramId || username || 'player', username || 'Player', username || 'Player');
-      targetUserId = user.id;
-    }
-
-    await DB.requestDeposit(targetUserId, depositAmount, phoneNumber, txRef.trim(), method || 'TELEBIRR');
+    await DB.requestDeposit(userId, depositAmount, phoneNumber, txRef.trim(), method || 'TELEBIRR');
     res.json({ success: true, message: 'የማስገቢያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! አድሚኑ እንደተመለከተው ባላንስዎ ይሞላል።' });
   } catch (err) {
-    console.error('Deposit request error:', err);
     res.status(400).json({ error: 'ጥያቄውን መላክ አልተቻለም!' });
   }
 });
@@ -431,7 +452,6 @@ app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Pending Deposits
 app.get('/api/admin/pending-deposits', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingDeposits();
@@ -445,8 +465,6 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.approveDeposit(txId);
-    
-    // ለተጫዋቹ በሪል-ታይም ባላንሱንና የድል መልእክቱን ይልካል
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance += result.amount;
@@ -458,7 +476,6 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
         });
       }
     }
-
     res.json({ success: true, message: 'ማስገቢያው ጸድቋል፤ ለተጫዋቹ ገቢ ተደርጓል!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -475,7 +492,6 @@ app.post('/api/admin/reject-deposit', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Pending Withdrawals
 app.get('/api/admin/pending-withdrawals', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingWithdrawals();
@@ -505,7 +521,6 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Dashboard Overview & Today Stats
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
@@ -528,7 +543,6 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Transactions Archive (Search & Filter)
 app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   const { type, status, search } = req.query;
   try {
@@ -539,7 +553,6 @@ app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   }
 });
 
-// Admin User Detailed Profile
 app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   try {
     const profile = await DB.getUserDetailedProfile(req.params.userId);
@@ -549,7 +562,6 @@ app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Update Room Stake & Global Commission Rate
 app.post('/api/admin/update-settings', adminAuth, (req, res) => {
   const { commission, beginnerStake, turboStake, vipStake } = req.body;
   if (commission) globalCommissionPercent = parseInt(commission) || 10;
