@@ -50,7 +50,9 @@ if (process.env.BOT_TOKEN) {
       if (!user.phone_number) {
         const sharePhoneKeyboard = {
           reply_markup: {
-            keyboard: [[{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]],
+            keyboard: [
+              [{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]
+            ],
             resize_keyboard: true,
             one_time_keyboard: true
           }
@@ -66,7 +68,7 @@ if (process.env.BOT_TOKEN) {
       const playKeyboard = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://kokeb-bingo.onrender.com` } }],
+            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://${msg.headers?.host || 'kokeb-bingo.onrender.com'}` } }],
             [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
           ]
         }
@@ -74,9 +76,10 @@ if (process.env.BOT_TOKEN) {
 
       bot.sendMessage(
         chatId,
-        `🎯 Welcome back ${firstName}!\nReady to play 75-Ball Kokeb Bingo? Tap the button below to start playing instantly!`,
+        `🎯 Welcome back ${firstName}!\nReady to play the most exciting 75-Ball Kokeb Bingo game? Tap the button below to start playing instantly!`,
         playKeyboard
       );
+
     } catch (e) {
       console.error('Bot start error:', e);
     }
@@ -103,7 +106,9 @@ if (process.env.BOT_TOKEN) {
       const playKeyboard = {
         reply_markup: {
           remove_keyboard: true,
-          inline_keyboard: [[{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]]
+          inline_keyboard: [
+            [{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]
+          ]
         }
       };
 
@@ -113,18 +118,21 @@ if (process.env.BOT_TOKEN) {
         playKeyboard
       );
     } catch (err) {
-      console.error('Contact error:', err);
+      console.error('Contact registration error:', err);
     }
   });
 
   bot.on('callback_query', (query) => {
     if (query.data === 'help') {
-      bot.sendMessage(query.message.chat.id, `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ሲሞላ CLAIM BINGO ይጫኑ!`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ወይም 4 ማዕዘን ሲሞላ CLAIM BINGO ይጫኑ!`
+      );
     }
   });
 }
 
-// Game Rooms Configuration
+// Game Rooms Configuration (30s Selecting Timer Window)
 const rooms = {
   Beginner: createRoomState('Beginner', 10, 2500),
   Turbo: createRoomState('Turbo', 25, 1400),
@@ -137,7 +145,7 @@ function createRoomState(name, stake, callSpeed) {
     stake,
     callSpeed,
     state: 'LOBBY',
-    timer: 25,
+    timer: 30,
     timerInterval: null,
     gameInterval: null,
     cartelas: generate100Cartelas(),
@@ -145,40 +153,52 @@ function createRoomState(name, stake, callSpeed) {
     calledNumbers: new Set(),
     uncalledNumbers: Array.from({ length: 75 }, (_, i) => i + 1),
     drawnCount: 0,
-    isPaused: false
+    isPaused: false,
+    winnerDeclared: false
   };
 }
 
-// Broadcast Real Live Rooms Status to All Players
-function broadcastLiveRoomsUpdate() {
-  const roomsData = {};
-  for (const [name, r] of Object.entries(rooms)) {
-    const uniquePlayers = new Set(Array.from(r.takenCartelas.values()).map(v => v.username)).size;
-    const totalCards = r.takenCartelas.size;
-    const prize = Math.floor(totalCards * r.stake * ((100 - globalCommissionPercent) / 100));
-
-    roomsData[name] = {
-      name: r.name,
-      stake: r.stake,
-      state: r.state,
-      timer: r.timer,
-      playersCount: uniquePlayers,
-      cardsCount: totalCards,
-      prize: prize,
-      calledCount: r.drawnCount,
-      isPaused: r.isPaused
-    };
-  }
-  io.emit('all_rooms_update', roomsData);
+function broadcastRealRoomsStatus() {
+  const status = {
+    Beginner: {
+      stake: rooms.Beginner.stake,
+      playing: io.sockets.adapter.rooms.get('Beginner')?.size || 0,
+      cardsSold: rooms.Beginner.takenCartelas.size,
+      prize: Math.floor(rooms.Beginner.takenCartelas.size * rooms.Beginner.stake * ((100 - globalCommissionPercent) / 100)),
+      state: rooms.Beginner.state,
+      timer: rooms.Beginner.timer,
+      calledCount: rooms.Beginner.drawnCount
+    },
+    Turbo: {
+      stake: rooms.Turbo.stake,
+      playing: io.sockets.adapter.rooms.get('Turbo')?.size || 0,
+      cardsSold: rooms.Turbo.takenCartelas.size,
+      prize: Math.floor(rooms.Turbo.takenCartelas.size * rooms.Turbo.stake * ((100 - globalCommissionPercent) / 100)),
+      state: rooms.Turbo.state,
+      timer: rooms.Turbo.timer,
+      calledCount: rooms.Turbo.drawnCount
+    },
+    VIP: {
+      stake: rooms.VIP.stake,
+      playing: io.sockets.adapter.rooms.get('VIP')?.size || 0,
+      cardsSold: rooms.VIP.takenCartelas.size,
+      prize: Math.floor(rooms.VIP.takenCartelas.size * rooms.VIP.stake * ((100 - globalCommissionPercent) / 100)),
+      state: rooms.VIP.state,
+      timer: rooms.VIP.timer,
+      calledCount: rooms.VIP.drawnCount
+    }
+  };
+  io.emit('all_rooms_update', status);
 }
 
-// LOBBY & ENGINE
+// 30-SECOND LOBBY SELECTION & ENGINE
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (room.isPaused) return;
 
   room.state = 'LOBBY';
-  room.timer = 25;
+  room.winnerDeclared = false;
+  room.timer = 30;
   room.calledNumbers.clear();
   room.uncalledNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
   room.drawnCount = 0;
@@ -191,7 +211,8 @@ function startRoomLobby(roomName) {
     timer: room.timer,
     stake: room.stake
   });
-  broadcastLiveRoomsUpdate();
+
+  broadcastRealRoomsStatus();
 
   if (room.timerInterval) clearInterval(room.timerInterval);
 
@@ -199,7 +220,6 @@ function startRoomLobby(roomName) {
     if (room.isPaused) return;
     room.timer--;
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer });
-    broadcastLiveRoomsUpdate();
 
     if (room.timer <= 0) {
       clearInterval(room.timerInterval);
@@ -215,6 +235,7 @@ function startRoomLobby(roomName) {
 function startRoomGame(roomName) {
   const room = rooms[roomName];
   room.state = 'PLAYING';
+  room.winnerDeclared = false;
 
   const totalPot = room.takenCartelas.size * room.stake;
   const houseRake = (totalPot * globalCommissionPercent) / 100;
@@ -225,15 +246,17 @@ function startRoomGame(roomName) {
     prizePool,
     totalCards: room.takenCartelas.size
   });
-  broadcastLiveRoomsUpdate();
+
+  broadcastRealRoomsStatus();
 
   if (room.gameInterval) clearInterval(room.gameInterval);
 
   room.gameInterval = setInterval(() => {
-    if (room.isPaused) return;
+    if (room.isPaused || room.winnerDeclared) return;
+
     if (room.uncalledNumbers.length === 0 || room.state !== 'PLAYING') {
       clearInterval(room.gameInterval);
-      endGame(roomName, null, 'Game finished. All 75 balls drawn!');
+      endGame(roomName, null, 'ጨዋታው ተጠናቋል! ሁሉም 75 ኳሶች ወጥተዋል።');
       return;
     }
 
@@ -250,13 +273,13 @@ function startRoomGame(roomName) {
       callString: `${letter}-${num}`,
       drawnCount: room.drawnCount
     });
-    broadcastLiveRoomsUpdate();
   }, room.callSpeed);
 }
 
 async function endGame(roomName, winnerData, message) {
   const room = rooms[roomName];
   room.state = 'FINISHED';
+  room.winnerDeclared = true;
   if (room.gameInterval) clearInterval(room.gameInterval);
 
   if (winnerData) {
@@ -270,8 +293,12 @@ async function endGame(roomName, winnerData, message) {
     );
   }
 
-  io.to(roomName).emit('game_finished', { winner: winnerData, message });
-  broadcastLiveRoomsUpdate();
+  io.to(roomName).emit('game_finished', {
+    winner: winnerData,
+    message: winnerData ? `🎉 ${winnerData.username} በካርቴላ #${winnerData.cartelaId} ${winnerData.prize} ETB አሸነፈ!` : message
+  });
+
+  broadcastRealRoomsStatus();
   setTimeout(() => { startRoomLobby(roomName); }, 5000);
 }
 
@@ -279,9 +306,6 @@ Object.keys(rooms).forEach(name => startRoomLobby(name));
 
 // WEBSOCKET EVENTS
 io.on('connection', (socket) => {
-  // Send live snapshot on connect
-  broadcastLiveRoomsUpdate();
-
   socket.on('auth_user', async ({ username, initData, deviceId }) => {
     try {
       let telegramId = deviceId || `demo_${socket.id.substring(0, 5)}`;
@@ -299,7 +323,7 @@ io.on('connection', (socket) => {
       
       if (user.is_banned === 1 || user.is_banned === '1') {
         socket.emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
-        setTimeout(() => socket.disconnect(true), 800);
+        setTimeout(() => socket.disconnect(true), 500);
         return;
       }
 
@@ -314,8 +338,12 @@ io.on('connection', (socket) => {
         id: user.id,
         username: user.username,
         balance: user.balance,
-        botUsername: detectedBotUsername
+        botUsername: detectedBotUsername,
+        checkinStreak: user.checkin_streak || 0,
+        lastCheckinDate: user.last_checkin_date
       });
+
+      broadcastRealRoomsStatus();
     } catch (err) {
       socket.emit('error_message', 'Authentication failed');
     }
@@ -325,6 +353,8 @@ io.on('connection', (socket) => {
     const room = rooms[roomName];
     if (!room) return;
     socket.join(roomName);
+    broadcastRealRoomsStatus();
+
     socket.emit('room_snapshot', {
       roomName,
       state: room.state,
@@ -339,12 +369,17 @@ io.on('connection', (socket) => {
 
   socket.on('leave_room', ({ roomName }) => {
     socket.leave(roomName);
+    broadcastRealRoomsStatus();
   });
 
   socket.on('buy_cartelas', async ({ roomName, cartelaIds }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
-    if (!player || !room || room.state !== 'LOBBY') return;
+    if (!player || !room) return;
+
+    if (room.state !== 'LOBBY') {
+      return socket.emit('error_message', 'ይቅርታ! ጨዋታው ተጀምሯል፤ እባክዎ ቀጣዩን ዙር ይጠብቁ!');
+    }
 
     const totalCost = cartelaIds.length * room.stake;
     if (cartelaIds.some(id => room.takenCartelas.has(id))) {
@@ -379,7 +414,8 @@ io.on('connection', (socket) => {
         totalTaken: room.takenCartelas.size,
         prizePool: prizePool
       });
-      broadcastLiveRoomsUpdate();
+
+      broadcastRealRoomsStatus();
     } catch (err) {
       socket.emit('error_message', err.message || 'ግዢው አልተሳካም');
     }
@@ -392,31 +428,26 @@ io.on('connection', (socket) => {
     if (card.socketId === socket.id) card.markedMatrix[r][c] = state;
   });
 
-  // ==================== STRICT SINGLE WINNER LOCK (HOUSE PROTECTION) ====================
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
 
-    // Check if room is active & playing
-    if (!player || !room || room.state !== 'PLAYING') {
-      return socket.emit('error_message', '❌ ዙሩ ቀድሞ ተጠናቋል! አሸናፊ ተገኝቷል።');
+    if (!player || !room || room.state !== 'PLAYING' || room.winnerDeclared) {
+      return socket.emit('error_message', 'ይህ ዙር አስቀድሞ በሌላ ተጫዋች ተሸንፏል!');
     }
 
     const cardInfo = room.takenCartelas.get(cartelaId);
-    if (!cardInfo || cardInfo.socketId !== socket.id) {
-      return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
-    }
+    if (!cardInfo || cardInfo.socketId !== socket.id) return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
 
     const cardGrid = room.cartelas[cartelaId];
-    const isWin = validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers);
-
-    if (isWin) {
-      // 🔒 INSTANT MUTEX LOCK: Stop any other simultaneous claims immediately!
+    if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
+      room.winnerDeclared = true;
       room.state = 'FINISHED';
       if (room.gameInterval) clearInterval(room.gameInterval);
 
       const totalPot = room.takenCartelas.size * room.stake;
-      const prize = Math.floor(totalPot * ((100 - globalCommissionPercent) / 100));
+      const houseRake = (totalPot * globalCommissionPercent) / 100;
+      const prize = Math.floor(totalPot - houseRake);
 
       try {
         const updatedBalance = await DB.updateBalance(player.dbId, prize, 'WIN', roomName);
@@ -429,7 +460,7 @@ io.on('connection', (socket) => {
           `🎉 ቢንጎ! ${player.username} በካርቴላ #${cartelaId} ${prize} ETB አሸነፈ!`
         );
       } catch (dbErr) {
-        console.error('Win payout DB error:', dbErr);
+        console.error('Win payout error:', dbErr);
       }
     } else {
       socket.emit('error_message', 'ቢንጎ አልተሟላም! እባክዎን መስመሩን ያረጋግጡ።');
@@ -442,41 +473,11 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     activeSockets.delete(socket.id);
+    broadcastRealRoomsStatus();
   });
 });
 
-// ==================== REAL DAILY STREAK CHECK-IN API ====================
-app.post('/api/checkin/claim', async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'User ID required' });
-
-  try {
-    const result = await DB.claimDailyStreakCheckin(userId);
-    
-    // Update live socket balance
-    for (const [sockId, pInfo] of activeSockets.entries()) {
-      if (pInfo.dbId === userId) {
-        pInfo.balance = result.newBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
-      }
-    }
-
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.get('/api/checkin/status/:userId', async (req, res) => {
-  try {
-    const status = await DB.getCheckinStatus(req.params.userId);
-    res.json(status);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==================== REAL LEADERBOARD API ====================
+// ==================== APIS ====================
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const leaders = await DB.getRealLeaderboard();
@@ -486,7 +487,24 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// ==================== PAYMENT APIS ====================
+app.post('/api/checkin/claim', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+  try {
+    const result = await DB.claimDailyCheckinStreak(userId);
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === userId) {
+        pInfo.balance = result.newBalance;
+        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+      }
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -533,20 +551,13 @@ app.post('/api/payment/withdraw', async (req, res) => {
 
   try {
     const result = await DB.requestWithdrawal(userId, withdrawAmount, phoneNumber, method || 'TELEBIRR');
-    
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = result.remainingBalance;
         io.to(sockId).emit('balance_updated', { balance: result.remainingBalance });
       }
     }
-
-    res.json({ 
-      success: true, 
-      message: 'የማውጣት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!', 
-      txRef: result.txRef,
-      remainingBalance: result.remainingBalance 
-    });
+    res.json({ success: true, message: 'የማውጣት ጥያቄዎ በተሳካ ሁኔታ ተልኳል!', txRef: result.txRef, remainingBalance: result.remainingBalance });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -717,6 +728,7 @@ app.post('/api/admin/update-settings', adminAuth, (req, res) => {
   if (beginnerStake) rooms.Beginner.stake = parseInt(beginnerStake) || 10;
   if (turboStake) rooms.Turbo.stake = parseInt(turboStake) || 25;
   if (vipStake) rooms.VIP.stake = parseInt(vipStake) || 100;
+  broadcastRealRoomsStatus();
   res.json({ success: true, message: 'የክፍሎች ዋጋ እና ኮሚሽን በተሳካ ሁኔታ ተቀይሯል!' });
 });
 
@@ -760,15 +772,21 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   const room = rooms[roomName];
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
-  if (action === 'TOGGLE_PAUSE') room.isPaused = !room.isPaused;
-  else if (action === 'SET_SPEED') room.callSpeed = parseInt(value) || 2500;
-  else if (action === 'FORCE_START' && room.state === 'LOBBY') {
-    clearInterval(room.timerInterval);
-    startRoomGame(roomName);
+  if (action === 'TOGGLE_PAUSE') {
+    room.isPaused = !room.isPaused;
+  } else if (action === 'SET_SPEED') {
+    room.callSpeed = parseInt(value) || 2500;
+  } else if (action === 'FORCE_START') {
+    if (room.state === 'LOBBY') {
+      clearInterval(room.timerInterval);
+      startRoomGame(roomName);
+    }
   } else if (action === 'RESTART_LOBBY') {
     if (room.gameInterval) clearInterval(room.gameInterval);
     startRoomLobby(roomName);
   }
+
+  broadcastRealRoomsStatus();
   res.json({ success: true, roomState: room.state, isPaused: room.isPaused, speed: room.callSpeed });
 });
 

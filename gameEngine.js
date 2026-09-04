@@ -7,7 +7,6 @@ const RANGES = {
   O: [61, 75]
 };
 
-// Generate a single 5x5 Bingo Card
 function generateCartela() {
   const keys = ['B', 'I', 'N', 'G', 'O'];
   const columns = keys.map(key => {
@@ -30,7 +29,6 @@ function generateCartela() {
   return card;
 }
 
-// Generate all 100 Cartelas
 function generate100Cartelas() {
   const cartelas = {};
   for (let i = 1; i <= 100; i++) {
@@ -39,7 +37,6 @@ function generate100Cartelas() {
   return cartelas;
 }
 
-// Server-side Bingo win validation
 function validateBingo(cardGrid, markedMatrix, calledNumbersSet) {
   const isCellValid = (r, c) => {
     return cardGrid[r][c] === '★' || calledNumbersSet.has(cardGrid[r][c]);
@@ -74,7 +71,6 @@ function validateBingo(cardGrid, markedMatrix, calledNumbersSet) {
   return false;
 }
 
-// EXPORT ALL FUNCTIONS
 module.exports = {
   generateCartela,
   generate100Cartelas,

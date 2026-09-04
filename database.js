@@ -14,7 +14,6 @@ function hashPassword(password, salt) {
 }
 
 db.serialize(() => {
-  // Users Table
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,20 +23,17 @@ db.serialize(() => {
       phone_number TEXT,
       balance REAL DEFAULT 10.0,
       is_banned INTEGER DEFAULT 0,
-      referred_by TEXT,
-      last_checkin_date TEXT,
       checkin_streak INTEGER DEFAULT 0,
+      last_checkin_date TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   db.run("ALTER TABLE users ADD COLUMN phone_number TEXT", () => {});
   db.run("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0", () => {});
-  db.run("ALTER TABLE users ADD COLUMN referred_by TEXT", () => {});
-  db.run("ALTER TABLE users ADD COLUMN last_checkin_date TEXT", () => {});
   db.run("ALTER TABLE users ADD COLUMN checkin_streak INTEGER DEFAULT 0", () => {});
+  db.run("ALTER TABLE users ADD COLUMN last_checkin_date TEXT", () => {});
 
-  // Transactions Ledger
   db.run(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +49,9 @@ db.serialize(() => {
     )
   `);
 
-  // Game Rounds History
+  db.run("ALTER TABLE transactions ADD COLUMN phone_number TEXT", () => {});
+  db.run("ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'TELEBIRR'", () => {});
+
   db.run(`
     CREATE TABLE IF NOT EXISTS game_rounds (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +65,6 @@ db.serialize(() => {
     )
   `);
 
-  // Admin Config Table
   db.run(`
     CREATE TABLE IF NOT EXISTS admin_config (
       key TEXT PRIMARY KEY,
@@ -92,7 +89,7 @@ const DB = {
         if (err) return reject(err);
         if (row) return resolve(row);
 
-        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned) VALUES (?, ?, ?, 10.0, 0)');
+        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned, checkin_streak) VALUES (?, ?, ?, 10.0, 0, 0)');
         stmt.run(telegramId, username || 'Player', firstName || 'User', function (insertErr) {
           if (insertErr) return reject(insertErr);
           db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
@@ -104,7 +101,7 @@ const DB = {
     });
   },
 
-  registerVerifiedPhone: (telegramId, username, firstName, phoneNumber, refBy = null) => {
+  registerVerifiedPhone: (telegramId, username, firstName, phoneNumber) => {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, user) => {
         if (err) return reject(err);
@@ -119,14 +116,62 @@ const DB = {
           );
         } else {
           db.run(
-            'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, referred_by) VALUES (?, ?, ?, ?, 10.0, 0, ?)',
-            [telegramId, username || 'Player', firstName || 'User', phoneNumber, refBy],
+            'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES (?, ?, ?, ?, 10.0, 0, 0)',
+            [telegramId, username || 'Player', firstName || 'User', phoneNumber],
             function (iErr) {
               if (iErr) return reject(iErr);
               resolve({ id: this.lastID, telegram_id: telegramId, username, phone_number: phoneNumber, balance: 10.0, isNew: true });
             }
           );
         }
+      });
+    });
+  },
+
+  claimDailyCheckinStreak: (userId) => {
+    return new Promise((resolve, reject) => {
+      const today = new Date().toISOString().split('T')[0];
+      const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+      db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err || !user) return reject(err || new Error('User not found'));
+        if (user.is_banned === 1) return reject(new Error('❌ ተጠቃሚው ታግዷል!'));
+
+        if (user.last_checkin_date === today) {
+          return reject(new Error('ዛሬ የዕለቱን ቦነስ ወስደዋል! እባክዎን ነገ ይመለሱ።'));
+        }
+
+        let newStreak = 1;
+        if (user.last_checkin_date === yesterdayDate) {
+          newStreak = (user.checkin_streak || 0) + 1;
+          if (newStreak > 7) newStreak = 7;
+        } else {
+          newStreak = 1;
+        }
+
+        const rewardAmount = newStreak;
+        const newBalance = user.balance + rewardAmount;
+
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          db.run(
+            'UPDATE users SET balance = ?, checkin_streak = ?, last_checkin_date = ? WHERE id = ?',
+            [newBalance, newStreak, today, userId],
+            (uErr) => {
+              if (uErr) { db.run('ROLLBACK'); return reject(uErr); }
+
+              db.run(
+                'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
+                [userId, 'SPIN_REWARD', rewardAmount, 'COMPLETED', `STREAK_DAY_${newStreak}`],
+                (tErr) => {
+                  if (tErr) { db.run('ROLLBACK'); return reject(tErr); }
+                  db.run('COMMIT');
+                  resolve({ success: true, rewardAmount, newStreak, newBalance });
+                }
+              );
+            }
+          );
+        });
       });
     });
   },
@@ -155,90 +200,6 @@ const DB = {
             );
           });
         });
-      });
-    });
-  },
-
-  // ==================== REAL DAILY STREAK CHECKIN LOGIC ====================
-  claimDailyStreakCheckin: (userId) => {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-          if (err || !user) {
-            db.run('ROLLBACK');
-            return reject(err || new Error('User not found'));
-          }
-
-          const now = new Date();
-          const todayStr = now.toISOString().split('T')[0];
-          
-          let streak = user.checkin_streak || 0;
-          const lastDateStr = user.last_checkin_date;
-
-          if (lastDateStr) {
-            const lastDate = new Date(lastDateStr);
-            const diffTime = Math.abs(new Date(todayStr) - lastDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays === 0) {
-              db.run('ROLLBACK');
-              return reject(new Error('የዛሬውን የዕለታዊ ቦነስዎን ወስደዋል! እባክዎ ነገ ይመለሱ።'));
-            } else if (diffDays === 1) {
-              // Consecutive day streak
-              streak = (streak % 7) + 1;
-            } else {
-              // Streak Broken! Reset to Day 1
-              streak = 1;
-            }
-          } else {
-            streak = 1;
-          }
-
-          // Reward amount matches current streak (Day 1 = 1 ETB, Day 2 = 2 ETB... Day 7 = 7 ETB)
-          const rewardAmount = streak;
-          const newBalance = user.balance + rewardAmount;
-
-          db.run(
-            'UPDATE users SET balance = ?, last_checkin_date = ?, checkin_streak = ? WHERE id = ?',
-            [newBalance, todayStr, streak, userId],
-            (uErr) => {
-              if (uErr) {
-                db.run('ROLLBACK');
-                return reject(uErr);
-              }
-
-              db.run(
-                'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
-                [userId, 'DAILY_CHECKIN', rewardAmount, 'COMPLETED', `Day ${streak} Streak`],
-                (txErr) => {
-                  if (txErr) {
-                    db.run('ROLLBACK');
-                    return reject(txErr);
-                  }
-                  db.run('COMMIT');
-                  resolve({
-                    success: true,
-                    reward: rewardAmount,
-                    streak: streak,
-                    newBalance: newBalance
-                  });
-                }
-              );
-            }
-          );
-        });
-      });
-    });
-  },
-
-  getCheckinStatus: (userId) => {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT last_checkin_date, checkin_streak FROM users WHERE id = ?', [userId], (err, user) => {
-        if (err || !user) return resolve({ streak: 0, canClaim: true });
-        const todayStr = new Date().toISOString().split('T')[0];
-        const canClaim = user.last_checkin_date !== todayStr;
-        resolve({ streak: user.checkin_streak || 0, canClaim });
       });
     });
   },
@@ -286,7 +247,7 @@ const DB = {
   getUserTransactions: (userId) => {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW", "DAILY_CHECKIN") ORDER BY id DESC LIMIT 15',
+        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW") ORDER BY id DESC LIMIT 15',
         [userId],
         (err, rows) => {
           if (err) return reject(err);
