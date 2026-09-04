@@ -78,10 +78,10 @@
     .nav-item .nav-icon { font-size: 18px; }
     .nav-center-floating { position: relative; top: -14px; width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #00e5ff, #7928ca); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0, 229, 255, 0.6); border: 3px solid #08051a; color: #fff; font-size: 22px; cursor: pointer; }
 
-    /* Daily Check-in & Tasks */
+    /* Daily Check-in & Streak */
     .checkin-row { display: flex; justify-content: space-between; gap: 4px; margin: 10px 0; }
     .checkin-pill { flex: 1; padding: 8px 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 8px; text-align: center; font-size: 11px; font-weight: bold; }
-    .checkin-pill.active { background: var(--accent-gold); color: #08051a; }
+    .checkin-pill.active { background: var(--accent-gold); color: #08051a; border-color: #ffd700; box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
     .task-card { background: #130d33; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
     /* Profile Stats Grid */
@@ -158,7 +158,7 @@
     <p style="font-size: 13px; color: #8e8aa8; line-height: 1.5; max-width: 280px;">ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።</p>
   </div>
 
-  <!-- HOW TO PLAY GUIDE MODAL -->
+  <!-- GUIDE MODAL -->
   <div id="guide-modal" class="app-modal-overlay">
     <div style="background: #161033; border: 1px solid rgba(0,229,255,0.3); border-radius: 18px; padding: 18px; max-width: 340px; width: 100%; max-height: 82vh; overflow-y: auto; text-align: left;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -228,7 +228,7 @@
       <div>
         <div style="font-size: 10px; color: var(--accent-orange); font-weight: bold;">🔥 BUSIEST ROOM</div>
         <h4 style="font-size: 14px; margin: 2px 0;">Classic-10 · 10 Birr</h4>
-        <div style="font-size: 11px; color: var(--text-muted);">4 playing · prize <b style="color: var(--accent-green);">56 Birr</b></div>
+        <div style="font-size: 11px; color: var(--text-muted);"><span id="busiest-players">0</span> playing · prize <b style="color: var(--accent-green);"><span id="busiest-prize">0</span> Birr</b></div>
       </div>
       <button class="btn-play-glow" onclick="goToCartelaSelection('Beginner', 10)">Play</button>
     </div>
@@ -241,15 +241,15 @@
     <div class="rooms-quick-grid">
       <div class="room-tile-btn" style="border-color: rgba(0, 229, 255, 0.3);" onclick="goToCartelaSelection('Beginner', 10)">
         <div class="tile-stake" style="color: var(--accent-cyan);">10 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">4 playing · live</div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-beg-players">0</span> playing · <span id="quick-beg-state">open</span></div>
       </div>
       <div class="room-tile-btn" style="border-color: rgba(0, 255, 135, 0.3);" onclick="goToCartelaSelection('Turbo', 25)">
         <div class="tile-stake" style="color: var(--accent-green);">25 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">Turbo · open</div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-turbo-players">0</span> playing · <span id="quick-turbo-state">open</span></div>
       </div>
       <div class="room-tile-btn" style="border-color: rgba(255, 215, 0, 0.3);" onclick="goToCartelaSelection('VIP', 100)">
         <div class="tile-stake" style="color: var(--accent-gold);">100 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">VIP · open</div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-vip-players">0</span> playing · <span id="quick-vip-state">open</span></div>
       </div>
     </div>
 
@@ -279,13 +279,20 @@
     <div style="background: #140d38; border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 16px; padding: 14px; margin-bottom: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <b>Daily check-in</b>
-        <span style="font-size: 11px; color: var(--accent-orange);">🔥 0 streak</span>
+        <span style="font-size: 11px; color: var(--accent-orange);">🔥 <span id="streak-count-txt">0</span> streak</span>
       </div>
-      <div style="font-size: 11px; color: var(--text-muted);">Check in today to start a streak</div>
-      <div class="checkin-row">
-        <div class="checkin-pill active">1</div><div class="checkin-pill">2</div><div class="checkin-pill">3</div><div class="checkin-pill">4</div><div class="checkin-pill">5</div><div class="checkin-pill">6</div><div class="checkin-pill">7</div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Check in daily: Day 1=1 ETB ... Day 7=7 ETB (Gap resets to Day 1)</div>
+      
+      <div class="checkin-row" id="checkin-streak-pills">
+        <div class="checkin-pill" id="cpill-1">Day 1<br><small>1 ETB</small></div>
+        <div class="checkin-pill" id="cpill-2">Day 2<br><small>2 ETB</small></div>
+        <div class="checkin-pill" id="cpill-3">Day 3<br><small>3 ETB</small></div>
+        <div class="checkin-pill" id="cpill-4">Day 4<br><small>4 ETB</small></div>
+        <div class="checkin-pill" id="cpill-5">Day 5<br><small>5 ETB</small></div>
+        <div class="checkin-pill" id="cpill-6">Day 6<br><small>6 ETB</small></div>
+        <div class="checkin-pill" id="cpill-7">Day 7<br><small>7 ETB</small></div>
       </div>
-      <button class="btn btn-gold" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyCheckin()">Claim Daily 1 Birr</button>
+      <button class="btn btn-gold" id="btn-claim-checkin" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyStreak()">Claim Today's Bonus</button>
     </div>
 
     <!-- Tasks -->
@@ -321,12 +328,12 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle cyan">10<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">Classic-10</h4><div style="font-size: 11px; color: var(--text-muted);">● 4 playing · 7 cards</div></div>
+          <div><h4 style="color: #fff;">Classic-10</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-beg-players">0</span> playing · <span id="lounge-beg-cards">0</span> cards</div></div>
         </div>
-        <span class="status-pill" style="color: var(--accent-cyan);">● SELECTING · 25s</span>
+        <span class="status-pill" id="lounge-beg-status" style="color: var(--accent-cyan);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">MAX WIN</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);">1,600 <small style="font-size: 10px;">Birr</small></div></div>
+        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);"><span id="lounge-beg-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
         <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Beginner', 10)">Join</button>
       </div>
     </div>
@@ -336,12 +343,12 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle green">25<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">Turbo-25</h4><div style="font-size: 11px; color: var(--text-muted);">● Fast 1.4s calls</div></div>
+          <div><h4 style="color: #fff;">Turbo-25</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-turbo-players">0</span> playing · <span id="lounge-turbo-cards">0</span> cards</div></div>
         </div>
-        <span class="status-pill" style="color: var(--accent-green);">● SELECTING · 25s</span>
+        <span class="status-pill" id="lounge-turbo-status" style="color: var(--accent-green);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">MAX WIN</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);">4,000 <small style="font-size: 10px;">Birr</small></div></div>
+        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);"><span id="lounge-turbo-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
         <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Turbo', 25)">Join</button>
       </div>
     </div>
@@ -351,12 +358,12 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle gold">100<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">VIP Room</h4><div style="font-size: 11px; color: var(--text-muted);">● High Stakes Grand Pot</div></div>
+          <div><h4 style="color: #fff;">VIP Room</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-vip-players">0</span> playing · <span id="lounge-vip-cards">0</span> cards</div></div>
         </div>
-        <span class="status-pill" style="color: var(--accent-gold);">● SELECTING · 25s</span>
+        <span class="status-pill" id="lounge-vip-status" style="color: var(--accent-gold);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">MAX WIN</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);">16,000 <small style="font-size: 10px;">Birr</small></div></div>
+        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);"><span id="lounge-vip-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
         <button class="btn btn-gold" style="padding: 8px 24px;" onclick="goToCartelaSelection('VIP', 100)">Join</button>
       </div>
     </div>
@@ -442,7 +449,7 @@
       <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
         <div style="width: 35%; height: 100%; background: var(--accent-cyan);"></div>
       </div>
-      <div style="font-size: 10.5px; color: var(--text-muted);">🔥 0 day streak · 🏆 0 best win streak</div>
+      <div style="font-size: 10.5px; color: var(--text-muted);">🔥 <span id="prof-streak-val">0</span> day streak · 🏆 0 win streak</div>
     </div>
 
     <!-- 4 Stats Tiles -->
@@ -526,13 +533,13 @@
     </div>
   </div>
 
-  <!-- REAL-TIME 100% PRODUCTION JAVASCRIPT -->
+  <!-- REAL-TIME JAVASCRIPT -->
   <script>
     const socket = io();
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); tg.ready(); }
 
-    let userState = { dbId: 1, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR' };
+    let userState = { dbId: 1, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
     let gameState = { isLive: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0, playerCards: [] };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
@@ -618,7 +625,9 @@
     socket.on('auth_success', (u) => {
       userState.dbId = u.id;
       userState.coins = u.balance;
+      userState.streak = u.checkinStreak || 0;
       updateCoinsDisplay();
+      updateStreakUI(userState.streak, u.lastCheckinDate);
       switchNav('dashboard');
     });
 
@@ -639,12 +648,85 @@
       fetchMyTransactions();
     });
 
+    // Real Live Rooms Data Sync (No Fake Numbers)
+    socket.on('all_rooms_update', (status) => {
+      if (status.Beginner) {
+        document.getElementById('busiest-players').innerText = status.Beginner.playing;
+        document.getElementById('busiest-prize').innerText = status.Beginner.prize;
+        document.getElementById('quick-beg-players').innerText = status.Beginner.playing;
+        document.getElementById('quick-beg-state').innerText = status.Beginner.state.toLowerCase();
+        document.getElementById('lounge-beg-players').innerText = status.Beginner.playing;
+        document.getElementById('lounge-beg-cards').innerText = status.Beginner.cardsSold;
+        document.getElementById('lounge-beg-prize').innerText = status.Beginner.prize;
+        document.getElementById('lounge-beg-status').innerText = `● ${status.Beginner.state} · ${status.Beginner.timer}s`;
+      }
+      if (status.Turbo) {
+        document.getElementById('quick-turbo-players').innerText = status.Turbo.playing;
+        document.getElementById('quick-turbo-state').innerText = status.Turbo.state.toLowerCase();
+        document.getElementById('lounge-turbo-players').innerText = status.Turbo.playing;
+        document.getElementById('lounge-turbo-cards').innerText = status.Turbo.cardsSold;
+        document.getElementById('lounge-turbo-prize').innerText = status.Turbo.prize;
+        document.getElementById('lounge-turbo-status').innerText = `● ${status.Turbo.state} · ${status.Turbo.timer}s`;
+      }
+      if (status.VIP) {
+        document.getElementById('quick-vip-players').innerText = status.VIP.playing;
+        document.getElementById('quick-vip-state').innerText = status.VIP.state.toLowerCase();
+        document.getElementById('lounge-vip-players').innerText = status.VIP.playing;
+        document.getElementById('lounge-vip-cards').innerText = status.VIP.cardsSold;
+        document.getElementById('lounge-vip-prize').innerText = status.VIP.prize;
+        document.getElementById('lounge-vip-status').innerText = `● ${status.VIP.state} · ${status.VIP.timer}s`;
+      }
+    });
+
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins;
       document.getElementById('hub-coins-sub').innerText = userState.coins;
       document.getElementById('wallet-balance').innerText = userState.coins;
       document.getElementById('playonly-balance').innerText = userState.coins;
       document.getElementById('cartela-coins').innerText = userState.coins;
+    }
+
+    function updateStreakUI(streak, lastDate) {
+      document.getElementById('streak-count-txt').innerText = streak;
+      document.getElementById('prof-streak-val').innerText = streak;
+
+      for (let i = 1; i <= 7; i++) {
+        const pill = document.getElementById(`cpill-${i}`);
+        if (pill) pill.classList.toggle('active', i <= streak);
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const btn = document.getElementById('btn-claim-checkin');
+      if (lastDate === today) {
+        btn.innerText = '✅ Claimed for Today';
+        btn.disabled = true;
+      } else {
+        const nextDay = (streak % 7) + 1;
+        btn.innerText = `Claim Day ${nextDay} (${nextDay} ETB)`;
+        btn.disabled = false;
+      }
+    }
+
+    // STRICT 24-HOUR STREAK CLAIM
+    async function claimDailyStreak() {
+      try {
+        const res = await fetch('/api/checkin/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: userState.dbId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          userState.coins = data.newBalance;
+          userState.streak = data.newStreak;
+          updateCoinsDisplay();
+          updateStreakUI(data.newStreak, new Date().toISOString().split('T')[0]);
+          SoundFX.win();
+          showModal("እንኳን ደስ አለዎት!", `🎉 የቀን ${data.newStreak} የ ${data.rewardAmount} ETB ተከታታይ ቦነስዎ ገቢ ሆኗል!`, "🎁");
+        } else {
+          alert(data.error || "ዛሬ ወስደዋል!");
+        }
+      } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
     function selectPaymentMethod(m) {
@@ -714,21 +796,6 @@
           `).join('');
         }
       } catch (e) {}
-    }
-
-    function claimDailyCheckin() {
-      fetch('/api/spin/claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userState.dbId, prizeValue: 1 })
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          userState.coins = d.newBalance;
-          updateCoinsDisplay();
-          SoundFX.win();
-          showModal("እንኳን ደስ አለዎት!", "የ 1 Birr ዕለታዊ Check-in ቦነስዎ ወደ ዋሌትዎ ገቢ ሆኗል!", "🎁");
-        }
-      }).catch(() => {});
     }
 
     async function fetchRealLeaderboard() {
@@ -889,6 +956,7 @@
       });
     });
 
+    // 1-WINNER CLAIM
     function checkBingo() {
       const ids = Array.from(selectionState.selectedCartelaIds);
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));

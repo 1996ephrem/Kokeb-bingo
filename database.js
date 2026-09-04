@@ -25,6 +25,8 @@ db.serialize(() => {
       balance REAL DEFAULT 10.0,
       is_banned INTEGER DEFAULT 0,
       referred_by TEXT,
+      last_checkin_date TEXT,
+      checkin_streak INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -32,15 +34,17 @@ db.serialize(() => {
   db.run("ALTER TABLE users ADD COLUMN phone_number TEXT", () => {});
   db.run("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0", () => {});
   db.run("ALTER TABLE users ADD COLUMN referred_by TEXT", () => {});
+  db.run("ALTER TABLE users ADD COLUMN last_checkin_date TEXT", () => {});
+  db.run("ALTER TABLE users ADD COLUMN checkin_streak INTEGER DEFAULT 0", () => {});
 
   // Transactions Ledger
   db.run(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'SPIN_REWARD', 'ADMIN_ADJUST'
+      type TEXT,
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
+      status TEXT DEFAULT 'COMPLETED',
       reference TEXT,
       phone_number TEXT,
       payment_method TEXT DEFAULT 'TELEBIRR',
@@ -48,9 +52,6 @@ db.serialize(() => {
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
   `);
-
-  db.run("ALTER TABLE transactions ADD COLUMN phone_number TEXT", () => {});
-  db.run("ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'TELEBIRR'", () => {});
 
   // Game Rounds History
   db.run(`
@@ -75,7 +76,6 @@ db.serialize(() => {
     )
   `);
 
-  // Default Admin PIN 1234
   db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
     if (!row) {
       const salt = crypto.randomBytes(16).toString('hex');
@@ -159,6 +159,90 @@ const DB = {
     });
   },
 
+  // ==================== REAL DAILY STREAK CHECKIN LOGIC ====================
+  claimDailyStreakCheckin: (userId) => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+          if (err || !user) {
+            db.run('ROLLBACK');
+            return reject(err || new Error('User not found'));
+          }
+
+          const now = new Date();
+          const todayStr = now.toISOString().split('T')[0];
+          
+          let streak = user.checkin_streak || 0;
+          const lastDateStr = user.last_checkin_date;
+
+          if (lastDateStr) {
+            const lastDate = new Date(lastDateStr);
+            const diffTime = Math.abs(new Date(todayStr) - lastDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) {
+              db.run('ROLLBACK');
+              return reject(new Error('የዛሬውን የዕለታዊ ቦነስዎን ወስደዋል! እባክዎ ነገ ይመለሱ።'));
+            } else if (diffDays === 1) {
+              // Consecutive day streak
+              streak = (streak % 7) + 1;
+            } else {
+              // Streak Broken! Reset to Day 1
+              streak = 1;
+            }
+          } else {
+            streak = 1;
+          }
+
+          // Reward amount matches current streak (Day 1 = 1 ETB, Day 2 = 2 ETB... Day 7 = 7 ETB)
+          const rewardAmount = streak;
+          const newBalance = user.balance + rewardAmount;
+
+          db.run(
+            'UPDATE users SET balance = ?, last_checkin_date = ?, checkin_streak = ? WHERE id = ?',
+            [newBalance, todayStr, streak, userId],
+            (uErr) => {
+              if (uErr) {
+                db.run('ROLLBACK');
+                return reject(uErr);
+              }
+
+              db.run(
+                'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
+                [userId, 'DAILY_CHECKIN', rewardAmount, 'COMPLETED', `Day ${streak} Streak`],
+                (txErr) => {
+                  if (txErr) {
+                    db.run('ROLLBACK');
+                    return reject(txErr);
+                  }
+                  db.run('COMMIT');
+                  resolve({
+                    success: true,
+                    reward: rewardAmount,
+                    streak: streak,
+                    newBalance: newBalance
+                  });
+                }
+              );
+            }
+          );
+        });
+      });
+    });
+  },
+
+  getCheckinStatus: (userId) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT last_checkin_date, checkin_streak FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err || !user) return resolve({ streak: 0, canClaim: true });
+        const todayStr = new Date().toISOString().split('T')[0];
+        const canClaim = user.last_checkin_date !== todayStr;
+        resolve({ streak: user.checkin_streak || 0, canClaim });
+      });
+    });
+  },
+
   requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.run(
@@ -202,7 +286,7 @@ const DB = {
   getUserTransactions: (userId) => {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW") ORDER BY id DESC LIMIT 15',
+        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW", "DAILY_CHECKIN") ORDER BY id DESC LIMIT 15',
         [userId],
         (err, rows) => {
           if (err) return reject(err);

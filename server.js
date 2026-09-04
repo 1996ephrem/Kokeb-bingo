@@ -34,7 +34,7 @@ if (process.env.BOT_TOKEN) {
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
   }).catch(() => {});
 
-  bot.onText(/\/start(.*)/, async (msg, match) => {
+  bot.onText(/\/start(.*)/, async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
     const firstName = msg.from.first_name || 'Player';
@@ -50,9 +50,7 @@ if (process.env.BOT_TOKEN) {
       if (!user.phone_number) {
         const sharePhoneKeyboard = {
           reply_markup: {
-            keyboard: [
-              [{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]
-            ],
+            keyboard: [[{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]],
             resize_keyboard: true,
             one_time_keyboard: true
           }
@@ -68,7 +66,7 @@ if (process.env.BOT_TOKEN) {
       const playKeyboard = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://${msg.headers?.host || 'kokeb-bingo.onrender.com'}` } }],
+            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://kokeb-bingo.onrender.com` } }],
             [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
           ]
         }
@@ -76,10 +74,9 @@ if (process.env.BOT_TOKEN) {
 
       bot.sendMessage(
         chatId,
-        `🎯 Welcome back ${firstName}!\nReady to play the most exciting 75-Ball Kokeb Bingo game? Tap the button below to start playing instantly!`,
+        `🎯 Welcome back ${firstName}!\nReady to play 75-Ball Kokeb Bingo? Tap the button below to start playing instantly!`,
         playKeyboard
       );
-
     } catch (e) {
       console.error('Bot start error:', e);
     }
@@ -106,9 +103,7 @@ if (process.env.BOT_TOKEN) {
       const playKeyboard = {
         reply_markup: {
           remove_keyboard: true,
-          inline_keyboard: [
-            [{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]
-          ]
+          inline_keyboard: [[{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]]
         }
       };
 
@@ -118,16 +113,13 @@ if (process.env.BOT_TOKEN) {
         playKeyboard
       );
     } catch (err) {
-      console.error('Contact registration error:', err);
+      console.error('Contact error:', err);
     }
   });
 
   bot.on('callback_query', (query) => {
     if (query.data === 'help') {
-      bot.sendMessage(
-        query.message.chat.id,
-        `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ወይም 4 ማዕዘን ሲሞላ CLAIM BINGO ይጫኑ!`
-      );
+      bot.sendMessage(query.message.chat.id, `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ሲሞላ CLAIM BINGO ይጫኑ!`);
     }
   });
 }
@@ -157,6 +149,29 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
+// Broadcast Real Live Rooms Status to All Players
+function broadcastLiveRoomsUpdate() {
+  const roomsData = {};
+  for (const [name, r] of Object.entries(rooms)) {
+    const uniquePlayers = new Set(Array.from(r.takenCartelas.values()).map(v => v.username)).size;
+    const totalCards = r.takenCartelas.size;
+    const prize = Math.floor(totalCards * r.stake * ((100 - globalCommissionPercent) / 100));
+
+    roomsData[name] = {
+      name: r.name,
+      stake: r.stake,
+      state: r.state,
+      timer: r.timer,
+      playersCount: uniquePlayers,
+      cardsCount: totalCards,
+      prize: prize,
+      calledCount: r.drawnCount,
+      isPaused: r.isPaused
+    };
+  }
+  io.emit('all_rooms_update', roomsData);
+}
+
 // LOBBY & ENGINE
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
@@ -176,6 +191,7 @@ function startRoomLobby(roomName) {
     timer: room.timer,
     stake: room.stake
   });
+  broadcastLiveRoomsUpdate();
 
   if (room.timerInterval) clearInterval(room.timerInterval);
 
@@ -183,6 +199,7 @@ function startRoomLobby(roomName) {
     if (room.isPaused) return;
     room.timer--;
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer });
+    broadcastLiveRoomsUpdate();
 
     if (room.timer <= 0) {
       clearInterval(room.timerInterval);
@@ -208,6 +225,7 @@ function startRoomGame(roomName) {
     prizePool,
     totalCards: room.takenCartelas.size
   });
+  broadcastLiveRoomsUpdate();
 
   if (room.gameInterval) clearInterval(room.gameInterval);
 
@@ -232,6 +250,7 @@ function startRoomGame(roomName) {
       callString: `${letter}-${num}`,
       drawnCount: room.drawnCount
     });
+    broadcastLiveRoomsUpdate();
   }, room.callSpeed);
 }
 
@@ -252,6 +271,7 @@ async function endGame(roomName, winnerData, message) {
   }
 
   io.to(roomName).emit('game_finished', { winner: winnerData, message });
+  broadcastLiveRoomsUpdate();
   setTimeout(() => { startRoomLobby(roomName); }, 5000);
 }
 
@@ -259,6 +279,9 @@ Object.keys(rooms).forEach(name => startRoomLobby(name));
 
 // WEBSOCKET EVENTS
 io.on('connection', (socket) => {
+  // Send live snapshot on connect
+  broadcastLiveRoomsUpdate();
+
   socket.on('auth_user', async ({ username, initData, deviceId }) => {
     try {
       let telegramId = deviceId || `demo_${socket.id.substring(0, 5)}`;
@@ -356,6 +379,7 @@ io.on('connection', (socket) => {
         totalTaken: room.takenCartelas.size,
         prizePool: prizePool
       });
+      broadcastLiveRoomsUpdate();
     } catch (err) {
       socket.emit('error_message', err.message || 'ግዢው አልተሳካም');
     }
@@ -368,28 +392,45 @@ io.on('connection', (socket) => {
     if (card.socketId === socket.id) card.markedMatrix[r][c] = state;
   });
 
+  // ==================== STRICT SINGLE WINNER LOCK (HOUSE PROTECTION) ====================
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
-    if (!player || !room || room.state !== 'PLAYING') return;
+
+    // Check if room is active & playing
+    if (!player || !room || room.state !== 'PLAYING') {
+      return socket.emit('error_message', '❌ ዙሩ ቀድሞ ተጠናቋል! አሸናፊ ተገኝቷል።');
+    }
 
     const cardInfo = room.takenCartelas.get(cartelaId);
-    if (!cardInfo || cardInfo.socketId !== socket.id) return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
+    if (!cardInfo || cardInfo.socketId !== socket.id) {
+      return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
+    }
 
     const cardGrid = room.cartelas[cartelaId];
-    if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
+    const isWin = validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers);
+
+    if (isWin) {
+      // 🔒 INSTANT MUTEX LOCK: Stop any other simultaneous claims immediately!
+      room.state = 'FINISHED';
+      if (room.gameInterval) clearInterval(room.gameInterval);
+
       const totalPot = room.takenCartelas.size * room.stake;
       const prize = Math.floor(totalPot * ((100 - globalCommissionPercent) / 100));
+
       try {
         const updatedBalance = await DB.updateBalance(player.dbId, prize, 'WIN', roomName);
         player.balance = updatedBalance;
         socket.emit('balance_updated', { balance: updatedBalance });
+
         endGame(
           roomName,
           { username: player.username, cartelaId, prize },
           `🎉 ቢንጎ! ${player.username} በካርቴላ #${cartelaId} ${prize} ETB አሸነፈ!`
         );
-      } catch (dbErr) {}
+      } catch (dbErr) {
+        console.error('Win payout DB error:', dbErr);
+      }
     } else {
       socket.emit('error_message', 'ቢንጎ አልተሟላም! እባክዎን መስመሩን ያረጋግጡ።');
     }
@@ -404,6 +445,37 @@ io.on('connection', (socket) => {
   });
 });
 
+// ==================== REAL DAILY STREAK CHECK-IN API ====================
+app.post('/api/checkin/claim', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+  try {
+    const result = await DB.claimDailyStreakCheckin(userId);
+    
+    // Update live socket balance
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === userId) {
+        pInfo.balance = result.newBalance;
+        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/checkin/status/:userId', async (req, res) => {
+  try {
+    const status = await DB.getCheckinStatus(req.params.userId);
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== REAL LEADERBOARD API ====================
 app.get('/api/leaderboard', async (req, res) => {
   try {
@@ -411,35 +483,6 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json({ success: true, leaders });
   } catch (e) {
     res.status(500).json({ error: e.message });
-  }
-});
-
-// ==================== REAL DAILY SPIN CLAIM API ====================
-app.post('/api/spin/claim', async (req, res) => {
-  const { userId, prizeValue } = req.body;
-  const prize = parseFloat(prizeValue);
-
-  if (isNaN(prize) || prize <= 0) {
-    return res.json({ success: true, message: 'No coins won' });
-  }
-
-  if (prize > 10) {
-    return res.status(400).json({ error: 'Invalid prize amount!' });
-  }
-
-  try {
-    const newBal = await DB.updateBalance(userId, prize, 'SPIN_REWARD', 'Daily Lucky Spin');
-    
-    for (const [sockId, pInfo] of activeSockets.entries()) {
-      if (pInfo.dbId === userId) {
-        pInfo.balance = newBal;
-        io.to(sockId).emit('balance_updated', { balance: newBal });
-      }
-    }
-
-    res.json({ success: true, newBalance: newBal });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
   }
 });
 
@@ -558,7 +601,6 @@ app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Pending Deposits
 app.get('/api/admin/pending-deposits', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingDeposits();
@@ -599,7 +641,6 @@ app.post('/api/admin/reject-deposit', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Pending Withdrawals
 app.get('/api/admin/pending-withdrawals', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingWithdrawals();
@@ -629,7 +670,6 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// Admin Stats & Today Report
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
@@ -652,7 +692,6 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
-// Transactions Archive
 app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   const { type, status, search } = req.query;
   try {
@@ -663,7 +702,6 @@ app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   }
 });
 
-// User Detailed Profile
 app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   try {
     const profile = await DB.getUserDetailedProfile(req.params.userId);
@@ -673,7 +711,6 @@ app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   }
 });
 
-// Update Room Stake & Commission Settings
 app.post('/api/admin/update-settings', adminAuth, (req, res) => {
   const { commission, beginnerStake, turboStake, vipStake } = req.body;
   if (commission) globalCommissionPercent = parseInt(commission) || 10;
