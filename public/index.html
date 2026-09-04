@@ -39,7 +39,7 @@
     .user-profile-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .user-avatar-lg { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #00e5ff, #7928ca); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; color: #fff; box-shadow: 0 0 12px rgba(0, 229, 255, 0.4); }
 
-    /* Total Balance Card (AfriBINGO Style) */
+    /* Total Balance Card */
     .balance-master-card { background: linear-gradient(135deg, #1b124a 0%, #100a30 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
     .balance-val-huge { font-size: 34px; font-weight: 900; color: #fff; margin: 2px 0 10px 0; }
     .balance-sub-pills { display: flex; gap: 8px; }
@@ -127,7 +127,6 @@
     .player-card.near-win { border: 2px solid var(--accent-gold); box-shadow: 0 0 14px rgba(255, 215, 0, 0.6); animation: pulse 1s infinite; }
     .card-top { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-bottom: 2px; }
     .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
-    .card-header-cell { height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 8px; }
     .card-num-cell { background: #ffffff; height: 23px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9.5px; color: #1a162b; cursor: pointer; transition: background 0.1s; }
     .card-num-cell.marked { background: linear-gradient(135deg, #7928ca, #ff007f); color: white; }
     .card-num-cell.star { background: #7928ca; color: var(--accent-gold); font-size: 11px; }
@@ -158,22 +157,22 @@
   <!-- BAN OVERLAY -->
   <div id="banned-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #08051a; z-index: 99999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
     <div style="font-size: 60px; margin-bottom: 12px;">⛔</div>
-    <h2 style="color: #ff4757; margin-bottom: 8px;">አካውንትዎ ታግዷል!</h2>
-    <p style="font-size: 13px; color: #8e8aa8; line-height: 1.5; max-width: 280px;">ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።</p>
+    <h2 style="color: #ff4757; margin-bottom: 8px;" data-i18n="banned_title">አካውንትዎ ታግዷል!</h2>
+    <p style="font-size: 13px; color: #8e8aa8; line-height: 1.5; max-width: 280px;" data-i18n="banned_sub">ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።</p>
   </div>
 
   <!-- HOW TO PLAY GUIDE MODAL -->
   <div id="guide-modal" class="app-modal-overlay">
     <div style="background: #161033; border: 1px solid rgba(0,229,255,0.3); border-radius: 18px; padding: 18px; max-width: 340px; width: 100%; max-height: 82vh; overflow-y: auto; text-align: left;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="color: var(--accent-gold);">📖 የአጨዋወት መመሪያ</h3>
+        <h3 style="color: var(--accent-gold);" data-i18n="guide_title">📖 የአጨዋወት መመሪያ</h3>
         <button class="btn-sm btn-danger" style="padding: 2px 8px;" onclick="closeGuide()">✕</button>
       </div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> በቴሌብር ወይም CBE ብር ያስገቡ።</div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);">2. ካርቴላ ይቁረጡ:</b> ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይምረጡ።</div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-gold);">3. ኳሶችን ይከታተሉ:</b> Auto-Daub ማብራት ይመረጣል።</div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);">4. አሸንፈው ብር ያውጡ:</b> መስመር ሲሞላ CLAIM BINGO ይጫኑ!</div>
-      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="closeGuide()">ገባኝ (GOT IT!)</button>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);" data-i18n="g_step1_t">1. ሒሳብዎን ይሙሉ:</b> <span data-i18n="g_step1_d">በቴሌብር ወይም CBE ብር ያስገቡ።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);" data-i18n="g_step2_t">2. ካርቴላ ይቁረጡ:</b> <span data-i18n="g_step2_d">ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይምረጡ።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-gold);" data-i18n="g_step3_t">3. ኳሶችን ይከታተሉ:</b> <span data-i18n="g_step3_d">Auto-Daub ማብራት ይመረጣል።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);" data-i18n="g_step4_t">4. አሸንፈው ብር ያውጡ:</b> <span data-i18n="g_step4_d">መስመር ሲሞላ CLAIM BINGO ይጫኑ!</span></div>
+      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="closeGuide()" data-i18n="btn_gotit">ገባኝ (GOT IT!)</button>
     </div>
   </div>
 
@@ -183,7 +182,7 @@
       <div style="font-size: 38px; margin-bottom: 8px;" id="modal-icon">🎉</div>
       <h3 style="font-size: 16px; margin-bottom: 6px; color: var(--accent-cyan);" id="modal-title">Game Alert</h3>
       <p style="font-size: 12px; color: #dcdde1; margin-bottom: 14px; line-height: 1.4;" id="modal-desc">Message</p>
-      <button class="btn btn-success" style="width: 100%; padding: 10px;" id="modal-btn" onclick="closeModal()">ቀጥል (OK)</button>
+      <button class="btn btn-success" style="width: 100%; padding: 10px;" id="modal-btn" onclick="closeModal()" data-i18n="btn_ok">ቀጥል (OK)</button>
     </div>
   </div>
 
@@ -192,9 +191,9 @@
     <div style="text-align: center; margin: auto; max-width: 320px;">
       <div class="app-logo-text" style="font-size: 28px; margin-bottom: 6px;">KOKEB BINGO</div>
       <div style="font-size: 40px; margin-bottom: 8px;">🌟</div>
-      <h2 style="font-size: 20px; margin-bottom: 4px; color: #fff;">Welcome Player</h2>
-      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">የቀጥታ 75-ኳስ ኮከብ ቢንጎ በቴሌብር እና ሲቢኢ ብር።</p>
-      <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="authenticateUser()">🚀 ጀምር (LAUNCH HUB)</button>
+      <h2 style="font-size: 20px; margin-bottom: 4px; color: #fff;" data-i18n="welcome_auth">Welcome Player</h2>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;" data-i18n="auth_sub">የቀጥታ 75-ኳስ ኮከብ ቢንጎ በቴሌብር እና ሲቢኢ ብር።</p>
+      <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="authenticateUser()" data-i18n="auth_btn">🚀 ጀምር (LAUNCH HUB)</button>
     </div>
   </div>
 
@@ -212,48 +211,48 @@
     <div class="user-profile-bar">
       <div class="user-avatar-lg" id="hub-avatar">P</div>
       <div>
-        <div style="font-size: 11px; color: var(--text-muted);">Welcome back</div>
+        <div style="font-size: 11px; color: var(--text-muted);" data-i18n="welcome_back">Welcome back</div>
         <h4 id="hub-username" style="font-size: 14px;">User ♐</h4>
       </div>
     </div>
 
     <!-- Total Balance Master Card -->
     <div class="balance-master-card">
-      <div style="font-size: 11px; color: var(--text-muted);">Total balance</div>
-      <div class="balance-val-huge"><span id="hub-coins">10</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
+      <div style="font-size: 11px; color: var(--text-muted);" data-i18n="total_balance">Total balance</div>
+      <div class="balance-val-huge"><span id="hub-coins">10</span> <span style="font-size: 18px; color: var(--text-muted);" data-i18n="birr">Birr</span></div>
       <div class="balance-sub-pills">
-        <span class="pill-cashable">● 0 Birr cashable</span>
-        <span class="pill-playonly"><span id="hub-coins-sub">10</span> Birr play-only</span>
+        <span class="pill-cashable">● <span id="cashable-txt">0 Birr cashable</span></span>
+        <span class="pill-playonly"><span id="hub-coins-sub">10</span> <span data-i18n="playonly_pill">Birr play-only</span></span>
       </div>
     </div>
 
     <!-- Busiest Room Card -->
     <div class="busiest-card">
       <div>
-        <div style="font-size: 10px; color: var(--accent-orange); font-weight: bold;">🔥 BUSIEST ROOM</div>
-        <h4 style="font-size: 14px; margin: 2px 0;">Classic-10 · 10 Birr</h4>
-        <div style="font-size: 11px; color: var(--text-muted);"><span id="busiest-players">0</span> playing · prize <b style="color: var(--accent-green);"><span id="busiest-prize">0</span> Birr</b></div>
+        <div style="font-size: 10px; color: var(--accent-orange); font-weight: bold;" data-i18n="busiest_hdr">🔥 BUSIEST ROOM</div>
+        <h4 style="font-size: 14px; margin: 2px 0;" data-i18n="room_classic10">Classic-10 · 10 Birr</h4>
+        <div style="font-size: 11px; color: var(--text-muted);"><span id="busiest-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span data-i18n="prize_lbl">prize</span> <b style="color: var(--accent-green);"><span id="busiest-prize">0</span> <span data-i18n="birr">Birr</span></b></div>
       </div>
-      <button class="btn-play-glow" onclick="goToCartelaSelection('Beginner', 10)">Play</button>
+      <button class="btn-play-glow" onclick="goToCartelaSelection('Beginner', 10)" data-i18n="btn_play">Play</button>
     </div>
 
     <!-- Quick Rooms Grid -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size: 11px; font-weight: bold; color: var(--accent-cyan);">ROOMS</span>
-      <span style="font-size: 11px; color: var(--text-muted); cursor: pointer;" onclick="switchNav('games')">SEE ALL ></span>
+      <span style="font-size: 11px; font-weight: bold; color: var(--accent-cyan);" data-i18n="rooms_hdr">ROOMS</span>
+      <span style="font-size: 11px; color: var(--text-muted); cursor: pointer;" onclick="switchNav('games')" data-i18n="see_all">SEE ALL ></span>
     </div>
     <div class="rooms-quick-grid">
       <div class="room-tile-btn" style="border-color: rgba(0, 229, 255, 0.3);" onclick="goToCartelaSelection('Beginner', 10)">
         <div class="tile-stake" style="color: var(--accent-cyan);">10 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-beg-players">0</span> playing · <span id="quick-beg-state">open</span></div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-beg-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="quick-beg-state">open</span></div>
       </div>
       <div class="room-tile-btn" style="border-color: rgba(0, 255, 135, 0.3);" onclick="goToCartelaSelection('Turbo', 25)">
         <div class="tile-stake" style="color: var(--accent-green);">25 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-turbo-players">0</span> playing · <span id="quick-turbo-state">open</span></div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-turbo-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="quick-turbo-state">open</span></div>
       </div>
       <div class="room-tile-btn" style="border-color: rgba(255, 215, 0, 0.3);" onclick="goToCartelaSelection('VIP', 100)">
         <div class="tile-stake" style="color: var(--accent-gold);">100 Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-vip-players">0</span> playing · <span id="quick-vip-state">open</span></div>
+        <div style="font-size: 9.5px; color: var(--text-muted);"><span id="quick-vip-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="quick-vip-state">open</span></div>
       </div>
     </div>
 
@@ -261,7 +260,7 @@
     <div class="feature-banner" onclick="switchNav('leaderboard')">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 18px;">👑</span>
-        <div><b>Weekly leaderboard</b><div style="font-size: 10px; color: var(--text-muted);">See where you stand and what's up for grabs</div></div>
+        <div><b data-i18n="weekly_leaderboard">Weekly leaderboard</b><div style="font-size: 10px; color: var(--text-muted);" data-i18n="weekly_leaderboard_sub">See where you stand and what's up for grabs</div></div>
       </div>
       <span>></span>
     </div>
@@ -269,7 +268,7 @@
     <div class="feature-banner" onclick="switchNav('earn')">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 18px;">🎁</span>
-        <div><b>Invite friends</b><div style="font-size: 10px; color: var(--text-muted);">Earn 5 ETB every time a friend joins</div></div>
+        <div><b data-i18n="invite_friends">Invite friends</b><div style="font-size: 10px; color: var(--text-muted);" data-i18n="invite_friends_sub">Earn 5 ETB every time a friend joins</div></div>
       </div>
       <span>></span>
     </div>
@@ -277,15 +276,15 @@
 
   <!-- VIEW 3: EARN TAB -->
   <div id="screen-earn" class="view-screen">
-    <div class="top-brand-header"><div class="app-logo-text">Rewards & Tasks</div></div>
+    <div class="top-brand-header"><div class="app-logo-text" data-i18n="rewards_title">Rewards & Tasks</div></div>
     
     <!-- Daily Check-in Streak Card -->
     <div style="background: #140d38; border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 16px; padding: 14px; margin-bottom: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <b>Daily check-in</b>
-        <span style="font-size: 11px; color: var(--accent-orange);">🔥 <span id="streak-count-txt">0</span> streak</span>
+        <b data-i18n="daily_checkin">Daily check-in</b>
+        <span style="font-size: 11px; color: var(--accent-orange);">🔥 <span id="streak-count-txt">0</span> <span data-i18n="streak_lbl">streak</span></span>
       </div>
-      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Check in daily: Day 1=1 ETB ... Day 7=7 ETB (Gap resets to Day 1)</div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" data-i18n="checkin_sub">Check in daily: Day 1=1 ETB ... Day 7=7 ETB (Gap resets to Day 1)</div>
       
       <div class="checkin-row" id="checkin-streak-pills">
         <div class="checkin-pill" id="cpill-1">Day 1<br><small>1 ETB</small></div>
@@ -296,25 +295,25 @@
         <div class="checkin-pill" id="cpill-6">Day 6<br><small>6 ETB</small></div>
         <div class="checkin-pill" id="cpill-7">Day 7<br><small>7 ETB</small></div>
       </div>
-      <button class="btn btn-gold" id="btn-claim-checkin" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyStreak()">Claim Today's Bonus</button>
+      <button class="btn btn-gold" id="btn-claim-checkin" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyStreak()" data-i18n="btn_claim_streak">Claim Today's Bonus</button>
     </div>
 
     <!-- Tasks -->
-    <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin-bottom: 6px;">TASKS</div>
+    <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin-bottom: 6px;" data-i18n="tasks_hdr">TASKS</div>
     <div class="task-card">
-      <div><b>Join Kokeb Bingo Channel</b><div style="font-size: 10px; color: var(--accent-gold);">@Kokeb_Bingo_Bot · 1 Birr</div></div>
-      <button class="btn-sm btn-success" onclick="shareTelegramReferral()">Open</button>
+      <div><b data-i18n="task_channel">Join Kokeb Bingo Channel</b><div style="font-size: 10px; color: var(--accent-gold);">@Kokeb_Bingo_Bot · 1 Birr</div></div>
+      <button class="btn-sm btn-success" onclick="shareTelegramReferral()" data-i18n="btn_open">Open</button>
     </div>
 
     <!-- Referral Box -->
-    <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin: 10px 0 6px 0;">INVITE FRIENDS</div>
+    <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin: 10px 0 6px 0;" data-i18n="invite_hdr">INVITE FRIENDS</div>
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;">Earn <b>5 Birr</b> when a friend joins with your link and tops up.</p>
+      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;" data-i18n="invite_desc">Earn <b>5 Birr</b> when a friend joins with your link and tops up.</p>
       <div style="background: rgba(0,0,0,0.3); border: 1px dashed var(--accent-cyan); border-radius: 8px; padding: 8px; font-size: 11px; color: #00e5ff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <span id="ref-link-display">t.me/Kokeb_Bingo_Bot?start=ref_...</span>
         <span style="cursor: pointer;" onclick="copyReferralLink()">📋</span>
       </div>
-      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="shareTelegramReferral()">Share Invite Link</button>
+      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="shareTelegramReferral()" data-i18n="btn_share_invite">Share Invite Link</button>
     </div>
   </div>
 
@@ -322,8 +321,8 @@
   <div id="screen-games" class="view-screen">
     <div class="top-brand-header">
       <div>
-        <div class="app-logo-text">Games</div>
-        <div style="font-size: 11px; color: var(--text-muted);">Pick a stake and join the next round</div>
+        <div class="app-logo-text" data-i18n="games_hdr">Games</div>
+        <div style="font-size: 11px; color: var(--text-muted);" data-i18n="games_sub">Pick a stake and join the next round</div>
       </div>
     </div>
 
@@ -332,13 +331,13 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle cyan">10<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">Classic-10</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-beg-players">0</span> playing · <span id="lounge-beg-cards">0</span> cards</div></div>
+          <div><h4 style="color: #fff;" data-i18n="room_classic10">Classic-10</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-beg-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="lounge-beg-cards">0</span> <span data-i18n="cards_lbl">cards</span></div></div>
         </div>
         <span class="status-pill" id="lounge-beg-status" style="color: var(--accent-cyan);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);"><span id="lounge-beg-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
-        <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Beginner', 10)">Join</button>
+        <div><div style="font-size: 9px; color: var(--text-muted);" data-i18n="active_prize">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);"><span id="lounge-beg-prize">0</span> <small style="font-size: 10px;" data-i18n="birr">Birr</small></div></div>
+        <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Beginner', 10)" data-i18n="btn_join">Join</button>
       </div>
     </div>
 
@@ -347,13 +346,13 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle green">25<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">Turbo-25</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-turbo-players">0</span> playing · <span id="lounge-turbo-cards">0</span> cards</div></div>
+          <div><h4 style="color: #fff;" data-i18n="room_turbo25">Turbo-25</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-turbo-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="lounge-turbo-cards">0</span> <span data-i18n="cards_lbl">cards</span></div></div>
         </div>
         <span class="status-pill" id="lounge-turbo-status" style="color: var(--accent-green);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);"><span id="lounge-turbo-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
-        <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Turbo', 25)">Join</button>
+        <div><div style="font-size: 9px; color: var(--text-muted);" data-i18n="active_prize">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);"><span id="lounge-turbo-prize">0</span> <small style="font-size: 10px;" data-i18n="birr">Birr</small></div></div>
+        <button class="btn btn-success" style="padding: 8px 24px;" onclick="goToCartelaSelection('Turbo', 25)" data-i18n="btn_join">Join</button>
       </div>
     </div>
 
@@ -362,13 +361,13 @@
       <div class="lounge-top">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div class="stake-circle gold">100<small style="font-size:8px;">BIRR</small></div>
-          <div><h4 style="color: #fff;">VIP Room</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-vip-players">0</span> playing · <span id="lounge-vip-cards">0</span> cards</div></div>
+          <div><h4 style="color: #fff;" data-i18n="room_vip100">VIP Room</h4><div style="font-size: 11px; color: var(--text-muted);">● <span id="lounge-vip-players">0</span> <span data-i18n="playing_lbl">playing</span> · <span id="lounge-vip-cards">0</span> <span data-i18n="cards_lbl">cards</span></div></div>
         </div>
         <span class="status-pill" id="lounge-vip-status" style="color: var(--accent-gold);">● SELECTING · 25s</span>
       </div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-        <div><div style="font-size: 9px; color: var(--text-muted);">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);"><span id="lounge-vip-prize">0</span> <small style="font-size: 10px;">Birr</small></div></div>
-        <button class="btn btn-gold" style="padding: 8px 24px;" onclick="goToCartelaSelection('VIP', 100)">Join</button>
+        <div><div style="font-size: 9px; color: var(--text-muted);" data-i18n="active_prize">ACTIVE PRIZE</div><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);"><span id="lounge-vip-prize">0</span> <small style="font-size: 10px;" data-i18n="birr">Birr</small></div></div>
+        <button class="btn btn-gold" style="padding: 8px 24px;" onclick="goToCartelaSelection('VIP', 100)" data-i18n="btn_join">Join</button>
       </div>
     </div>
   </div>
@@ -377,29 +376,29 @@
   <div id="screen-wallet" class="view-screen">
     <div class="top-brand-header">
       <div>
-        <div class="app-logo-text">Wallet</div>
-        <div style="font-size: 11px; color: var(--text-muted);">Balance, deposits, withdrawals and history</div>
+        <div class="app-logo-text" data-i18n="wallet_title">Wallet</div>
+        <div style="font-size: 11px; color: var(--text-muted);" data-i18n="wallet_sub">Balance, deposits, withdrawals and history</div>
       </div>
     </div>
 
     <!-- Total Balance Card -->
     <div class="balance-master-card">
-      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">TOTAL BALANCE</div>
-      <div class="balance-val-huge"><span id="wallet-balance">10</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
-      <div style="font-size: 10.5px; color: var(--text-muted);">Everything you can play with</div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;" data-i18n="total_balance_caps">TOTAL BALANCE</div>
+      <div class="balance-val-huge"><span id="wallet-balance">10</span> <span style="font-size: 18px; color: var(--text-muted);" data-i18n="birr">Birr</span></div>
+      <div style="font-size: 10.5px; color: var(--text-muted);" data-i18n="wallet_play_desc">Everything you can play with</div>
     </div>
 
     <!-- 2-Tier Sub-Boxes -->
     <div class="wallet-boxes-grid">
       <div class="wallet-box-cashable">
-        <div style="font-size: 10px; color: var(--accent-gold); font-weight: bold;">● CASHABLE</div>
-        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="cashable-balance">0</span> Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">Winnings & prizes — can be withdrawn</div>
+        <div style="font-size: 10px; color: var(--accent-gold); font-weight: bold;" data-i18n="cashable_hdr">● CASHABLE</div>
+        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="cashable-balance">0</span> <span data-i18n="birr">Birr</span></div>
+        <div style="font-size: 9.5px; color: var(--text-muted);" data-i18n="cashable_desc">Winnings & prizes — can be withdrawn</div>
       </div>
       <div class="wallet-box-playonly">
-        <div style="font-size: 10px; color: var(--accent-purple); font-weight: bold;">● PLAY-ONLY</div>
-        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">10</span> Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">Deposits & bonuses — spend on cards</div>
+        <div style="font-size: 10px; color: var(--accent-purple); font-weight: bold;" data-i18n="playonly_hdr">● PLAY-ONLY</div>
+        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">10</span> <span data-i18n="birr">Birr</span></div>
+        <div style="font-size: 9.5px; color: var(--text-muted);" data-i18n="playonly_desc">Deposits & bonuses — spend on cards</div>
       </div>
     </div>
 
@@ -411,26 +410,26 @@
 
     <!-- Deposit Box -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: #ffd700; font-weight: bold;">📥 ሒሳብ ሙላ (Deposit to 0997575739 Ephrem Shitu):</div>
+      <div style="font-size: 11px; color: #ffd700; font-weight: bold;" data-i18n="deposit_inst_title">📥 ሒሳብ ሙላ (Deposit to 0997575739 Ephrem Shitu):</div>
       <input type="tel" id="deposit-phone-input" placeholder="የላኩበት ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ለምሳሌ 100 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
       <input type="text" id="deposit-ref-input" placeholder="የትራንዛክሽን መለያ ቁጥር (Txn ID/Ref)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
-      <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()">+ Deposit Request</button>
+      <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()" data-i18n="btn_submit_deposit">+ Deposit Request</button>
     </div>
 
     <!-- Cashout Box -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">📤 ብር አውጣ (Withdraw to Telebirr/CBE):</div>
+      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Withdraw to Telebirr/CBE):</div>
       <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
-      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()">Withdraw</button>
+      <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()" data-i18n="btn_withdraw">Withdraw</button>
     </div>
 
     <!-- User Transactions List -->
-    <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; margin-bottom: 4px;">HISTORY</div>
+    <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; margin-bottom: 4px;" data-i18n="history_hdr">HISTORY</div>
     <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 6px; max-height: 140px; overflow-y: auto;">
       <table class="tx-table" style="width: 100%; font-size: 11px;">
-        <tbody id="my-tx-body"><tr><td style="text-align: center; color: #8e8aa8;">ምንም ዝውውር የለም</td></tr></tbody>
+        <tbody id="my-tx-body"><tr><td style="text-align: center; color: #8e8aa8;" data-i18n="no_tx">ምንም ዝውውር የለም</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -441,41 +440,41 @@
       <div class="user-avatar-lg" style="width: 60px; height: 60px; margin: auto; font-size: 24px; margin-bottom: 8px;" id="prof-avatar-big">E</div>
       <h3 id="prof-name-big" style="color: #fff;">Player ♐</h3>
       <div style="font-size: 11px; color: var(--text-muted);" id="prof-handle-big">@player · ID 7159802556</div>
-      <div style="margin-top: 6px;"><span class="pill-cashable">⭐ Member since 2026</span></div>
+      <div style="margin-top: 6px;"><span class="pill-cashable" data-i18n="member_since">⭐ Member since 2026</span></div>
     </div>
 
     <!-- Level Progress Card -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-        <b>Level 1</b>
-        <span style="font-size: 10px; color: var(--text-muted);">260 XP to next</span>
+        <b data-i18n="level_1">Level 1</b>
+        <span style="font-size: 10px; color: var(--text-muted);" data-i18n="xp_next">260 XP to next</span>
       </div>
       <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
         <div style="width: 35%; height: 100%; background: var(--accent-cyan);"></div>
       </div>
-      <div style="font-size: 10.5px; color: var(--text-muted);">🔥 <span id="prof-streak-val">0</span> day streak · 🏆 0 win streak</div>
+      <div style="font-size: 10.5px; color: var(--text-muted);">🔥 <span id="prof-streak-val">0</span> <span data-i18n="day_streak">day streak</span> · 🏆 0 <span data-i18n="win_streak">win streak</span></div>
     </div>
 
     <!-- 4 Stats Tiles -->
     <div class="profile-stats-grid">
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);">0</div><div style="font-size: 10px; color: var(--text-muted);">Games played</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);">0</div><div style="font-size: 10px; color: var(--text-muted);">Games won</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total won</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-pink);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total bet</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);">0</div><div style="font-size: 10px; color: var(--text-muted);" data-i18n="games_played">Games played</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);">0</div><div style="font-size: 10px; color: var(--text-muted);" data-i18n="games_won">Games won</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);" data-i18n="total_won">Total won</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-pink);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);" data-i18n="total_bet">Total bet</div></div>
     </div>
 
     <!-- Settings List -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 10px;">
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <div><b>Automatic play</b><div style="font-size: 10px; color: var(--text-muted);">Mark numbers and claim bingo for me</div></div>
+        <div><b data-i18n="auto_play_title">Automatic play</b><div style="font-size: 10px; color: var(--text-muted);" data-i18n="auto_play_sub">Mark numbers and claim bingo for me</div></div>
         <div class="toggle-switch active" id="prof-autodaub" onclick="toggleAutoDaub()"></div>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);" onclick="toggleLanguage()">
-        <div><b>Language (ቋንቋ)</b><div style="font-size: 10px; color: var(--text-muted);">Switch English / አማርኛ</div></div>
-        <span id="prof-lang-txt" style="color: var(--accent-cyan); font-weight: bold;">English ></span>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;" onclick="toggleLanguage()">
+        <div><b data-i18n="language_opt">Language (ቋንቋ)</b><div style="font-size: 10px; color: var(--text-muted);" data-i18n="language_sub">Switch English / አማርኛ</div></div>
+        <span id="prof-lang-txt" style="color: var(--accent-cyan); font-weight: bold;">አማርኛ ></span>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;" onclick="openGuide()">
-        <div><b>How to play & rules</b><div style="font-size: 10px; color: var(--text-muted);">The full guide — rounds, prizes, payouts</div></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; cursor: pointer;" onclick="openGuide()">
+        <div><b data-i18n="guide_opt">How to play & rules</b><div style="font-size: 10px; color: var(--text-muted);" data-i18n="guide_sub">The full guide — rounds, prizes, payouts</div></div>
         <span>></span>
       </div>
     </div>
@@ -484,21 +483,21 @@
   <!-- VIEW 7: CARTELA SELECTION -->
   <div id="screen-cartela-select" class="view-screen">
     <div class="top-brand-header">
-      <button class="btn-sm btn-danger" onclick="cancelCartelaSelection()">← BACK</button>
+      <button class="btn-sm btn-danger" onclick="cancelCartelaSelection()" data-i18n="btn_back">← BACK</button>
       <h4 id="room-title" style="color: var(--accent-cyan);">Cartela Selection</h4>
       <span class="pill-cashable">🪙 <span id="cartela-coins">10</span></span>
     </div>
     <div style="background: #140d38; border-radius: 12px; padding: 10px; text-align: center; margin-bottom: 8px;">
-      <h3>⏰ ROUND STARTS IN: <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
+      <h3><span data-i18n="round_starts_in">⏰ ROUND STARTS IN:</span> <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
     </div>
     <div class="cartelas-grid" id="cartelas-container"></div>
-    <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()">ENTER ARENA (<span id="btn-cartela-count">0</span>)</button>
+    <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()"><span data-i18n="btn_enter_arena">ENTER ARENA</span> (<span id="btn-cartela-count">0</span>)</button>
   </div>
 
   <!-- VIEW 8: LIVE GAME ENGINE -->
   <div id="screen-game" class="view-screen">
     <div class="top-brand-header">
-      <button class="btn-sm btn-danger" onclick="leaveCurrentGame()">🚪 LEAVE</button>
+      <button class="btn-sm btn-danger" onclick="leaveCurrentGame()" data-i18n="btn_leave">🚪 LEAVE</button>
       <h4 id="game-room-name" style="color: var(--accent-cyan);">Classic-10</h4>
       <div class="toggle-switch active" id="autodaub-toggle" onclick="toggleAutoDaub()"></div>
     </div>
@@ -509,7 +508,7 @@
           <div class="call-sphere-num" id="current-call">--</div>
           <div class="call-amharic-label" id="current-call-amharic"></div>
         </div>
-        <button id="claim-bingo-btn" class="btn btn-success" style="width: 100%; padding: 8px;" onclick="checkBingo()" disabled>🏆 CLAIM BINGO!</button>
+        <button id="claim-bingo-btn" class="btn btn-success" style="width: 100%; padding: 8px;" onclick="checkBingo()" disabled data-i18n="btn_claim">🏆 CLAIM BINGO!</button>
         <div id="player-cartelas-list" style="width: 100%;"></div>
       </div>
     </div>
@@ -518,8 +517,8 @@
   <!-- VIEW 9: REAL LEADERBOARD -->
   <div id="screen-leaderboard" class="view-screen">
     <div class="top-brand-header">
-      <button class="btn-sm btn-danger" onclick="switchNav('dashboard')">← BACK</button>
-      <div class="app-logo-text">Leaderboard 🏆</div>
+      <button class="btn-sm btn-danger" onclick="switchNav('dashboard')" data-i18n="btn_back">← BACK</button>
+      <div class="app-logo-text" data-i18n="leaderboard_title">Leaderboard 🏆</div>
       <div></div>
     </div>
     <div id="real-leaderboard-container" style="margin-top: 10px;"></div>
@@ -528,34 +527,239 @@
   <!-- FLOATING 5-ITEM BOTTOM NAVIGATION BAR -->
   <div class="bottom-nav">
     <div class="nav-item active" onclick="switchNav('dashboard')" id="nav-dashboard">
-      <div class="nav-icon">🏠</div><span>Home</span>
+      <div class="nav-icon">🏠</div><span data-i18n="nav_home">Home</span>
     </div>
     <div class="nav-item" onclick="switchNav('earn')" id="nav-earn">
-      <div class="nav-icon">🎁</div><span>Earn</span>
+      <div class="nav-icon">🎁</div><span data-i18n="nav_earn">Earn</span>
     </div>
     <div class="nav-center-floating" onclick="switchNav('games')" id="nav-games">
       🎮
     </div>
     <div class="nav-item" onclick="switchNav('wallet')" id="nav-wallet">
-      <div class="nav-icon">🪙</div><span>Wallet</span>
+      <div class="nav-icon">🪙</div><span data-i18n="nav_wallet">Wallet</span>
     </div>
     <div class="nav-item" onclick="switchNav('profile')" id="nav-profile">
-      <div class="nav-icon">👤</div><span>Profile</span>
+      <div class="nav-icon">👤</div><span data-i18n="nav_profile">Profile</span>
     </div>
   </div>
 
-  <!-- REAL-TIME 100% PRODUCTION JAVASCRIPT -->
+  <!-- REAL-TIME JAVASCRIPT & TRANSLATOR -->
   <script>
     const socket = io();
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); tg.ready(); }
+
+    const translations = {
+      am: {
+        welcome_auth: "እንኳን ወደ ኮከብ ቢንጎ በደህና መጡ",
+        auth_sub: "የቀጥታ 75-ኳስ ኮከብ ቢንጎ በቴሌብር እና ሲቢኢ ብር።",
+        auth_btn: "🚀 ጀምር (LAUNCH HUB)",
+        welcome_back: "እንኳን ደህና መጡ",
+        total_balance: "አጠቃላይ ቀሪ ሒሳብ",
+        birr: "ብር",
+        playonly_pill: "የመጫወቻ ቦነስ",
+        busiest_hdr: "🔥 ተወዳጅ ክፍል",
+        room_classic10: "ክላሲክ-10 · 10 ብር",
+        room_turbo25: "ቱርቦ-25 · 25 ብር",
+        room_vip100: "ቪአይፒ ላውንጅ · 100 ብር",
+        playing_lbl: "በመጫወት ላይ",
+        prize_lbl: "የድል ቋት",
+        btn_play: "ተጫወት",
+        rooms_hdr: "የጨዋታ ክፍሎች",
+        see_all: "ሁሉንም እይ >",
+        weekly_leaderboard: "የሳምንቱ ምርጥ አሸናፊዎች",
+        weekly_leaderboard_sub: "ደረጃዎን እና ትላልቅ ሽልማቶችን ይመልከቱ",
+        invite_friends: "ጓደኛዎን ይጋብዙ",
+        invite_friends_sub: "ጓደኛዎ ሲመዘገብ 5 ETB ቦነስ ያግኙ",
+        rewards_title: "ሽልማቶች & ተግባራት",
+        daily_checkin: "ዕለታዊ Check-in ቦነስ",
+        streak_lbl: "ቀናት",
+        checkin_sub: "በየቀኑ ይግቡ: ቀን 1=1 ብር ... ቀን 7=7 ብር (ከተቋረጠ ወደ 1 ይመለሳል)",
+        btn_claim_streak: "የዛሬውን ቦነስ ውሰድ",
+        tasks_hdr: "ተግባራት",
+        task_channel: "የኮከብ ቢንጎ ቻናልን ይቀላቀሉ",
+        btn_open: "ክፈት",
+        invite_hdr: "ጓደኛን መጋበዝ",
+        invite_desc: "ጓደኛዎ በእርስዎ ሊንክ ሲመዘገብና ሒሳብ ሲሞላ 5 ብር ያግኙ።",
+        btn_share_invite: "ሊንኩን በቴሌግራም አጋራ",
+        games_hdr: "ክፍሎች",
+        games_sub: "የሚፈልጉትን ክፍል መርጠው ይቀላቀሉ",
+        cards_lbl: "ካርቴላዎች",
+        active_prize: "የድል ቋት",
+        btn_join: "ግባ",
+        wallet_title: "የሂሳብ ቦርሳ",
+        wallet_sub: "ማስገቢያ፣ ማውጫ እና የዝውውር ታሪክ",
+        total_balance_caps: "አጠቃላይ ቀሪ ሒሳብ",
+        wallet_play_desc: "የሚጫወቱበት ጠቅላላ ሒሳብ",
+        cashable_hdr: "● የሚወጣ ገንዘብ",
+        cashable_desc: "ያሸነፉት ትርፍ — በቀጥታ ወደ ቴሌብር ይወጣል",
+        playonly_hdr: "● የመጫወቻ ቦነስ",
+        playonly_desc: "የተሰጠ ቦነስ — ካርቴላ ቆርጠው ይጫወቱበታል",
+        deposit_inst_title: "📥 ሒሳብ ሙላ (ወደ 0997575739 Ephrem Shitu ይላኩ):",
+        btn_submit_deposit: "+ የማስገቢያ ጥያቄ ላክ",
+        cashout_title: "📤 ብር አውጣ (ወደ ቴሌብር/ሲቢኢ):",
+        btn_withdraw: "ብር አውጣ",
+        history_hdr: "የዝውውር ታሪክ",
+        no_tx: "ምንም ዝውውር የለም",
+        member_since: "⭐ የኮከብ ቢንጎ አባል",
+        level_1: "ደረጃ 1 (Level 1)",
+        xp_next: "ወደ ቀጣይ ደረጃ 260 XP",
+        day_streak: "ቀናት ተከታታይ",
+        win_streak: "ተከታታይ ድል",
+        games_played: "የተጫወቷቸው ዙሮች",
+        games_won: "ያሸነፏቸው ዙሮች",
+        total_won: "ጠቅላላ ያሸነፉት ብር",
+        total_bet: "ጠቅላላ የተጫወቱት ብር",
+        auto_play_title: "በራስ-ሰር ማርክ ማድረግ (Auto-play)",
+        auto_play_sub: "ኳሶች ሲወጡ ራሱ ማርክ እንዲያደርግ",
+        language_opt: "ቋንቋ (Language)",
+        language_sub: "ወደ English ለመቀየር ይጫኑ",
+        guide_opt: "የአጨዋወት መመሪያ & ህጎች",
+        guide_sub: "ስለ ዙሮች፣ ሽልማቶች እና ማውጫ ሙሉ መረጃ",
+        round_starts_in: "⏰ ጨዋታው በ:",
+        btn_enter_arena: "ወደ ሜዳው ግባ",
+        btn_leave: "🚪 ውጣ",
+        btn_claim: "🏆 ቢንጎ! (CLAIM)",
+        btn_back: "← ተመለስ",
+        btn_ok: "ቀጥል",
+        btn_gotit: "ገባኝ",
+        guide_title: "📖 የአጨዋወት መመሪያ",
+        g_step1_t: "1. ሒሳብዎን ይሙሉ:",
+        g_step1_d: "በቴሌብር ወይም CBE ብር ያስገቡ።",
+        g_step2_t: "2. ካርቴላ ይቁረጡ:",
+        g_step2_d: "ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይምረጡ።",
+        g_step3_t: "3. ኳሶችን ይከታተሉ:",
+        g_step3_d: "Auto-Daub ማብራት ይመረጣል።",
+        g_step4_t: "4. አሸንፈው ብር ያውጡ:",
+        g_step4_d: "መስመር ሲሞላ CLAIM BINGO ይጫኑ!",
+        leaderboard_title: "የሳምንቱ አሸናፊዎች 🏆",
+        nav_home: "Home",
+        nav_earn: "Earn",
+        nav_wallet: "Wallet",
+        nav_profile: "Profile",
+        banned_title: "አካውንትዎ ታግዷል!",
+        banned_sub: "ይህ አካውንት በአድሚን ሙሉ በሙሉ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።"
+      },
+      en: {
+        welcome_auth: "Welcome to Kokeb Bingo",
+        auth_sub: "Live 75-Ball Cartela Kokeb Bingo with instant payouts.",
+        auth_btn: "🚀 LAUNCH GAME HUB",
+        welcome_back: "Welcome back",
+        total_balance: "Total balance",
+        birr: "Birr",
+        playonly_pill: "Birr play-only",
+        busiest_hdr: "🔥 BUSIEST ROOM",
+        room_classic10: "Classic-10 · 10 Birr",
+        room_turbo25: "Turbo-25 · 25 Birr",
+        room_vip100: "VIP Room · 100 Birr",
+        playing_lbl: "playing",
+        prize_lbl: "prize",
+        btn_play: "Play",
+        rooms_hdr: "ROOMS",
+        see_all: "SEE ALL >",
+        weekly_leaderboard: "Weekly leaderboard",
+        weekly_leaderboard_sub: "See where you stand and what's up for grabs",
+        invite_friends: "Invite friends",
+        invite_friends_sub: "Earn 5 ETB every time a friend joins",
+        rewards_title: "Rewards & Tasks",
+        daily_checkin: "Daily check-in",
+        streak_lbl: "streak",
+        checkin_sub: "Check in daily: Day 1=1 ETB ... Day 7=7 ETB (Gap resets to Day 1)",
+        btn_claim_streak: "Claim Today's Bonus",
+        tasks_hdr: "TASKS",
+        task_channel: "Join Kokeb Bingo Channel",
+        btn_open: "Open",
+        invite_hdr: "INVITE FRIENDS",
+        invite_desc: "Earn 5 Birr when a friend joins with your link and tops up.",
+        btn_share_invite: "Share Invite Link",
+        games_hdr: "Games",
+        games_sub: "Pick a stake and join the next round",
+        cards_lbl: "cards",
+        active_prize: "ACTIVE PRIZE",
+        btn_join: "Join",
+        wallet_title: "Wallet",
+        wallet_sub: "Balance, deposits, withdrawals and history",
+        total_balance_caps: "TOTAL BALANCE",
+        wallet_play_desc: "Everything you can play with",
+        cashable_hdr: "● CASHABLE",
+        cashable_desc: "Winnings & prizes — can be withdrawn",
+        playonly_hdr: "● PLAY-ONLY",
+        playonly_desc: "Deposits & bonuses — spend on cards",
+        deposit_inst_title: "📥 Deposit (Send to 0997575739 Ephrem Shitu):",
+        btn_submit_deposit: "+ Deposit Request",
+        cashout_title: "📤 Withdraw (to Telebirr/CBE):",
+        btn_withdraw: "Withdraw",
+        history_hdr: "HISTORY",
+        no_tx: "No transactions yet",
+        member_since: "⭐ Kokeb Bingo Member",
+        level_1: "Level 1",
+        xp_next: "260 XP to next level",
+        day_streak: "day streak",
+        win_streak: "win streak",
+        games_played: "Games played",
+        games_won: "Games won",
+        total_won: "Total won",
+        total_bet: "Total bet",
+        auto_play_title: "Automatic play",
+        auto_play_sub: "Mark numbers and claim bingo for me",
+        language_opt: "Language",
+        language_sub: "Tap to switch to አማርኛ",
+        guide_opt: "How to play & rules",
+        guide_sub: "The full guide — rounds, prizes, payouts",
+        round_starts_in: "⏰ ROUND STARTS IN:",
+        btn_enter_arena: "ENTER ARENA",
+        btn_leave: "🚪 LEAVE",
+        btn_claim: "🏆 CLAIM BINGO!",
+        btn_back: "← BACK",
+        btn_ok: "OK",
+        btn_gotit: "GOT IT!",
+        guide_title: "📖 How to Play Guide",
+        g_step1_t: "1. Deposit Funds:",
+        g_step1_d: "Send money via Telebirr or CBE Birr.",
+        g_step2_t: "2. Pick Cartelas:",
+        g_step2_d: "Choose your lucky cards (1 to 100).",
+        g_step3_t: "3. Track Calls:",
+        g_step3_d: "Enable Auto-Daub for seamless marking.",
+        g_step4_t: "4. Win & Cashout:",
+        g_step4_d: "Complete a line or 4 corners & Claim Bingo!",
+        leaderboard_title: "Leaderboard 🏆",
+        nav_home: "Home",
+        nav_earn: "Earn",
+        nav_wallet: "Wallet",
+        nav_profile: "Profile",
+        banned_title: "Account Banned!",
+        banned_sub: "This account has been banned by the administrator."
+      }
+    };
 
     let userState = { dbId: 1, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
     let gameState = { isLive: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0, playerCards: [] };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
 
-    // ==================== AUDIO & SPEECH SYNTHESIS ====================
+    // ==================== DYNAMIC DOM TRANSLATOR ====================
+    function applyLanguageTranslations() {
+      const dict = translations[userState.lang] || translations.am;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+          el.innerText = dict[key];
+        }
+      });
+      document.getElementById('cashable-txt').innerText = userState.lang === 'am' ? '0 ብር የሚወጣ' : '0 Birr cashable';
+    }
+
+    function toggleLanguage() {
+      userState.lang = userState.lang === 'am' ? 'en' : 'am';
+      document.getElementById('lang-btn').innerText = userState.lang === 'am' ? '🇪🇹 AM' : '🇬🇧 EN';
+      if (document.getElementById('prof-lang-txt')) {
+        document.getElementById('prof-lang-txt').innerText = userState.lang === 'am' ? 'አማርኛ >' : 'English >';
+      }
+      applyLanguageTranslations();
+      SoundFX.pop();
+    }
+
+    // ==================== AUDIO & SPEECH ENGINE ====================
     const SoundFX = {
       ctx: null, muted: false,
       init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
@@ -597,21 +801,12 @@
       return tens[t] + (u > 0 ? " " + units[u] : "");
     }
 
-    // ==================== SOUND & LANGUAGE TOGGLES ====================
     function toggleMute() {
       SoundFX.muted = !SoundFX.muted;
       document.getElementById('mute-btn').innerText = SoundFX.muted ? '🔇' : '🔊';
       SoundFX.pop();
     }
 
-    function toggleLanguage() {
-      userState.lang = userState.lang === 'am' ? 'en' : 'am';
-      document.getElementById('lang-btn').innerText = userState.lang === 'am' ? '🇪🇹 AM' : '🇬🇧 EN';
-      document.getElementById('prof-lang-txt').innerText = userState.lang === 'am' ? 'አማርኛ >' : 'English >';
-      SoundFX.pop();
-    }
-
-    // ==================== AUTO-DAUB TOGGLE ====================
     function toggleAutoDaub() {
       gameState.autoDaub = !gameState.autoDaub;
       document.getElementById('autodaub-toggle').classList.toggle('active', gameState.autoDaub);
@@ -638,16 +833,14 @@
       checkNearWinStatus();
     }
 
-    // ==================== MANUAL CELL MARKING ====================
     function manualMarkCell(cartelaId, r, c) {
       if (!gameState.isLive) return;
       const g = selectionState.generatedCombinations[cartelaId];
       if (!g) return;
 
       const val = g[r][c];
-      // Only allow marking if called or star
       if (val !== '★' && !gameState.calledNumbers.has(val)) {
-        return; // Ignore clicks on uncalled numbers
+        return;
       }
 
       const cell = document.getElementById(`c-${cartelaId}-${r}-${c}`);
@@ -676,7 +869,6 @@
         const g = selectionState.generatedCombinations[id];
         if (!g) return;
 
-        // Check 4/5 marked in any row or column
         for (let r=0; r<5; r++) {
           let rowMarked = 0;
           for (let c=0; c<5; c++) {
@@ -723,6 +915,7 @@
       document.body.classList.add('with-nav');
       if (screenName === 'wallet') fetchMyTransactions();
       if (screenName === 'leaderboard') fetchRealLeaderboard();
+      applyLanguageTranslations();
     }
 
     function showScreen(screenId) {
@@ -733,6 +926,7 @@
       } else {
         document.body.classList.add('with-nav');
       }
+      applyLanguageTranslations();
     }
 
     window.onload = () => {
@@ -746,6 +940,7 @@
         document.getElementById('prof-avatar-big').innerText = userState.name.charAt(0);
       }
       document.getElementById('ref-link-display').innerText = `t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`;
+      applyLanguageTranslations();
     };
 
     function authenticateUser() {
@@ -832,11 +1027,11 @@
       const today = new Date().toISOString().split('T')[0];
       const btn = document.getElementById('btn-claim-checkin');
       if (lastDate === today) {
-        btn.innerText = '✅ Claimed for Today';
+        btn.innerText = userState.lang === 'am' ? '✅ የዛሬው ተወስዷል' : '✅ Claimed for Today';
         btn.disabled = true;
       } else {
         const nextDay = (streak % 7) + 1;
-        btn.innerText = `Claim Day ${nextDay} (${nextDay} ETB)`;
+        btn.innerText = userState.lang === 'am' ? `ቀን ${nextDay} (${nextDay} ብር ውሰድ)` : `Claim Day ${nextDay} (${nextDay} ETB)`;
         btn.disabled = false;
       }
     }
@@ -1087,7 +1282,6 @@
       if (bc) bc.classList.add('called');
       document.getElementById('claim-bingo-btn').disabled = false;
 
-      // Automatic play daubing
       if (gameState.autoDaub) {
         selectionState.selectedCartelaIds.forEach(id => {
           const g = selectionState.generatedCombinations[id];
@@ -1107,7 +1301,6 @@
       checkNearWinStatus();
     });
 
-    // 1-WINNER STRICT CLAIM
     function checkBingo() {
       const ids = Array.from(selectionState.selectedCartelaIds);
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
@@ -1127,14 +1320,14 @@
     });
 
     function leaveCurrentGame() {
-      if (confirm("እርግጠኛ ነዎት ጨዋታውን ለቀው ወደ ሎቢ መመለስ ይፈልጋሉ?")) {
+      if (confirm(userState.lang === 'am' ? "እርግጠኛ ነዎት ጨዋታውን ለቀው ወደ ሎቢ መመለስ ይፈልጋሉ?" : "Are you sure you want to leave the round?")) {
         socket.emit('leave_room', { roomName: selectionState.roomName });
         gameState.isLive = false;
         switchNav('dashboard');
       }
     }
     function cancelCartelaSelection() { switchNav('dashboard'); }
-    function copyReferralLink() { navigator.clipboard.writeText(`https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`); alert("ሊንክ ተቀድቷል!"); }
+    function copyReferralLink() { navigator.clipboard.writeText(`https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`); alert(userState.lang === 'am' ? "ሊንክ ተቀድቷል!" : "Link copied!"); }
     function shareTelegramReferral() { tg?.openTelegramLink(`https://t.me/share/url?url=https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}&text=Play Kokeb Bingo!`); }
   </script>
 </body>
