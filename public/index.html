@@ -526,15 +526,9 @@
     </div>
   </div>
 
-  <!-- REAL-TIME JAVASCRIPT WITH OFFLINE & PREVIEW FALLBACK -->
+  <!-- REAL-TIME 100% PRODUCTION JAVASCRIPT -->
   <script>
-    let socket = null;
-    try {
-      if (typeof io !== 'undefined') {
-        socket = io();
-      }
-    } catch (e) {}
-
+    const socket = io();
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); tg.ready(); }
 
@@ -613,88 +607,37 @@
       document.getElementById('ref-link-display').innerText = `t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`;
     };
 
-    // SMART AUTH (Works in Preview AND Live Server)
     function authenticateUser() {
       SoundFX.pop();
       let deviceId = localStorage.getItem('kokeb_device_id') || ('dev_' + Math.random().toString(36).substring(2, 10));
       localStorage.setItem('kokeb_device_id', deviceId);
 
-      if (socket) {
-        socket.emit('auth_user', { username: userState.name, initData: tg?.initData || '', deviceId });
-      }
-      // Instant UI switch so preview works without waiting
+      socket.emit('auth_user', { username: userState.name, initData: tg?.initData || '', deviceId });
+    }
+
+    socket.on('auth_success', (u) => {
+      userState.dbId = u.id;
+      userState.coins = u.balance;
+      updateCoinsDisplay();
       switchNav('dashboard');
-    }
+    });
 
-    if (socket) {
-      socket.on('auth_success', (u) => {
-        userState.dbId = u.id;
-        userState.coins = u.balance;
-        updateCoinsDisplay();
-      });
+    socket.on('account_banned', () => {
+      document.getElementById('banned-overlay').style.display = 'flex';
+      SoundFX.error();
+    });
 
-      socket.on('account_banned', () => {
-        document.getElementById('banned-overlay').style.display = 'flex';
-      });
+    socket.on('deposit_approved', (data) => {
+      SoundFX.win();
+      showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
+      fetchMyTransactions();
+    });
 
-      socket.on('deposit_approved', (data) => {
-        SoundFX.win();
-        showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
-        fetchMyTransactions();
-      });
-
-      socket.on('balance_updated', ({ balance }) => {
-        userState.coins = balance;
-        updateCoinsDisplay();
-        fetchMyTransactions();
-      });
-
-      socket.on('room_snapshot', (d) => {
-        selectionState.generatedCombinations = d.cartelas;
-        selectionState.takenCartelaIds = new Set(d.takenCartelaIds);
-        document.getElementById('cartela-timer').innerText = d.timer;
-        renderCartelaGrid100();
-      });
-
-      socket.on('lobby_timer_tick', ({ timer }) => {
-        document.getElementById('cartela-timer').innerText = timer;
-      });
-
-      socket.on('cartelas_bought_success', (d) => {
-        userState.coins = d.balance;
-        updateCoinsDisplay();
-        showScreen('screen-game');
-        renderFullBoard();
-        renderPlayerCards();
-      });
-
-      socket.on('ball_drawn', ({ number, letter, callString }) => {
-        SoundFX.ball();
-        document.getElementById('current-call').innerText = callString;
-        const bc = document.getElementById(`b-cell-${number}`);
-        if (bc) bc.classList.add('called');
-        document.getElementById('claim-bingo-btn').disabled = false;
-
-        selectionState.selectedCartelaIds.forEach(id => {
-          const g = selectionState.generatedCombinations[id];
-          if (!g) return;
-          for (let r=0; r<5; r++) {
-            for (let c=0; c<5; c++) {
-              if (g[r][c] === number) {
-                const cell = document.getElementById(`c-${id}-${r}-${c}`);
-                if (cell) cell.classList.add('marked');
-              }
-            }
-          }
-        });
-      });
-
-      socket.on('game_finished', (d) => {
-        if (d.winner?.username === userState.name) SoundFX.win();
-        showModal("Game Finished", d.message, "🏆");
-        switchNav('dashboard');
-      });
-    }
+    socket.on('balance_updated', ({ balance }) => {
+      userState.coins = balance;
+      updateCoinsDisplay();
+      fetchMyTransactions();
+    });
 
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins;
@@ -729,11 +672,7 @@
           showModal("ጥያቄዎ ተልኳል! ⏳", `የ ${amount} ETB ማስገቢያ ጥያቄዎ ደርሶናል! አድሚኑ እንዳረጋገጠው ይሞላልዎታል።`, "✅");
           fetchMyTransactions();
         } else { alert(data.error || "ስህተት ተፈጥሯል"); }
-      } catch (e) {
-        // Preview fallback demo
-        SoundFX.win();
-        showModal("ጥያቄዎ ተልኳል! ⏳", `የ ${amount} ETB ማስገቢያ ጥያቄዎ ደርሶናል! (Preview Mode)`, "✅");
-      }
+      } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
     async function submitWithdrawal() {
@@ -754,10 +693,10 @@
           updateCoinsDisplay();
           showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በቴሌብር ይላክሎታል።`, "⚡");
           fetchMyTransactions();
+        } else {
+          alert(data.error || "ጥያቄው አልተሳካም!");
         }
-      } catch (e) {
-        showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! (Preview Mode)`, "⚡");
-      }
+      } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
     async function fetchMyTransactions() {
@@ -770,7 +709,7 @@
             <tr>
               <td><b>${t.type === 'DEPOSIT' ? '📥 Deposit' : '📤 Withdraw'}</b></td>
               <td><b style="color:#ffd700;">${Math.abs(t.amount)} ETB</b></td>
-              <td><span style="color:${t.status === 'COMPLETED' ? '#00ff87' : '#ffd700'}; font-weight:bold;">${t.status}</span></td>
+              <td><span style="color:${t.status === 'COMPLETED' ? '#00ff87' : t.status === 'PENDING' ? '#ffd700' : '#ff4757'}; font-weight:bold;">${t.status}</span></td>
             </tr>
           `).join('');
         }
@@ -784,17 +723,41 @@
         body: JSON.stringify({ userId: userState.dbId, prizeValue: 1 })
       }).then(r => r.json()).then(d => {
         if (d.success) {
-          userState.coins += 1;
+          userState.coins = d.newBalance;
           updateCoinsDisplay();
           SoundFX.win();
-          showModal("እንኳን ደስ አለዎት!", "የ 1 Birr ዕለታዊ Check-in ቦነስዎን ወስደዋል!", "🎁");
+          showModal("እንኳን ደስ አለዎት!", "የ 1 Birr ዕለታዊ Check-in ቦነስዎ ወደ ዋሌትዎ ገቢ ሆኗል!", "🎁");
         }
-      }).catch(() => {
-        userState.coins += 1;
-        updateCoinsDisplay();
-        SoundFX.win();
-        showModal("እንኳን ደስ አለዎት!", "የ 1 Birr ዕለታዊ Check-in ቦነስዎን ወስደዋል!", "🎁");
-      });
+      }).catch(() => {});
+    }
+
+    async function fetchRealLeaderboard() {
+      const container = document.getElementById('real-leaderboard-container');
+      try {
+        const res = await fetch('/api/leaderboard');
+        const data = await res.json();
+
+        if (data.leaders && data.leaders.length > 0) {
+          const medals = ['🥇 1.', '🥈 2.', '🥉 3.'];
+          container.innerHTML = data.leaders.map((l, idx) => {
+            const rankLabel = idx < 3 ? medals[idx] : `${idx + 1}.`;
+            const color = idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#ffffff';
+            return `
+              <div class="leader-row" style="border-color: ${color};">
+                <div>
+                  <b style="color:${color};">${rankLabel} ${l.username}</b>
+                  <div style="font-size: 9px; color: var(--text-muted);">${l.total_wins} ዙር አሸነፈ</div>
+                </div>
+                <b style="color: var(--accent-gold);">${l.total_won.toLocaleString()} ETB</b>
+              </div>
+            `;
+          }).join('');
+        } else {
+          container.innerHTML = `<p style="text-align: center; color: #8e8aa8; font-size: 12px; padding: 20px;">እስካሁን የተመዘገበ አሸናፊ የለም! የመጀመሪያው አሸናፊ ይሁኑ 🌟</p>`;
+        }
+      } catch (e) {
+        container.innerHTML = `<p style="text-align: center; color: #ff4757; font-size: 12px; padding: 20px;">መረጃውን ማግኘት አልተቻለም!</p>`;
+      }
     }
 
     // GAME ENGINE
@@ -804,36 +767,33 @@
       selectionState.costPerCartela = cost;
       selectionState.selectedCartelaIds.clear();
       showScreen('screen-cartela-select');
+      socket.emit('join_room', { roomName });
+    }
 
-      if (socket && socket.connected) {
-        socket.emit('join_room', { roomName });
-      } else {
-        // Fallback local cartelas for preview
-        generateLocalPreviewCartelas();
+    socket.on('room_snapshot', (d) => {
+      selectionState.generatedCombinations = d.cartelas;
+      selectionState.takenCartelaIds = new Set(d.takenCartelaIds);
+      document.getElementById('cartela-timer').innerText = d.timer;
+      renderCartelaGrid100();
+    });
+
+    socket.on('lobby_timer_tick', ({ timer }) => {
+      document.getElementById('cartela-timer').innerText = timer;
+    });
+
+    socket.on('cartelas_locked', ({ takenIds }) => {
+      selectionState.takenCartelaIds = new Set(takenIds);
+      renderCartelaGrid100();
+    });
+
+    socket.on('room_reset', (data) => {
+      if (selectionState.roomName === data.roomName) {
+        selectionState.generatedCombinations = data.cartelas;
+        selectionState.takenCartelaIds.clear();
+        selectionState.selectedCartelaIds.clear();
         renderCartelaGrid100();
       }
-    }
-
-    function generateLocalPreviewCartelas() {
-      selectionState.generatedCombinations = {};
-      for (let i = 1; i <= 100; i++) {
-        const card = [];
-        ['B','I','N','G','O'].forEach((key, col) => {
-          const [min, max] = ranges[key];
-          const nums = [];
-          while (nums.length < 5) {
-            const r = Math.floor(Math.random() * (max - min + 1)) + min;
-            if (!nums.includes(r)) nums.push(r);
-          }
-          nums.sort((a,b)=>a-b);
-          for (let r=0; r<5; r++) {
-            if (!card[r]) card[r] = [];
-            card[r][col] = (r===2 && col===2) ? '★' : nums[r];
-          }
-        });
-        selectionState.generatedCombinations[i] = card;
-      }
-    }
+    });
 
     function renderCartelaGrid100() {
       const c = document.getElementById('cartelas-container');
@@ -861,16 +821,16 @@
     function confirmAndEnterArena() {
       const ids = Array.from(selectionState.selectedCartelaIds);
       if (ids.length === 0) return alert("እባክዎን ቢያንስ 1 ካርቴላ ይምረጡ!");
-
-      if (socket && socket.connected) {
-        socket.emit('buy_cartelas', { roomName: selectionState.roomName, cartelaIds: ids });
-      } else {
-        // Preview mode enter arena directly
-        showScreen('screen-game');
-        renderFullBoard();
-        renderPlayerCards();
-      }
+      socket.emit('buy_cartelas', { roomName: selectionState.roomName, cartelaIds: ids });
     }
+
+    socket.on('cartelas_bought_success', (d) => {
+      userState.coins = d.balance;
+      updateCoinsDisplay();
+      showScreen('screen-game');
+      renderFullBoard();
+      renderPlayerCards();
+    });
 
     function renderFullBoard() {
       const c = document.getElementById('full-board-grid');
@@ -892,7 +852,6 @@
       c.innerHTML = '';
       selectionState.selectedCartelaIds.forEach(id => {
         const g = selectionState.generatedCombinations[id];
-        if (!g) return;
         const cardBox = document.createElement('div');
         cardBox.className = 'player-card';
         let html = `<div class="card-top"><span>Cartela #${id}</span></div><div class="card-grid">`;
@@ -908,19 +867,42 @@
       });
     }
 
+    socket.on('ball_drawn', ({ number, letter, callString }) => {
+      SoundFX.ball();
+      document.getElementById('current-call').innerText = callString;
+      const bc = document.getElementById(`b-cell-${number}`);
+      if (bc) bc.classList.add('called');
+      document.getElementById('claim-bingo-btn').disabled = false;
+
+      // Auto Daub
+      selectionState.selectedCartelaIds.forEach(id => {
+        const g = selectionState.generatedCombinations[id];
+        if (!g) return;
+        for (let r=0; r<5; r++) {
+          for (let c=0; c<5; c++) {
+            if (g[r][c] === number) {
+              const cell = document.getElementById(`c-${id}-${r}-${c}`);
+              if (cell) cell.classList.add('marked');
+            }
+          }
+        }
+      });
+    });
+
     function checkBingo() {
       const ids = Array.from(selectionState.selectedCartelaIds);
-      if (socket && socket.connected) {
-        ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
-      } else {
-        SoundFX.win();
-        showModal("BINGO! 🏆", "እንኳን ደስ አለዎት! አሸንፈዋል (Preview Mode)", "🏆");
-      }
+      ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
     }
+
+    socket.on('game_finished', (d) => {
+      if (d.winner?.username === userState.name) SoundFX.win();
+      showModal("Game Finished", d.message, "🏆");
+      switchNav('dashboard');
+    });
 
     function leaveCurrentGame() {
       if (confirm("Leave round?")) {
-        if (socket) socket.emit('leave_room', { roomName: selectionState.roomName });
+        socket.emit('leave_room', { roomName: selectionState.roomName });
         switchNav('dashboard');
       }
     }

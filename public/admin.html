@@ -45,7 +45,6 @@
     input, select { padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; outline: none; font-size: 12px; }
     .error-text { color: #ff4757; font-size: 11.5px; margin-top: 8px; display: none; }
 
-    /* Modal */
     .profile-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; padding: 16px; }
     .profile-card { background: #161033; border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 20px; max-width: 400px; width: 100%; max-height: 85vh; overflow-y: auto; }
   </style>
@@ -158,17 +157,17 @@
     </div>
   </div>
 
-  <!-- TAB 4: TRANSACTIONS ARCHIVE (SEARCH & FILTER) -->
+  <!-- TAB 4: TRANSACTIONS ARCHIVE -->
   <div id="tab-archive" class="panel-section">
     <div class="box">
       <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
         <select id="archive-type" onchange="fetchTransactionArchive()">
-          <option value="ALL">ሁሉም አይነት (All Types)</option>
-          <option value="DEPOSIT">📥 ማስገቢያዎች ብቻ</option>
-          <option value="WITHDRAW">📤 ማውጫዎች ብቻ</option>
+          <option value="ALL">ሁሉም አይነት</option>
+          <option value="DEPOSIT">📥 ማስገቢያዎች</option>
+          <option value="WITHDRAW">📤 ማውጫዎች</option>
         </select>
         <select id="archive-status" onchange="fetchTransactionArchive()">
-          <option value="ALL">ሁሉም ሁኔታ (All Status)</option>
+          <option value="ALL">ሁሉም ሁኔታ</option>
           <option value="COMPLETED">✅ የተጠናቀቁ</option>
           <option value="PENDING">⏳ በመጠባበቅ ላይ</option>
           <option value="REJECTED">❌ ውድቅ የተደረጉ</option>
@@ -213,12 +212,10 @@
     </div>
   </div>
 
-  <!-- TAB 7: ROOM STAKE & COMMISSION SETTINGS -->
+  <!-- TAB 7: SETTINGS -->
   <div id="tab-settings" class="panel-section">
     <div class="box" style="max-width: 480px;">
       <h3>⚙️ የክፍሎች ዋጋ እና የኮሚሽን ፐርሰንት ማስተካከያ</h3>
-      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 14px;">እዚህ ስትቀይር ሰርቨሩን ሳታጠፋ በራሱ ጊዜ በቀጥታ ይተገበራል።</p>
-      
       <div style="margin-bottom: 10px;">
         <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የቤት ኮሚሽን ፐርሰንት (House Commission %):</label>
         <input type="number" id="cfg-commission" style="width: 100%;" placeholder="10">
@@ -264,15 +261,14 @@
     let adminPin = sessionStorage.getItem('kokeb_admin_pin') || '';
     let lastPendingCount = 0;
 
-    // Notification Audio Synthesizer
     function playNotificationChime() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.2, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
         osc.connect(gain);
@@ -350,7 +346,6 @@
         if (res.status === 401) { lockAndLogout(); return; }
         const data = await res.json();
 
-        // 1. Today Financial Report
         if (data.todayStats) {
           document.getElementById('today-deposits').innerText = `${data.todayStats.todayDeposits.toLocaleString()} ETB`;
           document.getElementById('today-payouts').innerText = `${data.todayStats.todayPayouts.toLocaleString()} ETB`;
@@ -358,14 +353,12 @@
           document.getElementById('today-rounds').innerText = data.todayStats.todayRounds;
         }
 
-        // 2. All Time Overview Stats
         document.getElementById('stat-online').innerText = `${data.stats.onlinePlayers} ተጫዋቾች`;
         document.getElementById('stat-profit').innerText = `${data.stats.estimatedProfit.toLocaleString()} ETB`;
         document.getElementById('stat-payouts').innerText = `${data.stats.totalPayouts.toLocaleString()} ETB`;
         document.getElementById('stat-users').innerText = data.stats.totalUsers;
         document.getElementById('stat-cards').innerText = `${data.stats.totalCartelasSold}`;
 
-        // Sound alert & Badge count on new incoming requests
         const totalPending = (data.pendingDeposits?.length || 0) + (data.pendingWithdrawals?.length || 0);
         if (totalPending > lastPendingCount) {
           playNotificationChime();
@@ -379,7 +372,6 @@
         if (data.pendingWithdrawals?.length > 0) { withBadge.innerText = data.pendingWithdrawals.length; withBadge.style.display = 'inline-block'; }
         else { withBadge.style.display = 'none'; }
 
-        // 3. Populate Settings Inputs if empty
         if (!document.getElementById('cfg-commission').value) {
           document.getElementById('cfg-commission').value = data.stats.globalCommission || 10;
           document.getElementById('cfg-beg-stake').value = data.stats.activeRooms.Beginner.stake;
@@ -387,7 +379,6 @@
           document.getElementById('cfg-vip-stake').value = data.stats.activeRooms.VIP.stake;
         }
 
-        // 4. Games History
         document.getElementById('games-table-body').innerHTML = data.games.map(g => `
           <tr>
             <td><b>${g.room_name}</b></td>
@@ -398,7 +389,6 @@
           </tr>
         `).join('');
 
-        // 5. Pending Deposits
         const depTbody = document.getElementById('deposits-table-body');
         if (data.pendingDeposits && data.pendingDeposits.length > 0) {
           depTbody.innerHTML = data.pendingDeposits.map(d => `
@@ -419,7 +409,6 @@
           depTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #8e8aa8;">ምንም ያልተረጋገጠ የማስገቢያ ጥያቄ የለም</td></tr>`;
         }
 
-        // 6. Pending Withdrawals
         const withTbody = document.getElementById('withdrawals-table-body');
         if (data.pendingWithdrawals && data.pendingWithdrawals.length > 0) {
           withTbody.innerHTML = data.pendingWithdrawals.map(w => `
@@ -438,7 +427,6 @@
           withTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #8e8aa8;">ምንም ያልተከፈለ ጥያቄ የለም</td></tr>`;
         }
 
-        // 7. Rooms Control
         document.getElementById('rooms-control-body').innerHTML = Object.keys(data.stats.activeRooms).map(name => {
           const r = data.stats.activeRooms[name];
           return `
@@ -457,7 +445,6 @@
           `;
         }).join('');
 
-        // 8. Users List with clickable profile modal
         document.getElementById('users-table-body').innerHTML = data.users.map(u => `
           <tr>
             <td>#${u.id}</td>
@@ -479,7 +466,6 @@
       } catch (err) { console.error(err); }
     }
 
-    // TRANSACTIONS ARCHIVE
     async function fetchTransactionArchive() {
       const type = document.getElementById('archive-type').value;
       const status = document.getElementById('archive-status').value;
@@ -513,7 +499,6 @@
       } catch (e) {}
     }
 
-    // USER PROFILE MODAL
     async function openUserProfile(userId) {
       try {
         const res = await fetch(`/api/admin/user-profile/${userId}`, {
@@ -547,7 +532,6 @@
       document.getElementById('profile-modal-box').style.display = 'none';
     }
 
-    // SAVE ROOM CONFIG SETTINGS
     async function saveRoomSettings() {
       const commission = document.getElementById('cfg-commission').value;
       const beginnerStake = document.getElementById('cfg-beg-stake').value;
@@ -566,7 +550,6 @@
       } catch (e) { alert("ቅንብሩን መመዝገብ አልተቻለም!"); }
     }
 
-    // APPROVE & REJECT
     async function approveDeposit(txId) {
       if (!confirm("ይህንን ክፍያ በቴሌብርህ/CBE መግባቱን አረጋግጠሃል? (ማጽደቅ ትፈልጋለህ?)")) return;
       await fetch('/api/admin/approve-deposit', {

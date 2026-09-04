@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const TelegramBot = require('node-telegram-bot-api');
 
 const DB = require('./database');
 const { generate100Cartelas, validateBingo } = require('./gameEngine');
@@ -23,6 +24,113 @@ let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
+
+// ==================== TELEGRAM BOT LISTENER ====================
+if (process.env.BOT_TOKEN) {
+  const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+
+  bot.getMe().then((botInfo) => {
+    detectedBotUsername = botInfo.username;
+    console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
+  }).catch(() => {});
+
+  bot.onText(/\/start(.*)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const telegramId = msg.from.id.toString();
+    const firstName = msg.from.first_name || 'Player';
+    const username = msg.from.username ? `@${msg.from.username}` : firstName;
+
+    try {
+      const user = await DB.getOrCreateUser(telegramId, username, firstName);
+
+      if (user.is_banned === 1) {
+        return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።');
+      }
+
+      if (!user.phone_number) {
+        const sharePhoneKeyboard = {
+          reply_markup: {
+            keyboard: [
+              [{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        };
+
+        return bot.sendMessage(
+          chatId,
+          `🎯 Welcome to Kokeb Bingo 🌟!\n\nየ 10 ETB መነሻ ቦነስዎን ለመቀበል እና ጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
+          sharePhoneKeyboard
+        );
+      }
+
+      const playKeyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://${msg.headers?.host || 'kokeb-bingo.onrender.com'}` } }],
+            [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
+          ]
+        }
+      };
+
+      bot.sendMessage(
+        chatId,
+        `🎯 Welcome back ${firstName}!\nReady to play the most exciting 75-Ball Kokeb Bingo game? Tap the button below to start playing instantly!`,
+        playKeyboard
+      );
+
+    } catch (e) {
+      console.error('Bot start error:', e);
+    }
+  });
+
+  bot.on('contact', async (msg) => {
+    const chatId = msg.chat.id;
+    const telegramId = msg.from.id.toString();
+    const contact = msg.contact;
+
+    if (contact.user_id !== msg.from.id) {
+      return bot.sendMessage(chatId, '❌ እባክዎን የእራስዎን ስልክ ቁጥር ብቻ ያጋሩ!');
+    }
+
+    let phone = contact.phone_number;
+    if (!phone.startsWith('+')) phone = '+' + phone;
+
+    const firstName = msg.from.first_name || 'Player';
+    const username = msg.from.username ? `@${msg.from.username}` : firstName;
+
+    try {
+      await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
+
+      const playKeyboard = {
+        reply_markup: {
+          remove_keyboard: true,
+          inline_keyboard: [
+            [{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]
+          ]
+        }
+      };
+
+      bot.sendMessage(
+        chatId,
+        `🎉 Registration Complete!\n\n✅ Your phone number has been verified (${phone})\n💰 Your account is ready to play (10 ETB Bonus)\n\nTap the button below to start playing!`,
+        playKeyboard
+      );
+    } catch (err) {
+      console.error('Contact registration error:', err);
+    }
+  });
+
+  bot.on('callback_query', (query) => {
+    if (query.data === 'help') {
+      bot.sendMessage(
+        query.message.chat.id,
+        `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ወይም 4 ማዕዘን ሲሞላ CLAIM BINGO ይጫኑ!`
+      );
+    }
+  });
+}
 
 // Game Rooms Configuration
 const rooms = {
@@ -306,7 +414,7 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// ==================== REAL DAILY SPIN CLAIM API (FIXED) ====================
+// ==================== REAL DAILY SPIN CLAIM API ====================
 app.post('/api/spin/claim', async (req, res) => {
   const { userId, prizeValue } = req.body;
   const prize = parseFloat(prizeValue);
@@ -315,7 +423,6 @@ app.post('/api/spin/claim', async (req, res) => {
     return res.json({ success: true, message: 'No coins won' });
   }
 
-  // Maximum allowed single spin prize (Anti-cheat)
   if (prize > 10) {
     return res.status(400).json({ error: 'Invalid prize amount!' });
   }
@@ -323,7 +430,6 @@ app.post('/api/spin/claim', async (req, res) => {
   try {
     const newBal = await DB.updateBalance(userId, prize, 'SPIN_REWARD', 'Daily Lucky Spin');
     
-    // Update live socket balance
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = newBal;
@@ -452,6 +558,7 @@ app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   }
 });
 
+// Admin Pending Deposits
 app.get('/api/admin/pending-deposits', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingDeposits();
@@ -492,6 +599,7 @@ app.post('/api/admin/reject-deposit', adminAuth, async (req, res) => {
   }
 });
 
+// Admin Pending Withdrawals
 app.get('/api/admin/pending-withdrawals', adminAuth, async (req, res) => {
   try {
     const list = await DB.getPendingWithdrawals();
@@ -521,6 +629,7 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
+// Admin Stats & Today Report
 app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     const stats = await DB.getAdminStats();
@@ -543,6 +652,7 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
+// Transactions Archive
 app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   const { type, status, search } = req.query;
   try {
@@ -553,6 +663,7 @@ app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   }
 });
 
+// User Detailed Profile
 app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   try {
     const profile = await DB.getUserDetailedProfile(req.params.userId);
@@ -562,6 +673,7 @@ app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
   }
 });
 
+// Update Room Stake & Commission Settings
 app.post('/api/admin/update-settings', adminAuth, (req, res) => {
   const { commission, beginnerStake, turboStake, vipStake } = req.body;
   if (commission) globalCommissionPercent = parseInt(commission) || 10;

@@ -21,22 +21,26 @@ db.serialize(() => {
       telegram_id TEXT UNIQUE,
       username TEXT,
       first_name TEXT,
+      phone_number TEXT,
       balance REAL DEFAULT 10.0,
       is_banned INTEGER DEFAULT 0,
+      referred_by TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
+  db.run("ALTER TABLE users ADD COLUMN phone_number TEXT", () => {});
   db.run("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0", () => {});
+  db.run("ALTER TABLE users ADD COLUMN referred_by TEXT", () => {});
 
   // Transactions Ledger
   db.run(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
-      type TEXT,
+      type TEXT, -- 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN', 'SPIN_REWARD', 'ADMIN_ADJUST'
       amount REAL,
-      status TEXT DEFAULT 'COMPLETED',
+      status TEXT DEFAULT 'COMPLETED', -- 'PENDING', 'COMPLETED', 'REJECTED'
       reference TEXT,
       phone_number TEXT,
       payment_method TEXT DEFAULT 'TELEBIRR',
@@ -71,7 +75,7 @@ db.serialize(() => {
     )
   `);
 
-  // Default PIN 1234
+  // Default Admin PIN 1234
   db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
     if (!row) {
       const salt = crypto.randomBytes(16).toString('hex');
@@ -96,6 +100,33 @@ const DB = {
             resolve(newUser);
           });
         });
+      });
+    });
+  },
+
+  registerVerifiedPhone: (telegramId, username, firstName, phoneNumber, refBy = null) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, user) => {
+        if (err) return reject(err);
+
+        if (user) {
+          db.run('UPDATE users SET phone_number = ?, username = ?, first_name = ? WHERE telegram_id = ?',
+            [phoneNumber, username || user.username, firstName || user.first_name, telegramId],
+            (uErr) => {
+              if (uErr) return reject(uErr);
+              resolve({ ...user, phone_number: phoneNumber, isNew: false });
+            }
+          );
+        } else {
+          db.run(
+            'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, referred_by) VALUES (?, ?, ?, ?, 10.0, 0, ?)',
+            [telegramId, username || 'Player', firstName || 'User', phoneNumber, refBy],
+            function (iErr) {
+              if (iErr) return reject(iErr);
+              resolve({ id: this.lastID, telegram_id: telegramId, username, phone_number: phoneNumber, balance: 10.0, isNew: true });
+            }
+          );
+        }
       });
     });
   },
@@ -128,7 +159,6 @@ const DB = {
     });
   },
 
-  // 1. Submit Deposit Request
   requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.run(
@@ -142,7 +172,6 @@ const DB = {
     });
   },
 
-  // 2. Submit Withdrawal Request
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -183,11 +212,10 @@ const DB = {
     });
   },
 
-  // FIXED: LEFT JOIN guarantees pending deposits ALWAYS appear on admin
   getPendingDeposits: () => {
     return new Promise((resolve, reject) => {
       db.all(`
-        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id 
+        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.phone_number as user_registered_phone 
         FROM transactions t 
         LEFT JOIN users u ON t.user_id = u.id 
         WHERE t.type = 'DEPOSIT' AND t.status = 'PENDING' 
@@ -228,7 +256,6 @@ const DB = {
     });
   },
 
-  // FIXED: LEFT JOIN for pending withdrawals
   getPendingWithdrawals: () => {
     return new Promise((resolve, reject) => {
       db.all(`
@@ -424,8 +451,8 @@ const DB = {
 
   getAllUsers: (search = '') => {
     return new Promise((resolve, reject) => {
-      const query = search ? 'SELECT * FROM users WHERE username LIKE ? OR telegram_id LIKE ? ORDER BY id DESC LIMIT 50' : 'SELECT * FROM users ORDER BY id DESC LIMIT 50';
-      const params = search ? [`%${search}%`, `%${search}%`] : [];
+      const query = search ? 'SELECT * FROM users WHERE username LIKE ? OR telegram_id LIKE ? OR phone_number LIKE ? ORDER BY id DESC LIMIT 50' : 'SELECT * FROM users ORDER BY id DESC LIMIT 50';
+      const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
       db.all(query, params, (err, rows) => {
         if (err) return reject(err);
         resolve(rows);
