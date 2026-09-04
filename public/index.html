@@ -39,7 +39,7 @@
     .user-profile-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .user-avatar-lg { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #00e5ff, #7928ca); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; color: #fff; box-shadow: 0 0 12px rgba(0, 229, 255, 0.4); }
 
-    /* Total Balance Card */
+    /* Total Balance Card (AfriBINGO Style) */
     .balance-master-card { background: linear-gradient(135deg, #1b124a 0%, #100a30 100%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
     .balance-val-huge { font-size: 34px; font-weight: 900; color: #fff; margin: 2px 0 10px 0; }
     .balance-sub-pills { display: flex; gap: 8px; }
@@ -1282,6 +1282,7 @@
       if (bc) bc.classList.add('called');
       document.getElementById('claim-bingo-btn').disabled = false;
 
+      // Auto Daub
       if (gameState.autoDaub) {
         selectionState.selectedCartelaIds.forEach(id => {
           const g = selectionState.generatedCombinations[id];
@@ -1301,6 +1302,7 @@
       checkNearWinStatus();
     });
 
+    // 1-WINNER STRICT CLAIM WITH BROADCAST INFO
     function checkBingo() {
       const ids = Array.from(selectionState.selectedCartelaIds);
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
@@ -1309,9 +1311,16 @@
     socket.on('game_finished', (d) => {
       gameState.isLive = false;
       document.getElementById('claim-bingo-btn').disabled = true;
-      if (d.winner?.username === userState.name) {
-        SoundFX.win();
-        showModal("🏆 BINGO WINNER!", d.message, "🎉");
+
+      // Show winner details clearly to everyone in the room
+      if (d.winner) {
+        if (d.winner.username === userState.name) {
+          SoundFX.win();
+          showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${d.winner.cartelaId} የ ${d.winner.prize} ETB የድል ቋቱን አሸንፈዋል!`, "🎉");
+        } else {
+          SoundFX.pop();
+          showModal("🏆 ዙሩ ተጠናቋል (Winner)", `🎉 አሸናፊ: ${d.winner.username}\n🎟️ ያሸነፈበት ካርቴላ: #${d.winner.cartelaId}\n💰 የተሸለመው ብር: ${d.winner.prize} ETB`, "🏆");
+        }
       } else {
         SoundFX.pop();
         showModal("Game Finished", d.message, "🏁");
