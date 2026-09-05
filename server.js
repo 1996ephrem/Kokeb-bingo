@@ -16,16 +16,26 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
+
+// አሮጌ ፔጅ እንዳይቀመጥ የሚከለክል (No-Cache Headers)
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 let detectedBotUsername = 'Kokeb_Bingo_Bot';
 let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 10;
+const CHAPA_SECRET_KEY = (process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-33CrCAcWKvK6R9gm4LDgUFyH7otzEq6f').trim();
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
-// ==================== TELEGRAM BOT LISTENER ====================
+// ==================== TELEGRAM BOT LISTENER (FIXED CACHE) ====================
 if (process.env.BOT_TOKEN) {
   const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
@@ -65,10 +75,13 @@ if (process.env.BOT_TOKEN) {
         );
       }
 
+      // ቴሌግራም አሮጌውን ፔጅ እንዳያመጣ በየሰከንዱ አዲስ ሊንክ ይፈጥራል (Cache Buster)
+      const dynamicUrl = `https://kokeb-bingo.onrender.com/?v=${Date.now()}`;
+
       const playKeyboard = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: `https://${msg.headers?.host || 'kokeb-bingo.onrender.com'}` } }],
+            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: dynamicUrl } }],
             [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
           ]
         }
@@ -103,11 +116,14 @@ if (process.env.BOT_TOKEN) {
     try {
       await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
 
+      // ቴሌግራም አሮጌውን ፔጅ እንዳያመጣ
+      const dynamicUrl = `https://kokeb-bingo.onrender.com/?v=${Date.now()}`;
+
       const playKeyboard = {
         reply_markup: {
           remove_keyboard: true,
           inline_keyboard: [
-            [{ text: '🎮 Play Now', web_app: { url: `https://kokeb-bingo.onrender.com` } }]
+            [{ text: '🎮 Play Now', web_app: { url: dynamicUrl } }]
           ]
         }
       };
@@ -132,7 +148,7 @@ if (process.env.BOT_TOKEN) {
   });
 }
 
-// Game Rooms Configuration (30s Selecting Timer Window)
+// Game Rooms Configuration
 const rooms = {
   Beginner: createRoomState('Beginner', 10, 2500),
   Turbo: createRoomState('Turbo', 25, 1400),
@@ -428,6 +444,7 @@ io.on('connection', (socket) => {
     if (card.socketId === socket.id) card.markedMatrix[r][c] = state;
   });
 
+  // STRICT 1-WINNER BINGO CLAIM
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
@@ -505,6 +522,7 @@ app.post('/api/checkin/claim', async (req, res) => {
   }
 });
 
+// ==================== PAYMENT APIS ====================
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -572,10 +590,6 @@ async function adminAuth(req, res, next) {
   return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
 
-app.get('/api/bot-info', (req, res) => {
-  res.json({ botUsername: detectedBotUsername });
-});
-
 app.post('/api/admin/verify-pin', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
@@ -598,17 +612,6 @@ app.post('/api/admin/verify-pin', async (req, res) => {
     failedPinAttempts.set(ip, attempt);
     const left = 5 - attempt.count;
     return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
-  }
-});
-
-app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
-  const { oldPin, newPin } = req.body;
-  if (!newPin || newPin.length < 4) return res.status(400).json({ error: 'አዲሱ ፒን ቢያንስ 4 ዲጂት መሆን አለበት!' });
-  try {
-    await DB.changeAdminPin(oldPin, newPin);
-    res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
   }
 });
 
@@ -703,102 +706,7 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   }
 });
 
-app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
-  const { type, status, search } = req.query;
-  try {
-    const list = await DB.getTransactionArchive(type, status, search);
-    res.json({ success: true, transactions: list });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/admin/user-profile/:userId', adminAuth, async (req, res) => {
-  try {
-    const profile = await DB.getUserDetailedProfile(req.params.userId);
-    res.json({ success: true, profile });
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-app.post('/api/admin/update-settings', adminAuth, (req, res) => {
-  const { commission, beginnerStake, turboStake, vipStake } = req.body;
-  if (commission) globalCommissionPercent = parseInt(commission) || 10;
-  if (beginnerStake) rooms.Beginner.stake = parseInt(beginnerStake) || 10;
-  if (turboStake) rooms.Turbo.stake = parseInt(turboStake) || 25;
-  if (vipStake) rooms.VIP.stake = parseInt(vipStake) || 100;
-  broadcastRealRoomsStatus();
-  res.json({ success: true, message: 'የክፍሎች ዋጋ እና ኮሚሽን በተሳካ ሁኔታ ተቀይሯል!' });
-});
-
-app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
-  const { userId, amount, reason } = req.body;
-  try {
-    const newBal = await DB.updateBalance(userId, parseFloat(amount), 'ADMIN_ADJUST', reason);
-    for (const [sockId, pInfo] of activeSockets.entries()) {
-      if (pInfo.dbId === userId) {
-        pInfo.balance = newBal;
-        io.to(sockId).emit('balance_updated', { balance: newBal });
-      }
-    }
-    res.json({ success: true, newBalance: newBal });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
-  const { userId } = req.body;
-  try {
-    const isBanned = await DB.toggleBanUser(userId);
-    for (const [sockId, pInfo] of activeSockets.entries()) {
-      if (pInfo.dbId === userId) {
-        if (isBanned === 1) {
-          io.to(sockId).emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
-          const s = io.sockets.sockets.get(sockId);
-          if (s) s.disconnect(true);
-        }
-      }
-    }
-    res.json({ success: true, isBanned });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/admin/room-control', adminAuth, (req, res) => {
-  const { roomName, action, value } = req.body;
-  const room = rooms[roomName];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
-
-  if (action === 'TOGGLE_PAUSE') {
-    room.isPaused = !room.isPaused;
-  } else if (action === 'SET_SPEED') {
-    room.callSpeed = parseInt(value) || 2500;
-  } else if (action === 'FORCE_START') {
-    if (room.state === 'LOBBY') {
-      clearInterval(room.timerInterval);
-      startRoomGame(roomName);
-    }
-  } else if (action === 'RESTART_LOBBY') {
-    if (room.gameInterval) clearInterval(room.gameInterval);
-    startRoomLobby(roomName);
-  }
-
-  broadcastRealRoomsStatus();
-  res.json({ success: true, roomState: room.state, isPaused: room.isPaused, speed: room.callSpeed });
-});
-
-app.post('/api/admin/broadcast', adminAuth, (req, res) => {
-  const { message } = req.body;
-  if (!message) return res.status(400).json({ error: 'Message required' });
-  io.emit('error_message', `📢 [ADMIN]: ${message}`);
-  res.json({ success: true });
-});
-
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Kokeb Live Bingo Running on http://localhost:${PORT}`);
-  console.log(`👑 Admin Dashboard: http://localhost:${PORT}/admin.html`);
+  console.log(`🚀 Kokeb Live Bingo Server Running on port ${PORT}`);
 });
