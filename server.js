@@ -17,7 +17,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 
-// አሮጌ ፔጅ እንዳይቀመጥ የሚከለክል (No-Cache Headers)
+// አሮጌ ፔጅ በቴሌግራም እንዳይቀመጥ መከልከያ (No-Cache Headers)
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -28,21 +28,37 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let detectedBotUsername = 'Kokeb_Bingo_Bot';
-let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT) || 10;
-const CHAPA_SECRET_KEY = (process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-33CrCAcWKvK6R9gm4LDgUFyH7otzEq6f').trim();
+// Explicit page routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
+let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10) || 10;
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
-// ==================== TELEGRAM BOT LISTENER (FIXED CACHE) ====================
+// Render ላይ የራሱን Live ዌብሳይት ሊንክ በራስ-ሰር ፈልጎ እንዲወስድ
+function getAppBaseUrl() {
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
+  }
+  return 'https://kokeb-bingo.onrender.com';
+}
+
+// ==================== TELEGRAM BOT ====================
 if (process.env.BOT_TOKEN) {
   const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
   bot.getMe().then((botInfo) => {
     detectedBotUsername = botInfo.username;
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
-  }).catch(() => {});
+  }).catch((err) => console.error('Telegram bot init error:', err.message));
 
   bot.onText(/\/start(.*)/, async (msg) => {
     const chatId = msg.chat.id;
@@ -75,13 +91,11 @@ if (process.env.BOT_TOKEN) {
         );
       }
 
-      // ቴሌግራም አሮጌውን ፔጅ እንዳያመጣ በየሰከንዱ አዲስ ሊንክ ይፈጥራል (Cache Buster)
-      const dynamicUrl = `https://kokeb-bingo.onrender.com/?v=${Date.now()}`;
-
+      const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
       const playKeyboard = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: dynamicUrl } }],
+            [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }],
             [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
           ]
         }
@@ -89,10 +103,9 @@ if (process.env.BOT_TOKEN) {
 
       bot.sendMessage(
         chatId,
-        `🎯 Welcome back ${firstName}!\nReady to play the most exciting 75-Ball Kokeb Bingo game? Tap the button below to start playing instantly!`,
+        `🎯 Welcome back ${firstName}!\nReady to play 75-Ball Kokeb Bingo? Tap below to start!`,
         playKeyboard
       );
-
     } catch (e) {
       console.error('Bot start error:', e);
     }
@@ -115,24 +128,14 @@ if (process.env.BOT_TOKEN) {
 
     try {
       await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
+      const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
 
-      // ቴሌግራም አሮጌውን ፔጅ እንዳያመጣ
-      const dynamicUrl = `https://kokeb-bingo.onrender.com/?v=${Date.now()}`;
-
-      const playKeyboard = {
+      bot.sendMessage(chatId, `🎉 Registration Complete!\n✅ Phone: ${phone}\n💰 Account Bonus: 10 ETB`, {
         reply_markup: {
           remove_keyboard: true,
-          inline_keyboard: [
-            [{ text: '🎮 Play Now', web_app: { url: dynamicUrl } }]
-          ]
+          inline_keyboard: [[{ text: '🎮 Play Now', web_app: { url: webAppUrl } }]]
         }
-      };
-
-      bot.sendMessage(
-        chatId,
-        `🎉 Registration Complete!\n\n✅ Your phone number has been verified (${phone})\n💰 Your account is ready to play (10 ETB Bonus)\n\nTap the button below to start playing!`,
-        playKeyboard
-      );
+      });
     } catch (err) {
       console.error('Contact registration error:', err);
     }
@@ -148,13 +151,7 @@ if (process.env.BOT_TOKEN) {
   });
 }
 
-// Game Rooms Configuration
-const rooms = {
-  Beginner: createRoomState('Beginner', 10, 2500),
-  Turbo: createRoomState('Turbo', 25, 1400),
-  VIP: createRoomState('VIP', 100, 2500)
-};
-
+// ==================== ROOM ENGINE ====================
 function createRoomState(name, stake, callSpeed) {
   return {
     name,
@@ -174,43 +171,31 @@ function createRoomState(name, stake, callSpeed) {
   };
 }
 
+const rooms = {
+  Beginner: createRoomState('Beginner', 10, 2500),
+  Turbo: createRoomState('Turbo', 25, 1400),
+  VIP: createRoomState('VIP', 100, 2500)
+};
+
 function broadcastRealRoomsStatus() {
-  const status = {
-    Beginner: {
-      stake: rooms.Beginner.stake,
-      playing: io.sockets.adapter.rooms.get('Beginner')?.size || 0,
-      cardsSold: rooms.Beginner.takenCartelas.size,
-      prize: Math.floor(rooms.Beginner.takenCartelas.size * rooms.Beginner.stake * ((100 - globalCommissionPercent) / 100)),
-      state: rooms.Beginner.state,
-      timer: rooms.Beginner.timer,
-      calledCount: rooms.Beginner.drawnCount
-    },
-    Turbo: {
-      stake: rooms.Turbo.stake,
-      playing: io.sockets.adapter.rooms.get('Turbo')?.size || 0,
-      cardsSold: rooms.Turbo.takenCartelas.size,
-      prize: Math.floor(rooms.Turbo.takenCartelas.size * rooms.Turbo.stake * ((100 - globalCommissionPercent) / 100)),
-      state: rooms.Turbo.state,
-      timer: rooms.Turbo.timer,
-      calledCount: rooms.Turbo.drawnCount
-    },
-    VIP: {
-      stake: rooms.VIP.stake,
-      playing: io.sockets.adapter.rooms.get('VIP')?.size || 0,
-      cardsSold: rooms.VIP.takenCartelas.size,
-      prize: Math.floor(rooms.VIP.takenCartelas.size * rooms.VIP.stake * ((100 - globalCommissionPercent) / 100)),
-      state: rooms.VIP.state,
-      timer: rooms.VIP.timer,
-      calledCount: rooms.VIP.drawnCount
-    }
-  };
+  const status = {};
+  for (const [key, r] of Object.entries(rooms)) {
+    status[key] = {
+      stake: r.stake,
+      playing: io.sockets.adapter.rooms.get(key)?.size || 0,
+      cardsSold: r.takenCartelas.size,
+      prize: Math.floor(r.takenCartelas.size * r.stake * ((100 - globalCommissionPercent) / 100)),
+      state: r.state,
+      timer: r.timer,
+      calledCount: r.drawnCount
+    };
+  }
   io.emit('all_rooms_update', status);
 }
 
-// 30-SECOND LOBBY SELECTION & ENGINE
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
-  if (room.isPaused) return;
+  if (!room || room.isPaused) return;
 
   room.state = 'LOBBY';
   room.winnerDeclared = false;
@@ -250,6 +235,7 @@ function startRoomLobby(roomName) {
 
 function startRoomGame(roomName) {
   const room = rooms[roomName];
+  if (!room) return;
   room.state = 'PLAYING';
   room.winnerDeclared = false;
 
@@ -281,7 +267,7 @@ function startRoomGame(roomName) {
     room.calledNumbers.add(num);
     room.drawnCount++;
 
-    let letter = num <= 15 ? 'B' : num <= 30 ? 'I' : num <= 45 ? 'N' : num <= 60 ? 'G' : 'O';
+    const letter = num <= 15 ? 'B' : num <= 30 ? 'I' : num <= 45 ? 'N' : num <= 60 ? 'G' : 'O';
 
     io.to(roomName).emit('ball_drawn', {
       number: num,
@@ -294,6 +280,7 @@ function startRoomGame(roomName) {
 
 async function endGame(roomName, winnerData, message) {
   const room = rooms[roomName];
+  if (!room) return;
   room.state = 'FINISHED';
   room.winnerDeclared = true;
   if (room.gameInterval) clearInterval(room.gameInterval);
@@ -320,7 +307,7 @@ async function endGame(roomName, winnerData, message) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// WEBSOCKET EVENTS
+// ==================== WEBSOCKET HANDLERS ====================
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ username, initData, deviceId }) => {
     try {
@@ -336,8 +323,8 @@ io.on('connection', (socket) => {
       }
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
-      
-      if (user.is_banned === 1 || user.is_banned === '1') {
+
+      if (user.is_banned === 1) {
         socket.emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
         setTimeout(() => socket.disconnect(true), 500);
         return;
@@ -428,7 +415,7 @@ io.on('connection', (socket) => {
       io.to(roomName).emit('cartelas_locked', {
         takenIds: Array.from(room.takenCartelas.keys()),
         totalTaken: room.takenCartelas.size,
-        prizePool: prizePool
+        prizePool
       });
 
       broadcastRealRoomsStatus();
@@ -441,10 +428,11 @@ io.on('connection', (socket) => {
     const room = rooms[roomName];
     if (!room || !room.takenCartelas.has(cartelaId)) return;
     const card = room.takenCartelas.get(cartelaId);
-    if (card.socketId === socket.id) card.markedMatrix[r][c] = state;
+    if (card.socketId === socket.id) {
+      card.markedMatrix[r][c] = state;
+    }
   });
 
-  // STRICT 1-WINNER BINGO CLAIM
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
@@ -454,9 +442,21 @@ io.on('connection', (socket) => {
     }
 
     const cardInfo = room.takenCartelas.get(cartelaId);
-    if (!cardInfo || cardInfo.socketId !== socket.id) return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
+    if (!cardInfo || cardInfo.socketId !== socket.id) {
+      return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
+    }
 
     const cardGrid = room.cartelas[cartelaId];
+
+    // የወጡ ኳሶች በኔትወርክ መዘግየት ምክንያት ሳይቀቡ እንዳይቀሩ ማመሳሰያ
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
+          cardInfo.markedMatrix[r][c] = true;
+        }
+      }
+    }
+
     if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
       room.winnerDeclared = true;
       room.state = 'FINISHED';
@@ -484,17 +484,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('send_reaction', ({ roomName, emoji }) => {
-    io.to(roomName).emit('broadcast_reaction', { emoji });
-  });
-
   socket.on('disconnect', () => {
     activeSockets.delete(socket.id);
     broadcastRealRoomsStatus();
   });
 });
 
-// ==================== APIS ====================
+// ==================== PLAYER APIS ====================
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const leaders = await DB.getRealLeaderboard();
@@ -522,7 +518,6 @@ app.post('/api/checkin/claim', async (req, res) => {
   }
 });
 
-// ==================== PAYMENT APIS ====================
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -581,11 +576,11 @@ app.post('/api/payment/withdraw', async (req, res) => {
   }
 });
 
-// ==================== ADVANCED ADMIN APIS ====================
+// ==================== ADMIN MIDDLEWARE & 8 ENDPOINTS ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
-  const isValid = await DB.verifyAdminPin(pin);
+  const isValid = await DB.verifyAdminPin(String(pin));
   if (isValid) return next();
   return res.status(401).json({ error: 'የተሳሳተ ፒን ቁጥር ነው!' });
 }
@@ -601,7 +596,7 @@ app.post('/api/admin/verify-pin', async (req, res) => {
   }
 
   const { pin } = req.body;
-  const isValid = await DB.verifyAdminPin(pin);
+  const isValid = await DB.verifyAdminPin(String(pin));
 
   if (isValid) {
     failedPinAttempts.delete(ip);
@@ -612,6 +607,28 @@ app.post('/api/admin/verify-pin', async (req, res) => {
     failedPinAttempts.set(ip, attempt);
     const left = 5 - attempt.count;
     return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
+  }
+});
+
+app.get('/api/admin/stats', adminAuth, async (req, res) => {
+  try {
+    const stats = await DB.getAdminStats();
+    const todayStats = await DB.getTodayFinancialStats();
+
+    stats.onlinePlayers = activeSockets.size;
+    stats.globalCommission = globalCommissionPercent;
+    stats.activeRooms = {
+      Beginner: { stake: rooms.Beginner.stake, state: rooms.Beginner.state, cardsSold: rooms.Beginner.takenCartelas.size, speed: rooms.Beginner.callSpeed, isPaused: rooms.Beginner.isPaused },
+      Turbo: { stake: rooms.Turbo.stake, state: rooms.Turbo.state, cardsSold: rooms.Turbo.takenCartelas.size, speed: rooms.Turbo.callSpeed, isPaused: rooms.Turbo.isPaused },
+      VIP: { stake: rooms.VIP.stake, state: rooms.VIP.state, cardsSold: rooms.VIP.takenCartelas.size, speed: rooms.VIP.callSpeed, isPaused: rooms.VIP.isPaused }
+    };
+    const users = await DB.getAllUsers(req.query.search);
+    const games = await DB.getRecentGames();
+    const pendingDeposits = await DB.getPendingDeposits();
+    const pendingWithdrawals = await DB.getPendingWithdrawals();
+    res.json({ stats, todayStats, users, games, pendingDeposits, pendingWithdrawals });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -633,7 +650,7 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
         pInfo.balance += result.amount;
         io.to(sockId).emit('balance_updated', { balance: pInfo.balance });
         io.to(sockId).emit('deposit_approved', {
-          txId: txId,
+          txId,
           amount: result.amount,
           message: `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!`
         });
@@ -684,25 +701,113 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats', adminAuth, async (req, res) => {
+// 1. Transaction Archive
+app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   try {
-    const stats = await DB.getAdminStats();
-    const todayStats = await DB.getTodayFinancialStats();
-    
-    stats.onlinePlayers = activeSockets.size;
-    stats.globalCommission = globalCommissionPercent;
-    stats.activeRooms = {
-      Beginner: { stake: rooms.Beginner.stake, state: rooms.Beginner.state, cardsSold: rooms.Beginner.takenCartelas.size, speed: rooms.Beginner.callSpeed, isPaused: rooms.Beginner.isPaused },
-      Turbo: { stake: rooms.Turbo.stake, state: rooms.Turbo.state, cardsSold: rooms.Turbo.takenCartelas.size, speed: rooms.Turbo.callSpeed, isPaused: rooms.Turbo.isPaused },
-      VIP: { stake: rooms.VIP.stake, state: rooms.VIP.state, cardsSold: rooms.VIP.takenCartelas.size, speed: rooms.VIP.callSpeed, isPaused: rooms.VIP.isPaused }
-    };
-    const users = await DB.getAllUsers(req.query.search);
-    const games = await DB.getRecentGames();
-    const pendingDeposits = await DB.getPendingDeposits();
-    const pendingWithdrawals = await DB.getPendingWithdrawals();
-    res.json({ stats, todayStats, users, games, pendingDeposits, pendingWithdrawals });
+    const { type = 'ALL', status = 'ALL', search = '' } = req.query;
+    const transactions = await DB.getTransactionArchive(type, status, search);
+    res.json({ success: true, transactions });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. User Detailed Profile
+app.get('/api/admin/user-profile/:id', adminAuth, async (req, res) => {
+  try {
+    const profile = await DB.getUserDetailedProfile(req.params.id);
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Room Settings & House Commission
+app.post('/api/admin/update-settings', adminAuth, async (req, res) => {
+  const { commission, beginnerStake, turboStake, vipStake } = req.body;
+  if (commission !== undefined) globalCommissionPercent = parseInt(commission, 10);
+  if (beginnerStake && rooms.Beginner) rooms.Beginner.stake = parseFloat(beginnerStake);
+  if (turboStake && rooms.Turbo) rooms.Turbo.stake = parseFloat(turboStake);
+  if (vipStake && rooms.VIP) rooms.VIP.stake = parseFloat(vipStake);
+
+  broadcastRealRoomsStatus();
+  res.json({ success: true, message: 'ቅንብሩ በተሳካ ሁኔታ ተቀይሯል!' });
+});
+
+// 4. Adjust User Balance (+/- Custom)
+app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
+  const { userId, amount, reason } = req.body;
+  try {
+    const newBalance = await DB.updateBalance(userId, parseFloat(amount), 'ADMIN_ADJUST', reason || 'Admin action');
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === parseInt(userId, 10)) {
+        pInfo.balance = newBalance;
+        io.to(sockId).emit('balance_updated', { balance: newBalance });
+      }
+    }
+    res.json({ success: true, message: 'ሒሳቡ ተስተካክሏል!', newBalance });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 5. Toggle Ban/Unban User
+app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const newBanStatus = await DB.toggleBanUser(userId);
+    if (newBanStatus === 1) {
+      for (const [sockId, pInfo] of activeSockets.entries()) {
+        if (pInfo.dbId === parseInt(userId, 10)) {
+          io.to(sockId).emit('account_banned');
+          io.sockets.sockets.get(sockId)?.disconnect(true);
+        }
+      }
+    }
+    res.json({ success: true, isBanned: newBanStatus === 1 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Real-Time Room Controls
+app.post('/api/admin/room-control', adminAuth, (req, res) => {
+  const { roomName, action } = req.body;
+  const room = rooms[roomName];
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  if (action === 'TOGGLE_PAUSE') {
+    room.isPaused = !room.isPaused;
+  } else if (action === 'FORCE_START') {
+    if (room.state === 'LOBBY' && room.takenCartelas.size > 0) {
+      if (room.timerInterval) clearInterval(room.timerInterval);
+      startRoomGame(roomName);
+    }
+  } else if (action === 'RESTART_LOBBY') {
+    startRoomLobby(roomName);
+  }
+
+  broadcastRealRoomsStatus();
+  res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
+});
+
+// 7. Global Broadcast Announcement
+app.post('/api/admin/broadcast', adminAuth, (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+
+  io.emit('admin_broadcast', { message });
+  res.json({ success: true, message: 'መልዕክቱ ለሁሉም ተጫዋቾች ተልኳል!' });
+});
+
+// 8. Change Admin PIN
+app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
+  const { oldPin, newPin } = req.body;
+  try {
+    await DB.changeAdminPin(String(oldPin), String(newPin));
+    res.json({ success: true, message: 'የአድሚን ፒን በተሳካ ሁኔታ ተቀይሯል!' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

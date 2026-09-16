@@ -10,7 +10,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 });
 
 function hashPassword(password, salt) {
-  return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return crypto.pbkdf2Sync(String(password), salt, 1000, 64, 'sha512').toString('hex');
 }
 
 db.serialize(() => {
@@ -76,7 +76,7 @@ db.serialize(() => {
   db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
     if (!row) {
       const salt = crypto.randomBytes(16).toString('hex');
-      const hash = hashPassword("1234", salt);
+      const hash = hashPassword(process.env.ADMIN_PIN || "1234", salt);
       db.run("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', ?, ?)", [hash, salt]);
     }
   });
@@ -500,7 +500,7 @@ const DB = {
       const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
       db.all(query, params, (err, rows) => {
         if (err) return reject(err);
-        resolve(rows);
+        resolve(rows || []);
       });
     });
   },
@@ -520,7 +520,7 @@ const DB = {
     return new Promise((resolve, reject) => {
       db.all('SELECT * FROM game_rounds ORDER BY id DESC LIMIT 15', (err, rows) => {
         if (err) return reject(err);
-        resolve(rows);
+        resolve(rows || []);
       });
     });
   },
@@ -529,7 +529,7 @@ const DB = {
     return new Promise((resolve) => {
       db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
         if (err || !row) return resolve(false);
-        const inputHash = hashPassword(inputPin, row.salt);
+        const inputHash = hashPassword(String(inputPin), row.salt);
         resolve(inputHash === row.value);
       });
     });
@@ -539,11 +539,11 @@ const DB = {
     return new Promise((resolve, reject) => {
       db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
         if (err || !row) return reject(new Error('Config not found'));
-        const oldHash = hashPassword(oldPin, row.salt);
+        const oldHash = hashPassword(String(oldPin), row.salt);
         if (oldHash !== row.value) return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!'));
 
         const newSalt = crypto.randomBytes(16).toString('hex');
-        const newHash = hashPassword(newPin, newSalt);
+        const newHash = hashPassword(String(newPin), newSalt);
         db.run("UPDATE admin_config SET value = ?, salt = ? WHERE key = 'admin_pin'", [newHash, newSalt], (upErr) => {
           if (upErr) return reject(upErr);
           resolve(true);

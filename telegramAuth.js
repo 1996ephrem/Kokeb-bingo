@@ -10,8 +10,8 @@ function verifyTelegramAuth(initData, botToken) {
     urlParams.delete('hash');
 
     const dataCheckString = Array.from(urlParams.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, val]) => `${key}=${val}`)
-      .sort()
       .join('\n');
 
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();

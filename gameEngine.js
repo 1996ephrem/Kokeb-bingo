@@ -52,13 +52,13 @@ function validateBingo(cardGrid, markedMatrix, calledNumbersSet) {
     if ([0, 1, 2, 3, 4].every(r => markedMatrix[r][c] && isCellValid(r, c))) return true;
   }
 
-  // 3. Check Main Diagonal (\)
+  // 3. Main Diagonal (\)
   if ([0, 1, 2, 3, 4].every(i => markedMatrix[i][i] && isCellValid(i, i))) return true;
 
-  // 4. Check Anti-Diagonal (/)
+  // 4. Anti-Diagonal (/)
   if ([0, 1, 2, 3, 4].every(i => markedMatrix[i][4 - i] && isCellValid(i, 4 - i))) return true;
 
-  // 5. Check 4 Corners
+  // 5. Four Corners
   if (
     markedMatrix[0][0] && markedMatrix[0][4] &&
     markedMatrix[4][0] && markedMatrix[4][4] &&
