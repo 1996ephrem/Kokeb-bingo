@@ -217,6 +217,7 @@ const DB = {
     });
   },
 
+  // WITHDRAWAL WITH 2 RULES: 1. 25 ETB RESERVE, 2. AT LEAST 50 ETB FIRST DEPOSIT
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -224,21 +225,43 @@ const DB = {
         db.get('SELECT balance, is_banned FROM users WHERE id = ?', [userId], (err, user) => {
           if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
           if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
-          if (user.balance < amount) { db.run('ROLLBACK'); return reject(new Error('በቂ ሒሳብ የለዎትም!')); }
 
-          const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-          db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
-            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run(
-              'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber, paymentMethod],
-              (txErr) => {
-                if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
-                db.run('COMMIT');
-                resolve({ success: true, txRef, remainingBalance: user.balance - amount });
+          // RULE 1: Must maintain at least 25 ETB reserve balance
+          if (user.balance - amount < 25) {
+            db.run('ROLLBACK');
+            const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
+            return reject(new Error(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! በአሁኑ ሰዓት ማውጣት የሚችሉት ከፍተኛው መጠን ${maxAllowed} ETB ነው።`));
+          }
+
+          // RULE 2: Must have at least one completed deposit of >= 50 ETB before withdrawing
+          db.get(
+            `SELECT id FROM transactions 
+             WHERE user_id = ? AND type = 'DEPOSIT' AND status = 'COMPLETED' AND amount >= 50 
+             LIMIT 1`,
+            [userId],
+            (depErr, depRow) => {
+              if (depErr) { db.run('ROLLBACK'); return reject(depErr); }
+
+              if (!depRow) {
+                db.run('ROLLBACK');
+                return reject(new Error('❌ ቦነስ ተጠቅመው ያሸነፉትን ብር ለማውጣት መጀመሪያ ቢያንስ 50 ETB ማስገባት (Deposit ማድረግ) አለብዎት!'));
               }
-            );
-          });
+
+              const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+              db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
+                if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
+                db.run(
+                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                  [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber, paymentMethod],
+                  (txErr) => {
+                    if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
+                    db.run('COMMIT');
+                    resolve({ success: true, txRef, remainingBalance: user.balance - amount });
+                  }
+                );
+              });
+            }
+          );
         });
       });
     });

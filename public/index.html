@@ -118,6 +118,16 @@
     .card-num-cell.marked { background: linear-gradient(135deg, #7928ca, #ff007f); color: white; }
     .card-num-cell.star { background: #7928ca; color: var(--accent-gold); font-size: 11px; }
 
+    .spectator-banner-card {
+      background: linear-gradient(135deg, rgba(20, 13, 56, 0.9), rgba(10, 6, 26, 0.95));
+      border: 1px dashed var(--accent-cyan);
+      border-radius: 14px;
+      padding: 14px 10px;
+      text-align: center;
+      width: 100%;
+      box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
+    }
+
     .method-selector { display: flex; gap: 8px; margin-bottom: 12px; }
     .method-pill { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 10px; text-align: center; font-weight: bold; font-size: 12px; cursor: pointer; }
     .method-pill.active { background: #7928ca; border-color: var(--accent-cyan); color: #fff; }
@@ -384,13 +394,13 @@
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="font-size: 11px; color: #ffd700; font-weight: bold;" data-i18n="deposit_inst_title">📥 ሒሳብ ሙላ (Deposit to 0997575739 Ephrem Shitu):</div>
       <input type="tel" id="deposit-phone-input" placeholder="የላኩበት ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
-      <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ለምሳሌ 100 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
+      <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ቢያንስ 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
       <input type="text" id="deposit-ref-input" placeholder="የትራንዛክሽን መለያ ቁጥር (Txn ID/Ref)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()" data-i18n="btn_submit_deposit">+ Deposit Request</button>
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Withdraw to Telebirr/CBE):</div>
+      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Min: 50 ETB | 25 ETB ቀሪ ተቀማጭ ግዴታ ነው):</div>
       <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()" data-i18n="btn_withdraw">Withdraw</button>
@@ -461,7 +471,7 @@
     <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()"><span data-i18n="btn_enter_arena">ENTER ARENA</span> (<span id="btn-cartela-count">0</span>)</button>
   </div>
 
-  <!-- VIEW 8: LIVE GAME ENGINE -->
+  <!-- VIEW 8: LIVE GAME ENGINE (PLAYER & SPECTATOR) -->
   <div id="screen-game" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="leaveCurrentGame()" data-i18n="btn_leave">🚪 LEAVE</button>
@@ -510,7 +520,7 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT LOGIC & SOCKET INTEGRATION -->
+  <!-- JAVASCRIPT LOGIC -->
   <script>
     const socket = io();
     const tg = window.Telegram?.WebApp;
@@ -564,7 +574,7 @@
         playonly_desc: "የተሰጠ ቦነስ — ካርቴላ ቆርጠው ይጫወቱበታል",
         deposit_inst_title: "📥 ሒሳብ ሙላ (ወደ 0997575739 Ephrem Shitu ይላኩ):",
         btn_submit_deposit: "+ የማስገቢያ ጥያቄ ላክ",
-        cashout_title: "📤 ብር አውጣ (ወደ ቴሌብር/ሲቢኢ):",
+        cashout_title: "📤 ብር አውጣ (Min: 50 ETB | 25 ETB ቀሪ ተቀማጭ ግዴታ ነው):",
         btn_withdraw: "ብር አውጣ",
         history_hdr: "የዝውውር ታሪክ",
         no_tx: "ምንም ዝውውር የለም",
@@ -654,7 +664,7 @@
         playonly_desc: "Deposits & bonuses — spend on cards",
         deposit_inst_title: "📥 Deposit (Send to 0997575739 Ephrem Shitu):",
         btn_submit_deposit: "+ Deposit Request",
-        cashout_title: "📤 Withdraw (to Telebirr/CBE):",
+        cashout_title: "📤 Withdraw (Min: 50 ETB | 25 ETB reserve required):",
         btn_withdraw: "Withdraw",
         history_hdr: "HISTORY",
         no_tx: "No transactions yet",
@@ -701,7 +711,7 @@
 
     let userState = { dbId: 1, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
-    let gameState = { isLive: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0, playerCards: [] };
+    let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
 
     function applyLanguageTranslations() {
@@ -774,10 +784,11 @@
       document.getElementById('autodaub-toggle').classList.toggle('active', gameState.autoDaub);
       document.getElementById('prof-autodaub').classList.toggle('active', gameState.autoDaub);
       SoundFX.pop();
-      if (gameState.autoDaub && gameState.isLive) executeAutoDaub();
+      if (gameState.autoDaub && gameState.isLive && !gameState.isSpectator) executeAutoDaub();
     }
 
     function executeAutoDaub() {
+      if (gameState.isSpectator) return;
       selectionState.selectedCartelaIds.forEach(id => {
         const g = selectionState.generatedCombinations[id];
         if (!g) return;
@@ -794,7 +805,7 @@
     }
 
     function manualMarkCell(cartelaId, r, c) {
-      if (!gameState.isLive) return;
+      if (!gameState.isLive || gameState.isSpectator) return;
       const g = selectionState.generatedCombinations[cartelaId];
       if (!g) return;
 
@@ -820,6 +831,7 @@
     }
 
     function checkNearWinStatus() {
+      if (gameState.isSpectator) return;
       selectionState.selectedCartelaIds.forEach(id => {
         const cardBox = document.getElementById(`player-card-${id}`);
         if (!cardBox) return;
@@ -1035,6 +1047,7 @@
       const amount = parseFloat(document.getElementById('deposit-amount-input').value.trim());
       const txRef = document.getElementById('deposit-ref-input').value.trim();
       if (!phone || !amount || !txRef) return alert("እባክዎን ሁሉንም መረጃዎች ይሙሉ!");
+      if (amount < 10) return alert("ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!");
 
       try {
         const res = await fetch('/api/payment/deposit-request', {
@@ -1051,11 +1064,17 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
+    // WITHDRAWAL WITH 25 ETB RESERVE VALIDATION
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amount = parseFloat(document.getElementById('withdraw-amount-input').value.trim());
       if (!phone || !amount || amount < 50) return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
-      if (amount > userState.coins) return alert("በቂ ሒሳብ የለዎትም!");
+
+      // Front-end instant check for the 25 ETB reserve rule
+      if (userState.coins - amount < 25) {
+        const maxAllowed = Math.max(0, Math.floor(userState.coins - 25));
+        return alert(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! ማውጣት የሚችሉት ከፍተኛ መጠን ${maxAllowed} ETB ነው።`);
+      }
 
       try {
         const res = await fetch('/api/payment/withdraw', {
@@ -1121,12 +1140,12 @@
       }
     }
 
+    // ==================== LIVE GAME & SPECTATOR ENGINE ====================
     function goToCartelaSelection(roomName, cost) {
       SoundFX.pop();
       selectionState.roomName = roomName;
       selectionState.costPerCartela = cost;
       selectionState.selectedCartelaIds.clear();
-      showScreen('screen-cartela-select');
 
       document.getElementById('room-title').innerText = `${roomName} (${cost} ETB)`;
       socket.emit('join_room', { roomName });
@@ -1135,8 +1154,47 @@
     socket.on('room_snapshot', (d) => {
       selectionState.generatedCombinations = d.cartelas;
       selectionState.takenCartelaIds = new Set(d.takenCartelaIds);
-      document.getElementById('cartela-timer').innerText = d.timer;
-      renderCartelaGrid100();
+
+      if (d.state === 'PLAYING') {
+        gameState.isLive = true;
+        gameState.isSpectator = true;
+        gameState.calledNumbers = new Set(d.calledNumbers);
+
+        showScreen('screen-game');
+        document.getElementById('game-room-name').innerText = `${d.roomName} (👀 ተመልካች)`;
+        document.getElementById('claim-bingo-btn').disabled = true;
+        document.getElementById('claim-bingo-btn').innerText = '👀 ተመልካች ነዎት (SPECTATING)';
+
+        renderFullBoard();
+        d.calledNumbers.forEach(num => {
+          const bc = document.getElementById(`b-cell-${num}`);
+          if (bc) bc.classList.add('called');
+        });
+
+        if (d.lastBall) {
+          document.getElementById('current-call').innerText = d.lastBall.callString;
+          document.getElementById('current-call-amharic').innerText = `${d.lastBall.letter} ${getAmharicNumberWord(d.lastBall.number)}`;
+        }
+
+        document.getElementById('player-cartelas-list').innerHTML = `
+          <div class="spectator-banner-card">
+            <div style="font-size: 34px;">👀</div>
+            <h3 style="color: var(--accent-cyan); margin: 6px 0;">ተመልካች ሁነታ (Live Spectating)</h3>
+            <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
+              ይህ ዙር አስቀድሞ ተጀምሯል! የቀጥታ ኳሶችን እየተከታተሉ ይጠብቁ። ዙሩ ሲጠናቀቅ በቀጥታ ቀጣዩን ዙር ካርቴላ ይቆርጣሉ!
+            </p>
+            <div style="background: rgba(0, 255, 135, 0.08); border: 1px solid var(--accent-green); border-radius: 8px; padding: 6px; font-size: 11px;">
+              🎟️ የተቆረጡ ካርቴላዎች: <b>${d.takenCartelaIds.length}</b><br>
+              💰 ንቁ የድል ቋት: <b style="color: var(--accent-green);">${d.prizePool} ETB</b>
+            </div>
+          </div>
+        `;
+      } else {
+        gameState.isSpectator = false;
+        showScreen('screen-cartela-select');
+        document.getElementById('cartela-timer').innerText = d.timer;
+        renderCartelaGrid100();
+      }
     });
 
     socket.on('lobby_timer_tick', ({ timer }) => {
@@ -1153,6 +1211,13 @@
         selectionState.generatedCombinations = data.cartelas;
         selectionState.takenCartelaIds.clear();
         selectionState.selectedCartelaIds.clear();
+
+        if (gameState.isSpectator) {
+          gameState.isSpectator = false;
+          gameState.isLive = false;
+          showScreen('screen-cartela-select');
+        }
+
         renderCartelaGrid100();
       }
     });
@@ -1190,9 +1255,12 @@
       userState.coins = d.balance;
       updateCoinsDisplay();
       gameState.isLive = true;
+      gameState.isSpectator = false;
       gameState.calledNumbers.clear();
       showScreen('screen-game');
       document.getElementById('game-room-name').innerText = selectionState.roomName;
+      document.getElementById('claim-bingo-btn').disabled = true;
+      document.getElementById('claim-bingo-btn').innerText = '🏆 CLAIM BINGO!';
       renderFullBoard();
       renderPlayerCards();
     });
@@ -1245,28 +1313,31 @@
 
       const bc = document.getElementById(`b-cell-${number}`);
       if (bc) bc.classList.add('called');
-      document.getElementById('claim-bingo-btn').disabled = false;
 
-      if (gameState.autoDaub) {
-        selectionState.selectedCartelaIds.forEach(id => {
-          const g = selectionState.generatedCombinations[id];
-          if (!g) return;
-          for (let r=0; r<5; r++) {
-            for (let c=0; c<5; c++) {
-              if (g[r][c] === number) {
-                const cell = document.getElementById(`c-${id}-${r}-${c}`);
-                if (cell) cell.classList.add('marked');
-                socket.emit('mark_cell', { roomName: selectionState.roomName, cartelaId: id, r, c, state: true });
+      if (!gameState.isSpectator) {
+        document.getElementById('claim-bingo-btn').disabled = false;
+
+        if (gameState.autoDaub) {
+          selectionState.selectedCartelaIds.forEach(id => {
+            const g = selectionState.generatedCombinations[id];
+            if (!g) return;
+            for (let r=0; r<5; r++) {
+              for (let c=0; c<5; c++) {
+                if (g[r][c] === number) {
+                  const cell = document.getElementById(`c-${id}-${r}-${c}`);
+                  if (cell) cell.classList.add('marked');
+                  socket.emit('mark_cell', { roomName: selectionState.roomName, cartelaId: id, r, c, state: true });
+                }
               }
             }
-          }
-        });
+          });
+        }
+        checkNearWinStatus();
       }
-
-      checkNearWinStatus();
     });
 
     function checkBingo() {
+      if (gameState.isSpectator) return;
       const ids = Array.from(selectionState.selectedCartelaIds);
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
     }
@@ -1276,7 +1347,7 @@
       document.getElementById('claim-bingo-btn').disabled = true;
 
       if (d.winner) {
-        if (d.winner.username === userState.name) {
+        if (!gameState.isSpectator && d.winner.username === userState.name) {
           SoundFX.win();
           showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${d.winner.cartelaId} የ ${d.winner.prize} ETB የድል ቋቱን አሸንፈዋል!`, "🎉");
         } else {
@@ -1287,18 +1358,25 @@
         SoundFX.pop();
         showModal("Game Finished", d.message, "🏁");
       }
-      switchNav('dashboard');
+
+      if (!gameState.isSpectator) {
+        switchNav('dashboard');
+      }
     });
 
     function leaveCurrentGame() {
       if (confirm(userState.lang === 'am' ? "እርግጠኛ ነዎት ጨዋታውን ለቀው ወደ ሎቢ መመለስ ይፈልጋሉ?" : "Are you sure you want to leave the round?")) {
         socket.emit('leave_room', { roomName: selectionState.roomName });
         gameState.isLive = false;
+        gameState.isSpectator = false;
         switchNav('dashboard');
       }
     }
 
-    function cancelCartelaSelection() { switchNav('dashboard'); }
+    function cancelCartelaSelection() { 
+      socket.emit('leave_room', { roomName: selectionState.roomName });
+      switchNav('dashboard'); 
+    }
     function copyReferralLink() { navigator.clipboard.writeText(`https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`); alert(userState.lang === 'am' ? "ሊንክ ተቀድቷል!" : "Link copied!"); }
     function shareTelegramReferral() { tg?.openTelegramLink(`https://t.me/share/url?url=https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}&text=Play Kokeb Bingo!`); }
   </script>

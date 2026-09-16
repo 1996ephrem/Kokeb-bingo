@@ -43,7 +43,6 @@ let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10)
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
-// Render ላይ የራሱን Live ዌብሳይት ሊንክ በራስ-ሰር ፈልጎ እንዲወስድ
 function getAppBaseUrl() {
   if (process.env.RENDER_EXTERNAL_URL) {
     return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
@@ -358,6 +357,13 @@ io.on('connection', (socket) => {
     socket.join(roomName);
     broadcastRealRoomsStatus();
 
+    const calledArr = Array.from(room.calledNumbers);
+    const lastNum = calledArr.length > 0 ? calledArr[calledArr.length - 1] : null;
+    let lastLetter = null;
+    if (lastNum) {
+      lastLetter = lastNum <= 15 ? 'B' : lastNum <= 30 ? 'I' : lastNum <= 45 ? 'N' : lastNum <= 60 ? 'G' : 'O';
+    }
+
     socket.emit('room_snapshot', {
       roomName,
       state: room.state,
@@ -365,7 +371,9 @@ io.on('connection', (socket) => {
       stake: room.stake,
       cartelas: room.cartelas,
       takenCartelaIds: Array.from(room.takenCartelas.keys()),
-      calledNumbers: Array.from(room.calledNumbers),
+      calledNumbers: calledArr,
+      lastBall: lastNum ? { number: lastNum, letter: lastLetter, callString: `${lastLetter}-${lastNum}` } : null,
+      drawnCount: room.drawnCount,
       prizePool: Math.floor(room.takenCartelas.size * room.stake * ((100 - globalCommissionPercent) / 100))
     });
   });
@@ -448,7 +456,6 @@ io.on('connection', (socket) => {
 
     const cardGrid = room.cartelas[cartelaId];
 
-    // የወጡ ኳሶች በኔትወርክ መዘግየት ምክንያት ሳይቀቡ እንዳይቀሩ ማመሳሰያ
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
