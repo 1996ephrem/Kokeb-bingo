@@ -1,629 +1,548 @@
 // database.js
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 const crypto = require('crypto');
 
-const dbPath = path.resolve(__dirname, 'bingo.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) console.error('[-] Database connection error:', err.message);
-  else console.log('[+] Connected to SQLite Database (bingo.db)');
+// PostgreSQL Connection (ከ Render/Neon DATABASE_URL በቀጥታ ያነባል)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/bingo',
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
+pool.on('connect', () => {
+  console.log('[+] Connected to Persistent PostgreSQL Database');
+});
+
+pool.on('error', (err) => {
+  console.error('[-] PostgreSQL Pool Error:', err.message);
 });
 
 function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(String(password), salt, 1000, 64, 'sha512').toString('hex');
 }
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      telegram_id TEXT UNIQUE,
-      username TEXT,
-      first_name TEXT,
-      phone_number TEXT,
-      balance REAL DEFAULT 0.0,
-      is_banned INTEGER DEFAULT 0,
-      checkin_streak INTEGER DEFAULT 0,
-      last_checkin_date TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+// ቋሚ ቴብሎችን መፍጠር (ሰርቨሩ ቢጠፋና ቢበራ ፈጽሞ አይሰረዙም)
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        telegram_id TEXT UNIQUE,
+        username TEXT,
+        first_name TEXT,
+        phone_number TEXT,
+        balance NUMERIC(14, 2) DEFAULT 0.0,
+        is_banned INT DEFAULT 0,
+        checkin_streak INT DEFAULT 0,
+        last_checkin_date TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-  db.run("ALTER TABLE users ADD COLUMN phone_number TEXT", () => {});
-  db.run("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0", () => {});
-  db.run("ALTER TABLE users ADD COLUMN checkin_streak INTEGER DEFAULT 0", () => {});
-  db.run("ALTER TABLE users ADD COLUMN last_checkin_date TEXT", () => {});
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id),
+        type TEXT,
+        amount NUMERIC(14, 2),
+        status TEXT DEFAULT 'COMPLETED',
+        reference TEXT,
+        phone_number TEXT,
+        payment_method TEXT DEFAULT 'TELEBIRR',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      type TEXT,
-      amount REAL,
-      status TEXT DEFAULT 'COMPLETED',
-      reference TEXT,
-      phone_number TEXT,
-      payment_method TEXT DEFAULT 'TELEBIRR',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id)
-    )
-  `);
+      CREATE TABLE IF NOT EXISTS game_rounds (
+        id SERIAL PRIMARY KEY,
+        room_name TEXT,
+        winner_username TEXT,
+        winner_cartela_id INT,
+        prize_pool NUMERIC(14, 2),
+        total_cartelas INT,
+        called_balls_count INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-  db.run("ALTER TABLE transactions ADD COLUMN phone_number TEXT", () => {});
-  db.run("ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'TELEBIRR'", () => {});
+      CREATE TABLE IF NOT EXISTS admin_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        salt TEXT
+      );
+    `);
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS game_rounds (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      room_name TEXT,
-      winner_username TEXT,
-      winner_cartela_id INTEGER,
-      prize_pool REAL,
-      total_cartelas INTEGER,
-      called_balls_count INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS admin_config (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      salt TEXT
-    )
-  `);
-
-  db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
-    if (!row) {
+    const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
+    if (pinRes.rows.length === 0) {
       const salt = crypto.randomBytes(16).toString('hex');
       const hash = hashPassword(process.env.ADMIN_PIN || "1234", salt);
-      db.run("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', ?, ?)", [hash, salt]);
+      await pool.query("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', $1, $2)", [hash, salt]);
     }
-  });
-});
+  } catch (err) {
+    console.error('[-] Database initialization error:', err.message);
+  }
+}
+
+initDB();
 
 const DB = {
-  getOrCreateUser: (telegramId, username, firstName) => {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, row) => {
-        if (err) return reject(err);
-        if (row) return resolve(row);
+  getOrCreateUser: async (telegramId, username, firstName) => {
+    const res = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
+    if (res.rows.length > 0) {
+      const u = res.rows[0];
+      u.balance = parseFloat(u.balance);
+      return u;
+    }
 
-        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned, checkin_streak) VALUES (?, ?, ?, 0.0, 0, 0)');
-        stmt.run(telegramId, username || 'Player', firstName || 'User', function (insertErr) {
-          if (insertErr) return reject(insertErr);
-          db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
-            if (fetchErr) return reject(fetchErr);
-            resolve(newUser);
-          });
-        });
-      });
-    });
+    const insertRes = await pool.query(
+      'INSERT INTO users (telegram_id, username, first_name, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, 0.0, 0, 0) RETURNING *',
+      [telegramId, username || 'Player', firstName || 'User']
+    );
+    const newUser = insertRes.rows[0];
+    newUser.balance = parseFloat(newUser.balance);
+    return newUser;
   },
 
-  registerVerifiedPhone: (telegramId, username, firstName, phoneNumber) => {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE phone_number = ?', [phoneNumber], (err, existingPhoneUser) => {
-        if (err) return reject(err);
+  registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
+    // ስልኩ ቀድሞ መመዝገቡን ማረጋገጥ
+    const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
+    if (phoneCheck.rows.length > 0) {
+      const existingUser = phoneCheck.rows[0];
+      existingUser.balance = parseFloat(existingUser.balance);
 
-        if (existingPhoneUser) {
-          if (existingPhoneUser.telegram_id !== telegramId) {
-            return reject(new Error('DUPLICATE_PHONE_OTHER_ACCOUNT'));
-          }
-
-          return resolve({
-            user: existingPhoneUser,
-            isNewBonus: false,
-            alreadyRegistered: true
-          });
-        }
-
-        db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err2, tgUser) => {
-          if (err2) return reject(err2);
-
-          if (tgUser) {
-            const newBal = tgUser.balance + 10.0;
-            db.run(
-              'UPDATE users SET phone_number = ?, balance = ?, username = ?, first_name = ? WHERE id = ?',
-              [phoneNumber, newBal, username || tgUser.username, firstName || tgUser.first_name, tgUser.id],
-              (uErr) => {
-                if (uErr) return reject(uErr);
-
-                db.run(
-                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, "WELCOME_BONUS", 10.0, "COMPLETED", "NEWCOMER_10ETB", ?)',
-                  [tgUser.id, phoneNumber]
-                );
-
-                resolve({
-                  user: { ...tgUser, phone_number: phoneNumber, balance: newBal },
-                  isNewBonus: true,
-                  alreadyRegistered: false
-                });
-              }
-            );
-          } else {
-            db.run(
-              'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES (?, ?, ?, ?, 10.0, 0, 0)',
-              [telegramId, username || 'Player', firstName || 'User', phoneNumber],
-              function (iErr) {
-                if (iErr) return reject(iErr);
-                const newId = this.lastID;
-
-                db.run(
-                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, "WELCOME_BONUS", 10.0, "COMPLETED", "NEWCOMER_10ETB", ?)',
-                  [newId, phoneNumber]
-                );
-
-                resolve({
-                  user: { id: newId, telegram_id: telegramId, username, phone_number: phoneNumber, balance: 10.0 },
-                  isNewBonus: true,
-                  alreadyRegistered: false
-                });
-              }
-            );
-          }
-        });
-      });
-    });
-  },
-
-  claimDailyCheckinStreak: (userId) => {
-    return new Promise((resolve, reject) => {
-      const today = new Date().toISOString().split('T')[0];
-      const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-      db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-        if (err || !user) return reject(err || new Error('User not found'));
-        if (user.is_banned === 1) return reject(new Error('❌ ተጠቃሚው ታግዷል!'));
-
-        if (user.last_checkin_date === today) {
-          return reject(new Error('ዛሬ የዕለቱን ቦነስ ወስደዋል! እባክዎን ነገ ይመለሱ።'));
-        }
-
-        let newStreak = 1;
-        if (user.last_checkin_date === yesterdayDate) {
-          newStreak = (user.checkin_streak || 0) + 1;
-          if (newStreak > 7) newStreak = 7;
-        } else {
-          newStreak = 1;
-        }
-
-        const rewardAmount = newStreak;
-        const newBalance = user.balance + rewardAmount;
-
-        db.serialize(() => {
-          db.run('BEGIN TRANSACTION');
-          db.run(
-            'UPDATE users SET balance = ?, checkin_streak = ?, last_checkin_date = ? WHERE id = ?',
-            [newBalance, newStreak, today, userId],
-            (uErr) => {
-              if (uErr) { db.run('ROLLBACK'); return reject(uErr); }
-
-              db.run(
-                'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
-                [userId, 'SPIN_REWARD', rewardAmount, 'COMPLETED', `STREAK_DAY_${newStreak}`],
-                (tErr) => {
-                  if (tErr) { db.run('ROLLBACK'); return reject(tErr); }
-                  db.run('COMMIT');
-                  resolve({ success: true, rewardAmount, newStreak, newBalance });
-                }
-              );
-            }
-          );
-        });
-      });
-    });
-  },
-
-  updateBalance: (userId, amountChange, type, reference = null) => {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT balance, is_banned FROM users WHERE id = ?', [userId], (err, user) => {
-          if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
-          if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
-
-          const newBalance = user.balance + amountChange;
-          if (newBalance < 0) { db.run('ROLLBACK'); return reject(new Error('Insufficient balance')); }
-
-          db.run('UPDATE users SET balance = ? WHERE id = ?', [newBalance, userId], (upErr) => {
-            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run(
-              'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES (?, ?, ?, ?, ?)',
-              [userId, type, amountChange, 'COMPLETED', reference],
-              (txErr) => {
-                if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
-                db.run('COMMIT');
-                resolve(newBalance);
-              }
-            );
-          });
-        });
-      });
-    });
-  },
-
-  requestDeposit: (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
-    return new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [userId, 'DEPOSIT', amount, 'PENDING', txRef, phoneNumber, paymentMethod],
-        function (err) {
-          if (err) return reject(err);
-          resolve({ success: true, txId: this.lastID });
-        }
-      );
-    });
-  },
-
-  requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT balance, is_banned FROM users WHERE id = ?', [userId], (err, user) => {
-          if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
-          if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
-
-          // ህግ 1፡ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት
-          if (user.balance - amount < 25) {
-            db.run('ROLLBACK');
-            const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
-            return reject(new Error(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! በአሁኑ ሰዓት ማውጣት የሚችሉት ከፍተኛው መጠን ${maxAllowed} ETB ነው።`));
-          }
-
-          // ህግ 2፡ ቢያንስ አንድ ጊዜ 50 ETB ወይም ከዚያ በላይ ማስገባት (Deposit) ግዴታ ነው
-          db.get(
-            `SELECT id FROM transactions 
-             WHERE user_id = ? AND type = 'DEPOSIT' AND status = 'COMPLETED' AND amount >= 50 
-             LIMIT 1`,
-            [userId],
-            (depErr, depRow) => {
-              if (depErr) { db.run('ROLLBACK'); return reject(depErr); }
-
-              if (!depRow) {
-                db.run('ROLLBACK');
-                return reject(new Error('❌ ቦነስ ተጠቅመው ያሸነፉትን ብር ለማውጣት መጀመሪያ ቢያንስ 50 ETB ማስገባት (Deposit ማድረግ) አለብዎት!'));
-              }
-
-              const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-              db.run('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, userId], (upErr) => {
-                if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-                db.run(
-                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                  [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber, paymentMethod],
-                  (txErr) => {
-                    if (txErr) { db.run('ROLLBACK'); return reject(txErr); }
-                    db.run('COMMIT');
-                    resolve({ success: true, txRef, remainingBalance: user.balance - amount });
-                  }
-                );
-              });
-            }
-          );
-        });
-      });
-    });
-  },
-
-  getUserTransactions: (userId) => {
-    return new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM transactions WHERE user_id = ? AND type IN ("DEPOSIT", "WITHDRAW") ORDER BY id DESC LIMIT 15',
-        [userId],
-        (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        }
-      );
-    });
-  },
-
-  getPendingDeposits: () => {
-    return new Promise((resolve, reject) => {
-      db.all(`
-        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.phone_number as user_registered_phone 
-        FROM transactions t 
-        LEFT JOIN users u ON t.user_id = u.id 
-        WHERE t.type = 'DEPOSIT' AND t.status = 'PENDING' 
-        ORDER BY t.id DESC
-      `, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
-  },
-
-  approveDeposit: (txId) => {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING" AND type = "DEPOSIT"', [txId], (err, tx) => {
-          if (err || !tx) { db.run('ROLLBACK'); return reject(err || new Error('Transaction not found')); }
-
-          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [tx.amount, tx.user_id], (upErr) => {
-            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run("UPDATE transactions SET status = 'COMPLETED' WHERE id = ?", [txId], (inErr) => {
-              if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
-              db.run('COMMIT');
-              resolve({ success: true, userId: tx.user_id, amount: tx.amount });
-            });
-          });
-        });
-      });
-    });
-  },
-
-  rejectDeposit: (txId) => {
-    return new Promise((resolve, reject) => {
-      db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ? AND status = 'PENDING'", [txId], function (err) {
-        if (err) return reject(err);
-        resolve(this.changes > 0);
-      });
-    });
-  },
-
-  getPendingWithdrawals: () => {
-    return new Promise((resolve, reject) => {
-      db.all(`
-        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.balance as current_user_balance 
-        FROM transactions t 
-        LEFT JOIN users u ON t.user_id = u.id 
-        WHERE t.type = 'WITHDRAW' AND t.status = 'PENDING' 
-        ORDER BY t.id DESC
-      `, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
-  },
-
-  approveWithdrawal: (txId) => {
-    return new Promise((resolve, reject) => {
-      db.run("UPDATE transactions SET status = 'COMPLETED' WHERE id = ? AND status = 'PENDING'", [txId], function(err) {
-        if (err) return reject(err);
-        resolve(this.changes > 0);
-      });
-    });
-  },
-
-  // 🚨 የተስተካከለው REJECT WITHDRAWAL: ገንዘቡን ወዲያውኑ ወደ ተጫዋቹ ዋሌት መልሶ አዲሱን ባላንስ ያሳውቃል
-  rejectWithdrawal: (txId) => {
-    return new Promise((resolve, reject) => {
-      const id = parseInt(txId, 10);
-      db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING" AND type = "WITHDRAW"', [id], (err, tx) => {
-        if (err || !tx) return reject(err || new Error('የማውጣት ጥያቄው አልተገኘም ወይም አስቀድሞ ተጠናቋል!'));
-
-        const refundAmount = Math.abs(parseFloat(tx.amount));
-        const userId = tx.user_id;
-
-        db.serialize(() => {
-          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [refundAmount, userId], function(uErr) {
-            if (uErr) return reject(uErr);
-
-            db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ?", [id], function(tErr) {
-              if (tErr) return reject(tErr);
-
-              db.get('SELECT balance FROM users WHERE id = ?', [userId], (bErr, userRow) => {
-                const newBalance = userRow ? userRow.balance : null;
-                resolve({
-                  success: true,
-                  userId,
-                  refundedAmount: refundAmount,
-                  newBalance
-                });
-              });
-            });
-          });
-        });
-      });
-    });
-  },
-
-  getTodayFinancialStats: () => {
-    return new Promise((resolve, reject) => {
-      const today = new Date().toISOString().split('T')[0];
-      db.get(`
-        SELECT 
-          COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as today_deposits,
-          COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as today_withdrawals
-        FROM transactions 
-        WHERE DATE(created_at) = DATE(?)
-      `, [today], (err, row) => {
-        if (err) return reject(err);
-
-        db.get(`
-          SELECT 
-            COALESCE(SUM(prize_pool), 0) as today_payouts,
-            COUNT(*) as today_rounds
-          FROM game_rounds 
-          WHERE DATE(created_at) = DATE(?)
-        `, [today], (err2, gRow) => {
-          if (err2) return reject(err2);
-          const deposits = row.today_deposits;
-          const payouts = gRow.today_payouts;
-          const estProfit = Math.floor(payouts * 0.15);
-
-          resolve({
-            todayDeposits: deposits,
-            todayWithdrawals: row.today_withdrawals,
-            todayPayouts: payouts,
-            todayRounds: gRow.today_rounds,
-            todayProfit: estProfit
-          });
-        });
-      });
-    });
-  },
-
-  getTransactionArchive: (type = 'ALL', status = 'ALL', search = '') => {
-    return new Promise((resolve, reject) => {
-      let query = `
-        SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id 
-        FROM transactions t 
-        LEFT JOIN users u ON t.user_id = u.id 
-        WHERE 1=1
-      `;
-      const params = [];
-
-      if (type !== 'ALL') { query += ` AND t.type = ?`; params.push(type); }
-      if (status !== 'ALL') { query += ` AND t.status = ?`; params.push(status); }
-      if (search) {
-        query += ` AND (u.username LIKE ? OR t.phone_number LIKE ? OR t.reference LIKE ?)`;
-        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      if (existingUser.telegram_id !== telegramId) {
+        throw new Error('DUPLICATE_PHONE_OTHER_ACCOUNT');
       }
 
-      query += ` ORDER BY t.id DESC LIMIT 100`;
+      return {
+        user: existingUser,
+        isNewBonus: false,
+        alreadyRegistered: true
+      };
+    }
 
-      db.all(query, params, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
-  },
+    const tgCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
 
-  getUserDetailedProfile: (userId) => {
-    return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-        if (err || !user) return reject(err || new Error('User not found'));
+    if (tgCheck.rows.length > 0) {
+      const tgUser = tgCheck.rows[0];
+      const newBal = parseFloat(tgUser.balance) + 10.0;
 
-        db.get(`
-          SELECT 
-            COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as total_deposited,
-            COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as total_withdrawn,
-            COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) ELSE 0 END), 0) as total_bet_amount,
-            COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount ELSE 0 END), 0) as total_won_amount
-          FROM transactions 
-          WHERE user_id = ?
-        `, [userId], (err2, stats) => {
-          if (err2) return reject(err2);
-
-          db.get('SELECT COUNT(*) as win_count FROM game_rounds WHERE winner_username = ?', [user.username], (err3, wRow) => {
-            if (err3) return reject(err3);
-            resolve({
-              user,
-              stats: {
-                totalDeposited: stats.total_deposited,
-                totalWithdrawn: stats.total_withdrawn,
-                totalBet: stats.total_bet_amount,
-                totalWon: stats.total_won_amount,
-                winCount: wRow.win_count || 0
-              }
-            });
-          });
-        });
-      });
-    });
-  },
-
-  saveGameRound: (roomName, winnerUsername, winnerCartelaId, prizePool, totalCartelas, calledCount) => {
-    return new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO game_rounds (room_name, winner_username, winner_cartela_id, prize_pool, total_cartelas, called_balls_count) 
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [roomName, winnerUsername, winnerCartelaId, prizePool, totalCartelas, calledCount],
-        function (err) {
-          if (err) return reject(err);
-          resolve(this.lastID);
-        }
+      const upRes = await pool.query(
+        'UPDATE users SET phone_number = $1, balance = $2, username = $3, first_name = $4 WHERE id = $5 RETURNING *',
+        [phoneNumber, newBal, username || tgUser.username, firstName || tgUser.first_name, tgUser.id]
       );
-    });
+
+      await pool.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES ($1, $2, $3, $4, $5, $6)',
+        [tgUser.id, 'WELCOME_BONUS', 10.0, 'COMPLETED', 'NEWCOMER_10ETB', phoneNumber]
+      );
+
+      const u = upRes.rows[0];
+      u.balance = parseFloat(u.balance);
+      return { user: u, isNewBonus: true, alreadyRegistered: false };
+    } else {
+      const inRes = await pool.query(
+        'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 10.0, 0, 0) RETURNING *',
+        [telegramId, username || 'Player', firstName || 'User', phoneNumber]
+      );
+      const newId = inRes.rows[0].id;
+
+      await pool.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES ($1, $2, $3, $4, $5, $6)',
+        [newId, 'WELCOME_BONUS', 10.0, 'COMPLETED', 'NEWCOMER_10ETB', phoneNumber]
+      );
+
+      const u = inRes.rows[0];
+      u.balance = parseFloat(u.balance);
+      return { user: u, isNewBonus: true, alreadyRegistered: false };
+    }
   },
 
-  getRealLeaderboard: () => {
-    return new Promise((resolve, reject) => {
-      db.all(`
-        SELECT 
-          winner_username as username, 
-          COUNT(*) as total_wins, 
-          SUM(prize_pool) as total_won 
-        FROM game_rounds 
-        WHERE winner_username IS NOT NULL AND winner_username != ''
-        GROUP BY winner_username 
-        ORDER BY total_won DESC 
-        LIMIT 10
-      `, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
+  claimDailyCheckinStreak: async (userId) => {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    const uRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (uRes.rows.length === 0) throw new Error('User not found');
+    const user = uRes.rows[0];
+    user.balance = parseFloat(user.balance);
+
+    if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+    if (user.last_checkin_date === today) throw new Error('ዛሬ የዕለቱን ቦነስ ወስደዋል! እባክዎን ነገ ይመለሱ።');
+
+    let newStreak = 1;
+    if (user.last_checkin_date === yesterdayDate) {
+      newStreak = (user.checkin_streak || 0) + 1;
+      if (newStreak > 7) newStreak = 7;
+    }
+
+    const rewardAmount = newStreak;
+    const newBalance = user.balance + rewardAmount;
+
+    await pool.query(
+      'UPDATE users SET balance = $1, checkin_streak = $2, last_checkin_date = $3 WHERE id = $4',
+      [newBalance, newStreak, today, userId]
+    );
+
+    await pool.query(
+      'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, $2, $3, $4, $5)',
+      [userId, 'SPIN_REWARD', rewardAmount, 'COMPLETED', `STREAK_DAY_${newStreak}`]
+    );
+
+    return { success: true, rewardAmount, newStreak, newBalance };
   },
 
-  getAdminStats: () => {
-    return new Promise((resolve, reject) => {
-      const stats = {};
-      db.get('SELECT COUNT(*) as total_users, SUM(balance) as total_user_balance FROM users', (err, row) => {
-        if (err) return reject(err);
-        stats.totalUsers = row.total_users || 0;
-        stats.totalUserBalance = row.total_user_balance || 0;
+  updateBalance: async (userId, amountChange, type, reference = null) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const uRes = await client.query('SELECT balance, is_banned FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      if (uRes.rows.length === 0) throw new Error('User not found');
+      const user = uRes.rows[0];
+      user.balance = parseFloat(user.balance);
 
-        db.get('SELECT COUNT(*) as total_rounds, SUM(prize_pool) as total_payouts, SUM(total_cartelas) as total_cartelas_sold FROM game_rounds', (err2, row2) => {
-          if (err2) return reject(err2);
-          stats.totalRounds = row2.total_rounds || 0;
-          stats.totalPayouts = row2.total_payouts || 0;
-          stats.totalCartelasSold = row2.total_cartelas_sold || 0;
-          stats.estimatedProfit = Math.floor(stats.totalPayouts * 0.15);
-          resolve(stats);
-        });
-      });
-    });
+      if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+
+      const newBalance = user.balance + amountChange;
+      if (newBalance < 0) throw new Error('Insufficient balance');
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newBalance, userId]);
+      await client.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, $2, $3, $4, $5)',
+        [userId, type, amountChange, 'COMPLETED', reference]
+      );
+      await client.query('COMMIT');
+      return newBalance;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
-  getAllUsers: (search = '') => {
-    return new Promise((resolve, reject) => {
-      const query = search ? 'SELECT * FROM users WHERE username LIKE ? OR telegram_id LIKE ? OR phone_number LIKE ? ORDER BY id DESC LIMIT 50' : 'SELECT * FROM users ORDER BY id DESC LIMIT 50';
-      const params = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
-      db.all(query, params, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
+  requestDeposit: async (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
+    const res = await pool.query(
+      'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [userId, 'DEPOSIT', amount, 'PENDING', txRef, phoneNumber, paymentMethod]
+    );
+    return { success: true, txId: res.rows[0].id };
   },
 
-  toggleBanUser: (userId) => {
-    return new Promise((resolve, reject) => {
-      db.run('UPDATE users SET is_banned = CASE WHEN is_banned = 1 THEN 0 ELSE 1 END WHERE id = ?', [userId], function (err) {
-        if (err) return reject(err);
-        db.get('SELECT is_banned FROM users WHERE id = ?', [userId], (gErr, row) => {
-          resolve(row ? row.is_banned : 1);
-        });
-      });
-    });
+  requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const uRes = await client.query('SELECT balance, is_banned FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      if (uRes.rows.length === 0) throw new Error('User not found');
+      const user = uRes.rows[0];
+      user.balance = parseFloat(user.balance);
+
+      if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+
+      // ህግ 1፡ 25 ETB ቀሪ ተቀማጭ
+      if (user.balance - amount < 25) {
+        const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
+        throw new Error(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! በአሁኑ ሰዓት ማውጣት የሚችሉት ከፍተኛው መጠን ${maxAllowed} ETB ነው።`);
+      }
+
+      // ህግ 2፡ ቢያንስ አንድ ጊዜ 50 ETB ማስገባት
+      const depCheck = await client.query(
+        "SELECT id FROM transactions WHERE user_id = $1 AND type = 'DEPOSIT' AND status = 'COMPLETED' AND amount >= 50 LIMIT 1",
+        [userId]
+      );
+      if (depCheck.rows.length === 0) {
+        throw new Error('❌ ቦነስ ተጠቅመው ያሸነፉትን ብር ለማውጣት መጀመሪያ ቢያንስ 50 ETB ማስገባት (Deposit ማድረግ) አለብዎት!');
+      }
+
+      const txRef = 'CW_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const remainingBalance = user.balance - amount;
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [remainingBalance, userId]);
+      await client.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [userId, 'WITHDRAW', -amount, 'PENDING', txRef, phoneNumber, paymentMethod]
+      );
+
+      await client.query('COMMIT');
+      return { success: true, txRef, remainingBalance };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
-  getRecentGames: () => {
-    return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM game_rounds ORDER BY id DESC LIMIT 15', (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      });
-    });
+  getUserTransactions: async (userId) => {
+    const res = await pool.query(
+      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW') ORDER BY id DESC LIMIT 15",
+      [userId]
+    );
+    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
   },
 
-  verifyAdminPin: (inputPin) => {
-    return new Promise((resolve) => {
-      db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
-        if (err || !row) return resolve(false);
-        const inputHash = hashPassword(String(inputPin), row.salt);
-        resolve(inputHash === row.value);
-      });
-    });
+  getPendingDeposits: async () => {
+    const res = await pool.query(`
+      SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.phone_number as user_registered_phone 
+      FROM transactions t 
+      LEFT JOIN users u ON t.user_id = u.id 
+      WHERE t.type = 'DEPOSIT' AND t.status = 'PENDING' 
+      ORDER BY t.id DESC
+    `);
+    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
   },
 
-  changeAdminPin: (oldPin, newPin) => {
-    return new Promise((resolve, reject) => {
-      db.get("SELECT * FROM admin_config WHERE key = 'admin_pin'", (err, row) => {
-        if (err || !row) return reject(new Error('Config not found'));
-        const oldHash = hashPassword(String(oldPin), row.salt);
-        if (oldHash !== row.value) return reject(new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!'));
+  approveDeposit: async (txId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tRes = await client.query("SELECT * FROM transactions WHERE id = $1 AND status = 'PENDING' AND type = 'DEPOSIT' FOR UPDATE", [txId]);
+      if (tRes.rows.length === 0) throw new Error('Transaction not found');
+      const tx = tRes.rows[0];
+      const amount = parseFloat(tx.amount);
 
-        const newSalt = crypto.randomBytes(16).toString('hex');
-        const newHash = hashPassword(String(newPin), newSalt);
-        db.run("UPDATE admin_config SET value = ?, salt = ? WHERE key = 'admin_pin'", [newHash, newSalt], (upErr) => {
-          if (upErr) return reject(upErr);
-          resolve(true);
-        });
-      });
-    });
+      await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [amount, tx.user_id]);
+      await client.query("UPDATE transactions SET status = 'COMPLETED' WHERE id = $1", [txId]);
+
+      await client.query('COMMIT');
+      return { success: true, userId: tx.user_id, amount };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  rejectDeposit: async (txId) => {
+    const res = await pool.query("UPDATE transactions SET status = 'REJECTED' WHERE id = $1 AND status = 'PENDING'", [txId]);
+    return res.rowCount > 0;
+  },
+
+  getPendingWithdrawals: async () => {
+    const res = await pool.query(`
+      SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id, u.balance as current_user_balance 
+      FROM transactions t 
+      LEFT JOIN users u ON t.user_id = u.id 
+      WHERE t.type = 'WITHDRAW' AND t.status = 'PENDING' 
+      ORDER BY t.id DESC
+    `);
+    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount), current_user_balance: parseFloat(r.current_user_balance) }));
+  },
+
+  approveWithdrawal: async (txId) => {
+    const res = await pool.query("UPDATE transactions SET status = 'COMPLETED' WHERE id = $1 AND status = 'PENDING'", [txId]);
+    return res.rowCount > 0;
+  },
+
+  rejectWithdrawal: async (txId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tRes = await client.query("SELECT * FROM transactions WHERE id = $1 AND status = 'PENDING' AND type = 'WITHDRAW' FOR UPDATE", [txId]);
+      if (tRes.rows.length === 0) throw new Error('የማውጣት ጥያቄው አልተገኘም ወይም አስቀድሞ ተጠናቋል!');
+      const tx = tRes.rows[0];
+      const refundAmount = Math.abs(parseFloat(tx.amount));
+
+      const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance', [refundAmount, tx.user_id]);
+      await client.query("UPDATE transactions SET status = 'REJECTED' WHERE id = $1", [txId]);
+
+      await client.query('COMMIT');
+      return {
+        success: true,
+        userId: tx.user_id,
+        refundedAmount: refundAmount,
+        newBalance: parseFloat(uRes.rows[0].balance)
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  getTodayFinancialStats: async () => {
+    const rowRes = await pool.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as today_deposits,
+        COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as today_withdrawals
+      FROM transactions 
+      WHERE DATE(created_at) = CURRENT_DATE
+    `);
+
+    const gRes = await pool.query(`
+      SELECT 
+        COALESCE(SUM(prize_pool), 0) as today_payouts,
+        COUNT(*) as today_rounds
+      FROM game_rounds 
+      WHERE DATE(created_at) = CURRENT_DATE
+    `);
+
+    const deposits = parseFloat(rowRes.rows[0].today_deposits);
+    const withdrawals = parseFloat(rowRes.rows[0].today_withdrawals);
+    const payouts = parseFloat(gRes.rows[0].today_payouts);
+    const rounds = parseInt(gRes.rows[0].today_rounds, 10);
+    const estProfit = Math.floor(payouts * 0.15);
+
+    return {
+      todayDeposits: deposits,
+      todayWithdrawals: withdrawals,
+      todayPayouts: payouts,
+      todayRounds: rounds,
+      todayProfit: estProfit
+    };
+  },
+
+  getTransactionArchive: async (type = 'ALL', status = 'ALL', search = '') => {
+    let query = `
+      SELECT t.*, COALESCE(u.username, 'Player') as username, u.telegram_id 
+      FROM transactions t 
+      LEFT JOIN users u ON t.user_id = u.id 
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (type !== 'ALL') {
+      params.push(type);
+      query += ` AND t.type = $${params.length}`;
+    }
+    if (status !== 'ALL') {
+      params.push(status);
+      query += ` AND t.status = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (u.username ILIKE $${params.length} OR t.phone_number ILIKE $${params.length} OR t.reference ILIKE $${params.length})`;
+    }
+
+    query += ` ORDER BY t.id DESC LIMIT 100`;
+
+    const res = await pool.query(query, params);
+    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
+  },
+
+  getUserDetailedProfile: async (userId) => {
+    const uRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (uRes.rows.length === 0) throw new Error('User not found');
+    const user = uRes.rows[0];
+    user.balance = parseFloat(user.balance);
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as total_deposited,
+        COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as total_withdrawn,
+        COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) ELSE 0 END), 0) as total_bet_amount,
+        COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount ELSE 0 END), 0) as total_won_amount
+      FROM transactions 
+      WHERE user_id = $1
+    `, [userId]);
+
+    const winRes = await pool.query('SELECT COUNT(*) as win_count FROM game_rounds WHERE winner_username = $1', [user.username]);
+
+    const stats = statsRes.rows[0];
+    return {
+      user,
+      stats: {
+        totalDeposited: parseFloat(stats.total_deposited),
+        totalWithdrawn: parseFloat(stats.total_withdrawn),
+        totalBet: parseFloat(stats.total_bet_amount),
+        totalWon: parseFloat(stats.total_won_amount),
+        winCount: parseInt(winRes.rows[0].win_count, 10) || 0
+      }
+    };
+  },
+
+  saveGameRound: async (roomName, winnerUsername, winnerCartelaId, prizePool, totalCartelas, calledCount) => {
+    const res = await pool.query(
+      `INSERT INTO game_rounds (room_name, winner_username, winner_cartela_id, prize_pool, total_cartelas, called_balls_count) 
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [roomName, winnerUsername, winnerCartelaId, prizePool, totalCartelas, calledCount]
+    );
+    return res.rows[0].id;
+  },
+
+  getRealLeaderboard: async () => {
+    const res = await pool.query(`
+      SELECT 
+        winner_username as username, 
+        COUNT(*) as total_wins, 
+        SUM(prize_pool) as total_won 
+      FROM game_rounds 
+      WHERE winner_username IS NOT NULL AND winner_username != ''
+      GROUP BY winner_username 
+      ORDER BY total_won DESC 
+      LIMIT 10
+    `);
+    return res.rows.map(r => ({
+      username: r.username,
+      total_wins: parseInt(r.total_wins, 10),
+      total_won: parseFloat(r.total_won)
+    }));
+  },
+
+  getAdminStats: async () => {
+    const uRes = await pool.query('SELECT COUNT(*) as total_users, COALESCE(SUM(balance), 0) as total_user_balance FROM users');
+    const gRes = await pool.query('SELECT COUNT(*) as total_rounds, COALESCE(SUM(prize_pool), 0) as total_payouts, COALESCE(SUM(total_cartelas), 0) as total_cartelas_sold FROM game_rounds');
+
+    const totalUsers = parseInt(uRes.rows[0].total_users, 10);
+    const totalUserBalance = parseFloat(uRes.rows[0].total_user_balance);
+    const totalRounds = parseInt(gRes.rows[0].total_rounds, 10);
+    const totalPayouts = parseFloat(gRes.rows[0].total_payouts);
+    const totalCartelasSold = parseInt(gRes.rows[0].total_cartelas_sold, 10);
+    const estimatedProfit = Math.floor(totalPayouts * 0.15);
+
+    return {
+      totalUsers,
+      totalUserBalance,
+      totalRounds,
+      totalPayouts,
+      totalCartelasSold,
+      estimatedProfit
+    };
+  },
+
+  getAllUsers: async (search = '') => {
+    let query = 'SELECT * FROM users';
+    const params = [];
+    if (search) {
+      params.push(`%${search}%`);
+      query += ' WHERE username ILIKE $1 OR telegram_id ILIKE $1 OR phone_number ILIKE $1';
+    }
+    query += ' ORDER BY id DESC LIMIT 50';
+
+    const res = await pool.query(query, params);
+    return res.rows.map(r => ({ ...r, balance: parseFloat(r.balance) }));
+  },
+
+  toggleBanUser: async (userId) => {
+    const res = await pool.query(
+      'UPDATE users SET is_banned = CASE WHEN is_banned = 1 THEN 0 ELSE 1 END WHERE id = $1 RETURNING is_banned',
+      [userId]
+    );
+    return res.rows[0].is_banned;
+  },
+
+  getRecentGames: async () => {
+    const res = await pool.query('SELECT * FROM game_rounds ORDER BY id DESC LIMIT 15');
+    return res.rows.map(r => ({ ...r, prize_pool: parseFloat(r.prize_pool) }));
+  },
+
+  verifyAdminPin: async (inputPin) => {
+    const res = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
+    if (res.rows.length === 0) return false;
+    const row = res.rows[0];
+    const inputHash = hashPassword(String(inputPin), row.salt);
+    return inputHash === row.value;
+  },
+
+  changeAdminPin: async (oldPin, newPin) => {
+    const res = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
+    if (res.rows.length === 0) throw new Error('Config not found');
+    const row = res.rows[0];
+    const oldHash = hashPassword(String(oldPin), row.salt);
+    if (oldHash !== row.value) throw new Error('የቀድሞው ፒን ቁጥር የተሳሳተ ነው!');
+
+    const newSalt = crypto.randomBytes(16).toString('hex');
+    const newHash = hashPassword(String(newPin), newSalt);
+    await pool.query("UPDATE admin_config SET value = $1, salt = $2 WHERE key = 'admin_pin'", [newHash, newSalt]);
+    return true;
   }
 };
 
