@@ -465,7 +465,8 @@
       <span class="pill-cashable">🪙 <span id="cartela-coins">10</span></span>
     </div>
     <div style="background: #140d38; border-radius: 12px; padding: 10px; text-align: center; margin-bottom: 8px;">
-      <h3><span data-i18n="round_starts_in">⏰ ROUND STARTS IN:</span> <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
+      <h3 id="lobby-status-banner"><span data-i18n="round_starts_in">⏰ ROUND STARTS IN:</span> <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
+      <div id="lobby-waiting-alert" style="display: none; color: #ffd700; font-size: 11.5px; font-weight: bold; margin-top: 4px;"></div>
     </div>
     <div class="cartelas-grid" id="cartelas-container"></div>
     <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()"><span data-i18n="btn_enter_arena">ENTER ARENA</span> (<span id="btn-cartela-count">0</span>)</button>
@@ -942,6 +943,13 @@
       fetchMyTransactions();
     });
 
+    // 🚨 የማውጣት ጥያቄ ውድቅ ሲሆን ተመላሽ መደረጉን የሚገልጽ ማሳወቂያ
+    socket.on('withdrawal_rejected', (data) => {
+      SoundFX.pop();
+      showModal("የማውጣት ጥያቄ ተመላሽ ⚠️", data.message, "🪙");
+      fetchMyTransactions();
+    });
+
     socket.on('admin_broadcast', ({ message }) => {
       SoundFX.pop();
       showModal(userState.lang === 'am' ? '📢 መልዕክት ከአድሚን' : '📢 Admin Broadcast', message, '📢');
@@ -1070,7 +1078,6 @@
       const amount = parseFloat(document.getElementById('withdraw-amount-input').value.trim());
       if (!phone || !amount || amount < 50) return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
 
-      // Front-end instant check for the 25 ETB reserve rule
       if (userState.coins - amount < 25) {
         const maxAllowed = Math.max(0, Math.floor(userState.coins - 25));
         return alert(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! ማውጣት የሚችሉት ከፍተኛ መጠን ${maxAllowed} ETB ነው።`);
@@ -1193,12 +1200,21 @@
         gameState.isSpectator = false;
         showScreen('screen-cartela-select');
         document.getElementById('cartela-timer').innerText = d.timer;
+        document.getElementById('lobby-waiting-alert').style.display = 'none';
         renderCartelaGrid100();
       }
     });
 
     socket.on('lobby_timer_tick', ({ timer }) => {
       document.getElementById('cartela-timer').innerText = timer;
+    });
+
+    // 3 ተጫዋቾች እስኪሞሉ ድረስ የሚመጣ ማሳወቂያ
+    socket.on('lobby_waiting_players', (data) => {
+      document.getElementById('cartela-timer').innerText = data.timer;
+      const alertBox = document.getElementById('lobby-waiting-alert');
+      alertBox.innerText = data.message;
+      alertBox.style.display = 'block';
     });
 
     socket.on('cartelas_locked', ({ takenIds }) => {
@@ -1218,6 +1234,7 @@
           showScreen('screen-cartela-select');
         }
 
+        document.getElementById('lobby-waiting-alert').style.display = 'none';
         renderCartelaGrid100();
       }
     });

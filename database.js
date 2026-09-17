@@ -83,7 +83,6 @@ db.serialize(() => {
 });
 
 const DB = {
-  // ተጠቃሚውን ሲያገኝ ወይም መጀመሪያ ሲመዘግብ መነሻ ባላንሱ 0.0 ይሆናል (ቦነሱ ስልኩ ሲረጋገጥ ብቻ ይሰጣል)
   getOrCreateUser: (telegramId, username, firstName) => {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, row) => {
@@ -102,20 +101,16 @@ const DB = {
     });
   },
 
-  // ጠንካራ የስልክ ቁጥር ማረጋገጫ (ተደጋጋሚ ቦነስ እንዳይወስዱ የሚከላከል)
   registerVerifiedPhone: (telegramId, username, firstName, phoneNumber) => {
     return new Promise((resolve, reject) => {
-      // 1. ይህ ስልክ ቁጥር ቀድሞ በዳታቤዝ ውስጥ መኖሩን ማረጋገጥ
       db.get('SELECT * FROM users WHERE phone_number = ?', [phoneNumber], (err, existingPhoneUser) => {
         if (err) return reject(err);
 
         if (existingPhoneUser) {
-          // ስልኩ በሌላ ቴሌግራም አካውንት ተመዝግቦ ከሆነ ➔ ከልክል!
           if (existingPhoneUser.telegram_id !== telegramId) {
             return reject(new Error('DUPLICATE_PHONE_OTHER_ACCOUNT'));
           }
 
-          // ስልኩ በዚሁ ተጠቃሚ አስቀድሞ ተመዝግቦ ከሆነ ➔ ተጨማሪ ቦነስ ሳትሰጥ የቀድሞ አካውንቱን መልስ
           return resolve({
             user: existingPhoneUser,
             isNewBonus: false,
@@ -123,7 +118,6 @@ const DB = {
           });
         }
 
-        // 2. ስልኩ አዲስ ከሆነ አሁን ላለው የቴሌግራም ተጠቃሚ መመዝገብና 10 ETB ቦነስ መስጠት
         db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err2, tgUser) => {
           if (err2) return reject(err2);
 
@@ -135,7 +129,6 @@ const DB = {
               (uErr) => {
                 if (uErr) return reject(uErr);
 
-                // የቦነሱን ዝውውር መዝግብ
                 db.run(
                   'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, "WELCOME_BONUS", 10.0, "COMPLETED", "NEWCOMER_10ETB", ?)',
                   [tgUser.id, phoneNumber]
@@ -149,7 +142,6 @@ const DB = {
               }
             );
           } else {
-            // ከዚህ በፊት ሪከርድ ያልነበረው ከሆነ አዲስ አካውንት በ 10 ብር ቦነስ ክፈት
             db.run(
               'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES (?, ?, ?, ?, 10.0, 0, 0)',
               [telegramId, username || 'Player', firstName || 'User', phoneNumber],
@@ -394,19 +386,32 @@ const DB = {
     });
   },
 
+  // 🚨 የተስተካከለው REJECT WITHDRAWAL: ገንዘቡን ወዲያውኑ ወደ ተጫዋቹ ዋሌት መልሶ አዲሱን ባላንስ ያሳውቃል
   rejectWithdrawal: (txId) => {
     return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING"', [txId], (err, tx) => {
-          if (err || !tx) { db.run('ROLLBACK'); return reject(err || new Error('Transaction not found')); }
+      const id = parseInt(txId, 10);
+      db.get('SELECT * FROM transactions WHERE id = ? AND status = "PENDING" AND type = "WITHDRAW"', [id], (err, tx) => {
+        if (err || !tx) return reject(err || new Error('የማውጣት ጥያቄው አልተገኘም ወይም አስቀድሞ ተጠናቋል!'));
 
-          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [Math.abs(tx.amount), tx.user_id], (upErr) => {
-            if (upErr) { db.run('ROLLBACK'); return reject(upErr); }
-            db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ?", [txId], (inErr) => {
-              if (inErr) { db.run('ROLLBACK'); return reject(inErr); }
-              db.run('COMMIT');
-              resolve(true);
+        const refundAmount = Math.abs(parseFloat(tx.amount));
+        const userId = tx.user_id;
+
+        db.serialize(() => {
+          db.run('UPDATE users SET balance = balance + ? WHERE id = ?', [refundAmount, userId], function(uErr) {
+            if (uErr) return reject(uErr);
+
+            db.run("UPDATE transactions SET status = 'REJECTED' WHERE id = ?", [id], function(tErr) {
+              if (tErr) return reject(tErr);
+
+              db.get('SELECT balance FROM users WHERE id = ?', [userId], (bErr, userRow) => {
+                const newBalance = userRow ? userRow.balance : null;
+                resolve({
+                  success: true,
+                  userId,
+                  refundedAmount: refundAmount,
+                  newBalance
+                });
+              });
             });
           });
         });

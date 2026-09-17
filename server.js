@@ -17,7 +17,6 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 
-// አሮጌ ፔጅ በቴሌግራም እንዳይቀመጥ መከልከያ (No-Cache Headers)
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -28,7 +27,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Explicit page routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -38,7 +36,6 @@ app.get('/admin', (req, res) => {
 });
 
 let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
-// የቤት ኮሚሽን 15%
 let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10) || 15;
 
 const failedPinAttempts = new Map();
@@ -60,7 +57,6 @@ if (process.env.BOT_TOKEN) {
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
   }).catch((err) => console.error('Telegram bot init error:', err.message));
 
-  // /start ትዕዛዝ - ነባር ተጠቃሚን ለይቶ ማወቅ
   bot.onText(/\/start(.*)/, async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
@@ -74,7 +70,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።');
       }
 
-      // ስልካቸውን ገና ካላረጋገጡ ብቻ የስልክ ማረጋገጫ ቁልፍ አሳይ
       if (!user.phone_number) {
         const sharePhoneKeyboard = {
           reply_markup: {
@@ -93,7 +88,6 @@ if (process.env.BOT_TOKEN) {
         );
       }
 
-      // ቀድሞ የተመዘገበ ተጠቃሚ ከሆነ ቦነስ ሳይሰጥ በቀጥታ ወደ ጌም እንዲገባ አድርግ
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
       const playKeyboard = {
         reply_markup: {
@@ -115,7 +109,6 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
-  // ስልክ ቁጥር ሲጋሩ ማረጋገጥ (የተደጋጋሚ ቦነስ መከላከያ)
   bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
@@ -143,14 +136,12 @@ if (process.env.BOT_TOKEN) {
       };
 
       if (regResult.isNewBonus) {
-        // ለመጀመሪያ ጊዜ አዲስ ስልክ ያስመዘገበ ተጠቃሚ
         bot.sendMessage(
           chatId,
           `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n🎁 የ 10 ETB ጀማሪ ቦነስ ወደ አካውንትዎ ገቢ ሆኗል!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         );
       } else {
-        // ቀድሞ የተመዘገበ ተጠቃሚ (ተጨማሪ ቦነስ አይሰጥም)
         bot.sendMessage(
           chatId,
           `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n*(የጀማሪ ቦነስ የሚሰጠው ለመጀመሪያ ምዝገባ ብቻ ነው)*\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
@@ -251,18 +242,18 @@ function startRoomLobby(roomName) {
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer });
 
     if (room.timer <= 0) {
-      // 🚨 ኪሳራ መከላከያ ወሳኝ ህግ፦ ቢያንስ 2 የተለያዩ ተጫዋቾች መኖራቸውን ማረጋገጥ
+      // ቢያንስ 3 ተጫዋቾች መኖራቸውን ማረጋገጥ
       const uniquePlayerIds = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId));
 
-      if (uniquePlayerIds.size >= 2 && room.takenCartelas.size >= 2) {
+      if (uniquePlayerIds.size >= 3 && room.takenCartelas.size >= 3) {
         clearInterval(room.timerInterval);
         startRoomGame(roomName);
       } else if (room.takenCartelas.size > 0) {
         room.timer = 20;
         io.to(roomName).emit('lobby_waiting_players', {
-          message: '⏳ ጨዋታው እንዲጀምር ቢያንስ 2 ተጫዋቾች ያስፈልጋሉ! ተፎካካሪ በመጠበቅ ላይ...',
+          message: `⏳ ጨዋታው እንዲጀምር ቢያንስ 3 ተጫዋቾች ያስፈልጋሉ! (${uniquePlayerIds.size}/3 ተጫዋቾች ገብተዋል)`,
           currentPlayers: uniquePlayerIds.size,
-          minPlayers: 2,
+          minPlayers: 3,
           timer: room.timer
         });
         broadcastRealRoomsStatus();
@@ -651,7 +642,7 @@ app.post('/api/payment/withdraw', async (req, res) => {
   }
 });
 
-// ==================== ADMIN MIDDLEWARE & 8 ENDPOINTS ====================
+// ==================== ADMIN MIDDLEWARE & ENDPOINTS ====================
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -766,17 +757,32 @@ app.post('/api/admin/approve-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
+// 🚨 የተስተካከለው REJECT WITHDRAWAL: ብሩን ለተጠቃሚው መልሶ ወዲያውኑ በስክሪኑ ላይ ያሳየዋል
 app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
-    await DB.rejectWithdrawal(txId);
-    res.json({ success: true, message: 'ጥያቄው ውድቅ ተደርጎ ብሩ ለተጫዋቹ ተመልሷል!' });
+    const result = await DB.rejectWithdrawal(txId);
+
+    // ተጫዋቹ አሁን ኦንላይን ካለ ባላንሱን ወዲያውኑ መልስለት እና ፖፕ-አፕ ላክለት
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === result.userId) {
+        pInfo.balance = result.newBalance;
+        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+        io.to(sockId).emit('withdrawal_rejected', {
+          txId,
+          amount: result.refundedAmount,
+          newBalance: result.newBalance,
+          message: `⚠️ የ ${result.refundedAmount} ETB ማውጣት ጥያቄዎ ውድቅ ተደርጓል፤ የተጠየቀው ${result.refundedAmount} ETB ወዲያውኑ ወደ ዋሌትዎ ተመልሷል!`
+        });
+      }
+    }
+
+    res.json({ success: true, message: `ጥያቄው ውድቅ ተደርጎ የ ${result.refundedAmount} ETB ተመላሽ ለተጫዋቹ ገቢ ሆኗል!` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 1. Transaction Archive
 app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   try {
     const { type = 'ALL', status = 'ALL', search = '' } = req.query;
@@ -787,7 +793,6 @@ app.get('/api/admin/transactions-archive', adminAuth, async (req, res) => {
   }
 });
 
-// 2. User Detailed Profile
 app.get('/api/admin/user-profile/:id', adminAuth, async (req, res) => {
   try {
     const profile = await DB.getUserDetailedProfile(req.params.id);
@@ -797,7 +802,6 @@ app.get('/api/admin/user-profile/:id', adminAuth, async (req, res) => {
   }
 });
 
-// 3. Room Settings & House Commission
 app.post('/api/admin/update-settings', adminAuth, async (req, res) => {
   const { commission, beginnerStake, turboStake, vipStake } = req.body;
   if (commission !== undefined) globalCommissionPercent = parseInt(commission, 10);
@@ -809,7 +813,6 @@ app.post('/api/admin/update-settings', adminAuth, async (req, res) => {
   res.json({ success: true, message: 'ቅንብሩ በተሳካ ሁኔታ ተቀይሯል!' });
 });
 
-// 4. Adjust User Balance (+/- Custom)
 app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   const { userId, amount, reason } = req.body;
   try {
@@ -826,7 +829,6 @@ app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   }
 });
 
-// 5. Toggle Ban/Unban User
 app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   const { userId } = req.body;
   try {
@@ -845,7 +847,6 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   }
 });
 
-// 6. Real-Time Room Controls
 app.post('/api/admin/room-control', adminAuth, (req, res) => {
   const { roomName, action } = req.body;
   const room = rooms[roomName];
@@ -866,7 +867,6 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-// 7. Global Broadcast Announcement
 app.post('/api/admin/broadcast', adminAuth, (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
@@ -875,7 +875,6 @@ app.post('/api/admin/broadcast', adminAuth, (req, res) => {
   res.json({ success: true, message: 'መልዕክቱ ለሁሉም ተጫዋቾች ተልኳል!' });
 });
 
-// 8. Change Admin PIN
 app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
   const { oldPin, newPin } = req.body;
   try {
