@@ -38,7 +38,8 @@ app.get('/admin', (req, res) => {
 });
 
 let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
-let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10) || 10;
+// የቤት ኮሚሽን 15%
+let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10) || 15;
 
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
@@ -59,6 +60,7 @@ if (process.env.BOT_TOKEN) {
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
   }).catch((err) => console.error('Telegram bot init error:', err.message));
 
+  // /start ትዕዛዝ - ነባር ተጠቃሚን ለይቶ ማወቅ
   bot.onText(/\/start(.*)/, async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
@@ -72,6 +74,7 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።');
       }
 
+      // ስልካቸውን ገና ካላረጋገጡ ብቻ የስልክ ማረጋገጫ ቁልፍ አሳይ
       if (!user.phone_number) {
         const sharePhoneKeyboard = {
           reply_markup: {
@@ -85,14 +88,16 @@ if (process.env.BOT_TOKEN) {
 
         return bot.sendMessage(
           chatId,
-          `🎯 Welcome to Kokeb Bingo 🌟!\n\nየ 10 ETB መነሻ ቦነስዎን ለመቀበል እና ጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
+          `🎯 Welcome to Kokeb Bingo 🌟!\n\nየ 10 ETB የጀማሪ ቦነስዎን ለመቀበል እና ጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
           sharePhoneKeyboard
         );
       }
 
+      // ቀድሞ የተመዘገበ ተጠቃሚ ከሆነ ቦነስ ሳይሰጥ በቀጥታ ወደ ጌም እንዲገባ አድርግ
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
       const playKeyboard = {
         reply_markup: {
+          remove_keyboard: true,
           inline_keyboard: [
             [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }],
             [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
@@ -102,7 +107,7 @@ if (process.env.BOT_TOKEN) {
 
       bot.sendMessage(
         chatId,
-        `🎯 Welcome back ${firstName}!\nReady to play 75-Ball Kokeb Bingo? Tap below to start!`,
+        `🎯 እንኳን ደህና መጡ ${firstName}!\nአካውንትዎ አስቀድሞ ተመዝግቧል።\n💰 ቀሪ ሒሳብዎ: ${user.balance} ETB\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
         playKeyboard
       );
     } catch (e) {
@@ -110,6 +115,7 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
+  // ስልክ ቁጥር ሲጋሩ ማረጋገጥ (የተደጋጋሚ ቦነስ መከላከያ)
   bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
@@ -126,17 +132,40 @@ if (process.env.BOT_TOKEN) {
     const username = msg.from.username ? `@${msg.from.username}` : firstName;
 
     try {
-      await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
+      const regResult = await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
 
-      bot.sendMessage(chatId, `🎉 Registration Complete!\n✅ Phone: ${phone}\n💰 Account Bonus: 10 ETB`, {
+      const playKeyboard = {
         reply_markup: {
           remove_keyboard: true,
           inline_keyboard: [[{ text: '🎮 Play Now', web_app: { url: webAppUrl } }]]
         }
-      });
+      };
+
+      if (regResult.isNewBonus) {
+        // ለመጀመሪያ ጊዜ አዲስ ስልክ ያስመዘገበ ተጠቃሚ
+        bot.sendMessage(
+          chatId,
+          `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n🎁 የ 10 ETB ጀማሪ ቦነስ ወደ አካውንትዎ ገቢ ሆኗል!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          playKeyboard
+        );
+      } else {
+        // ቀድሞ የተመዘገበ ተጠቃሚ (ተጨማሪ ቦነስ አይሰጥም)
+        bot.sendMessage(
+          chatId,
+          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n*(የጀማሪ ቦነስ የሚሰጠው ለመጀመሪያ ምዝገባ ብቻ ነው)*\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          playKeyboard
+        );
+      }
     } catch (err) {
-      console.error('Contact registration error:', err);
+      if (err.message === 'DUPLICATE_PHONE_OTHER_ACCOUNT') {
+        bot.sendMessage(
+          chatId,
+          `❌ ይቅርታ! ይህ ስልክ ቁጥር ቀድሞ በሌላ የቴሌግራም አካውንት ተመዝግቧል!\n\nበአንድ ስልክ ቁጥር ከአንድ ጊዜ በላይ ቦነስ መውሰድ ወይም መመዝገብ አይቻልም።`
+        );
+      } else {
+        console.error('Contact registration error:', err);
+      }
     }
   });
 
@@ -222,10 +251,23 @@ function startRoomLobby(roomName) {
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer });
 
     if (room.timer <= 0) {
-      clearInterval(room.timerInterval);
-      if (room.takenCartelas.size > 0) {
+      // 🚨 ኪሳራ መከላከያ ወሳኝ ህግ፦ ቢያንስ 2 የተለያዩ ተጫዋቾች መኖራቸውን ማረጋገጥ
+      const uniquePlayerIds = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId));
+
+      if (uniquePlayerIds.size >= 2 && room.takenCartelas.size >= 2) {
+        clearInterval(room.timerInterval);
         startRoomGame(roomName);
+      } else if (room.takenCartelas.size > 0) {
+        room.timer = 20;
+        io.to(roomName).emit('lobby_waiting_players', {
+          message: '⏳ ጨዋታው እንዲጀምር ቢያንስ 2 ተጫዋቾች ያስፈልጋሉ! ተፎካካሪ በመጠበቅ ላይ...',
+          currentPlayers: uniquePlayerIds.size,
+          minPlayers: 2,
+          timer: room.timer
+        });
+        broadcastRealRoomsStatus();
       } else {
+        clearInterval(room.timerInterval);
         startRoomLobby(roomName);
       }
     }
@@ -378,7 +420,33 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('leave_room', ({ roomName }) => {
+  socket.on('leave_room', async ({ roomName }) => {
+    const player = activeSockets.get(socket.id);
+    const room = rooms[roomName];
+
+    if (room && room.state === 'LOBBY' && player) {
+      let refundTotal = 0;
+      for (const [cardId, cardInfo] of room.takenCartelas.entries()) {
+        if (cardInfo.dbId === player.dbId) {
+          room.takenCartelas.delete(cardId);
+          refundTotal += room.stake;
+        }
+      }
+
+      if (refundTotal > 0) {
+        try {
+          const newBal = await DB.updateBalance(player.dbId, refundTotal, 'REFUND', `${roomName} Lobby Leave`);
+          player.balance = newBal;
+          socket.emit('balance_updated', { balance: newBal });
+          io.to(roomName).emit('cartelas_locked', {
+            takenIds: Array.from(room.takenCartelas.keys()),
+            totalTaken: room.takenCartelas.size,
+            prizePool: Math.floor(room.takenCartelas.size * room.stake * ((100 - globalCommissionPercent) / 100))
+          });
+        } catch (e) {}
+      }
+    }
+
     socket.leave(roomName);
     broadcastRealRoomsStatus();
   });

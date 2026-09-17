@@ -21,7 +21,7 @@ db.serialize(() => {
       username TEXT,
       first_name TEXT,
       phone_number TEXT,
-      balance REAL DEFAULT 10.0,
+      balance REAL DEFAULT 0.0,
       is_banned INTEGER DEFAULT 0,
       checkin_streak INTEGER DEFAULT 0,
       last_checkin_date TEXT,
@@ -83,13 +83,14 @@ db.serialize(() => {
 });
 
 const DB = {
+  // ተጠቃሚውን ሲያገኝ ወይም መጀመሪያ ሲመዘግብ መነሻ ባላንሱ 0.0 ይሆናል (ቦነሱ ስልኩ ሲረጋገጥ ብቻ ይሰጣል)
   getOrCreateUser: (telegramId, username, firstName) => {
     return new Promise((resolve, reject) => {
       db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, row) => {
         if (err) return reject(err);
         if (row) return resolve(row);
 
-        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned, checkin_streak) VALUES (?, ?, ?, 10.0, 0, 0)');
+        const stmt = db.prepare('INSERT INTO users (telegram_id, username, first_name, balance, is_banned, checkin_streak) VALUES (?, ?, ?, 0.0, 0, 0)');
         stmt.run(telegramId, username || 'Player', firstName || 'User', function (insertErr) {
           if (insertErr) return reject(insertErr);
           db.get('SELECT * FROM users WHERE id = ?', [this.lastID], (fetchErr, newUser) => {
@@ -101,29 +102,75 @@ const DB = {
     });
   },
 
+  // ጠንካራ የስልክ ቁጥር ማረጋገጫ (ተደጋጋሚ ቦነስ እንዳይወስዱ የሚከላከል)
   registerVerifiedPhone: (telegramId, username, firstName, phoneNumber) => {
     return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err, user) => {
+      // 1. ይህ ስልክ ቁጥር ቀድሞ በዳታቤዝ ውስጥ መኖሩን ማረጋገጥ
+      db.get('SELECT * FROM users WHERE phone_number = ?', [phoneNumber], (err, existingPhoneUser) => {
         if (err) return reject(err);
 
-        if (user) {
-          db.run('UPDATE users SET phone_number = ?, username = ?, first_name = ? WHERE telegram_id = ?',
-            [phoneNumber, username || user.username, firstName || user.first_name, telegramId],
-            (uErr) => {
-              if (uErr) return reject(uErr);
-              resolve({ ...user, phone_number: phoneNumber, isNew: false });
-            }
-          );
-        } else {
-          db.run(
-            'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES (?, ?, ?, ?, 10.0, 0, 0)',
-            [telegramId, username || 'Player', firstName || 'User', phoneNumber],
-            function (iErr) {
-              if (iErr) return reject(iErr);
-              resolve({ id: this.lastID, telegram_id: telegramId, username, phone_number: phoneNumber, balance: 10.0, isNew: true });
-            }
-          );
+        if (existingPhoneUser) {
+          // ስልኩ በሌላ ቴሌግራም አካውንት ተመዝግቦ ከሆነ ➔ ከልክል!
+          if (existingPhoneUser.telegram_id !== telegramId) {
+            return reject(new Error('DUPLICATE_PHONE_OTHER_ACCOUNT'));
+          }
+
+          // ስልኩ በዚሁ ተጠቃሚ አስቀድሞ ተመዝግቦ ከሆነ ➔ ተጨማሪ ቦነስ ሳትሰጥ የቀድሞ አካውንቱን መልስ
+          return resolve({
+            user: existingPhoneUser,
+            isNewBonus: false,
+            alreadyRegistered: true
+          });
         }
+
+        // 2. ስልኩ አዲስ ከሆነ አሁን ላለው የቴሌግራም ተጠቃሚ መመዝገብና 10 ETB ቦነስ መስጠት
+        db.get('SELECT * FROM users WHERE telegram_id = ?', [telegramId], (err2, tgUser) => {
+          if (err2) return reject(err2);
+
+          if (tgUser) {
+            const newBal = tgUser.balance + 10.0;
+            db.run(
+              'UPDATE users SET phone_number = ?, balance = ?, username = ?, first_name = ? WHERE id = ?',
+              [phoneNumber, newBal, username || tgUser.username, firstName || tgUser.first_name, tgUser.id],
+              (uErr) => {
+                if (uErr) return reject(uErr);
+
+                // የቦነሱን ዝውውር መዝግብ
+                db.run(
+                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, "WELCOME_BONUS", 10.0, "COMPLETED", "NEWCOMER_10ETB", ?)',
+                  [tgUser.id, phoneNumber]
+                );
+
+                resolve({
+                  user: { ...tgUser, phone_number: phoneNumber, balance: newBal },
+                  isNewBonus: true,
+                  alreadyRegistered: false
+                });
+              }
+            );
+          } else {
+            // ከዚህ በፊት ሪከርድ ያልነበረው ከሆነ አዲስ አካውንት በ 10 ብር ቦነስ ክፈት
+            db.run(
+              'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES (?, ?, ?, ?, 10.0, 0, 0)',
+              [telegramId, username || 'Player', firstName || 'User', phoneNumber],
+              function (iErr) {
+                if (iErr) return reject(iErr);
+                const newId = this.lastID;
+
+                db.run(
+                  'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES (?, "WELCOME_BONUS", 10.0, "COMPLETED", "NEWCOMER_10ETB", ?)',
+                  [newId, phoneNumber]
+                );
+
+                resolve({
+                  user: { id: newId, telegram_id: telegramId, username, phone_number: phoneNumber, balance: 10.0 },
+                  isNewBonus: true,
+                  alreadyRegistered: false
+                });
+              }
+            );
+          }
+        });
       });
     });
   },
@@ -217,7 +264,6 @@ const DB = {
     });
   },
 
-  // WITHDRAWAL WITH 2 RULES: 1. 25 ETB RESERVE, 2. AT LEAST 50 ETB FIRST DEPOSIT
   requestWithdrawal: (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
@@ -226,14 +272,14 @@ const DB = {
           if (err || !user) { db.run('ROLLBACK'); return reject(err || new Error('User not found')); }
           if (user.is_banned === 1) { db.run('ROLLBACK'); return reject(new Error('❌ ተጠቃሚው ታግዷል!')); }
 
-          // RULE 1: Must maintain at least 25 ETB reserve balance
+          // ህግ 1፡ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት
           if (user.balance - amount < 25) {
             db.run('ROLLBACK');
             const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
             return reject(new Error(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! በአሁኑ ሰዓት ማውጣት የሚችሉት ከፍተኛው መጠን ${maxAllowed} ETB ነው።`));
           }
 
-          // RULE 2: Must have at least one completed deposit of >= 50 ETB before withdrawing
+          // ህግ 2፡ ቢያንስ አንድ ጊዜ 50 ETB ወይም ከዚያ በላይ ማስገባት (Deposit) ግዴታ ነው
           db.get(
             `SELECT id FROM transactions 
              WHERE user_id = ? AND type = 'DEPOSIT' AND status = 'COMPLETED' AND amount >= 50 
@@ -390,7 +436,7 @@ const DB = {
           if (err2) return reject(err2);
           const deposits = row.today_deposits;
           const payouts = gRow.today_payouts;
-          const estProfit = Math.floor(payouts * 0.111);
+          const estProfit = Math.floor(payouts * 0.15);
 
           resolve({
             todayDeposits: deposits,
@@ -510,7 +556,7 @@ const DB = {
           stats.totalRounds = row2.total_rounds || 0;
           stats.totalPayouts = row2.total_payouts || 0;
           stats.totalCartelasSold = row2.total_cartelas_sold || 0;
-          stats.estimatedProfit = Math.floor(stats.totalPayouts * 0.111);
+          stats.estimatedProfit = Math.floor(stats.totalPayouts * 0.15);
           resolve(stats);
         });
       });
