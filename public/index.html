@@ -399,8 +399,12 @@
       <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()" data-i18n="btn_submit_deposit">+ Deposit Request</button>
     </div>
 
+    <!-- 🚨 ፍትሃዊ የማውጫ መመሪያ ያለው ሳጥን -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Min: 50 ETB | 25 ETB ቀሪ ተቀማጭ ግዴታ ነው):</div>
+      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Min: 50 ETB):</div>
+      <div style="font-size: 9.5px; color: #8e8aa8; margin-top: 2px; margin-bottom: 6px;">
+        ℹ️ በእውነተኛ ብር አስገብተው ሲጫወቱ ያሸነፉትን ሙሉ ገንዘብ ማውጣት ይችላሉ። (25 ETB ተቀማጭ ግዴታ ነው)።
+      </div>
       <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()" data-i18n="btn_withdraw">Withdraw</button>
@@ -575,7 +579,7 @@
         playonly_desc: "የተሰጠ ቦነስ — ካርቴላ ቆርጠው ይጫወቱበታል",
         deposit_inst_title: "📥 ሒሳብ ሙላ (ወደ 0997575739 Ephrem Shitu ይላኩ):",
         btn_submit_deposit: "+ የማስገቢያ ጥያቄ ላክ",
-        cashout_title: "📤 ብር አውጣ (Min: 50 ETB | 25 ETB ቀሪ ተቀማጭ ግዴታ ነው):",
+        cashout_title: "📤 ብር አውጣ (Min: 50 ETB):",
         btn_withdraw: "ብር አውጣ",
         history_hdr: "የዝውውር ታሪክ",
         no_tx: "ምንም ዝውውር የለም",
@@ -665,7 +669,7 @@
         playonly_desc: "Deposits & bonuses — spend on cards",
         deposit_inst_title: "📥 Deposit (Send to 0997575739 Ephrem Shitu):",
         btn_submit_deposit: "+ Deposit Request",
-        cashout_title: "📤 Withdraw (Min: 50 ETB | 25 ETB reserve required):",
+        cashout_title: "📤 Withdraw (Min: 50 ETB):",
         btn_withdraw: "Withdraw",
         history_hdr: "HISTORY",
         no_tx: "No transactions yet",
@@ -943,7 +947,6 @@
       fetchMyTransactions();
     });
 
-    // 🚨 የማውጣት ጥያቄ ውድቅ ሲሆን ተመላሽ መደረጉን የሚገልጽ ማሳወቂያ
     socket.on('withdrawal_rejected', (data) => {
       SoundFX.pop();
       showModal("የማውጣት ጥያቄ ተመላሽ ⚠️", data.message, "🪙");
@@ -1072,7 +1075,6 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
-    // WITHDRAWAL WITH 25 ETB RESERVE VALIDATION
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amount = parseFloat(document.getElementById('withdraw-amount-input').value.trim());
@@ -1209,7 +1211,6 @@
       document.getElementById('cartela-timer').innerText = timer;
     });
 
-    // 3 ተጫዋቾች እስኪሞሉ ድረስ የሚመጣ ማሳወቂያ
     socket.on('lobby_waiting_players', (data) => {
       document.getElementById('cartela-timer').innerText = data.timer;
       const alertBox = document.getElementById('lobby-waiting-alert');
