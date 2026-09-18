@@ -8,9 +8,10 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-pool.on('connect', () => {
-  console.log('[+] Connected to Persistent PostgreSQL Database');
-});
+// አንዴ ብቻ ግንኙነቱን አረጋግጦ ሎግ ያደርጋል
+pool.query('SELECT NOW()')
+  .then(() => console.log('[+] Connected to Persistent PostgreSQL Database'))
+  .catch((err) => console.error('[-] PostgreSQL Connection Error:', err.message));
 
 pool.on('error', (err) => {
   console.error('[-] PostgreSQL Pool Error:', err.message);
@@ -83,38 +84,43 @@ async function initDB() {
 initDB();
 
 const DB = {
-  // 🚨 የተስተካከለ፦ ነባርም ሆነ አዲስ ተጠቃሚ በሊንክ ሲመጣ ጋባዡን 100% ይመዘግባል
+  // 🚨 እጅግ አስተማማኝ አቶሚክ (ON CONFLICT) አሰራር፦ duplicate key error ፈጽሞ አይመጣም
   getOrCreateUser: async (telegramId, username, firstName, referrerRef = null) => {
-    const res = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
+    const safeRef = (referrerRef && String(referrerRef) !== String(telegramId)) ? String(referrerRef) : null;
 
-    if (res.rows.length > 0) {
-      const u = res.rows[0];
-      // ተጠቃሚው ቀድሞ ቢኖርም ገና ስልኩን ካላረጋገጠና ጋባዥ ከሌለው አዲሱን ጋባዥ መዝግብ
-      if (!u.referred_by && referrerRef && u.telegram_id !== String(referrerRef) && String(u.id) !== String(referrerRef) && !u.phone_number) {
-        await pool.query('UPDATE users SET referred_by = $1 WHERE id = $2', [String(referrerRef), u.id]);
-        u.referred_by = String(referrerRef);
-      }
-      u.balance = parseFloat(u.balance);
-      return u;
-    }
+    const query = `
+      INSERT INTO users (telegram_id, username, first_name, referred_by, balance, is_banned, checkin_streak)
+      VALUES ($1, $2, $3, $4, 0.0, 0, 0)
+      ON CONFLICT (telegram_id) 
+      DO UPDATE SET 
+        username = EXCLUDED.username,
+        first_name = EXCLUDED.first_name,
+        referred_by = CASE 
+          WHEN users.referred_by IS NULL AND users.phone_number IS NULL THEN EXCLUDED.referred_by 
+          ELSE users.referred_by 
+        END
+      RETURNING *;
+    `;
 
-    const insertRes = await pool.query(
-      'INSERT INTO users (telegram_id, username, first_name, referred_by, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 0.0, 0, 0) RETURNING *',
-      [telegramId, username || 'Player', firstName || 'User', referrerRef ? String(referrerRef) : null]
-    );
-    const newUser = insertRes.rows[0];
-    newUser.balance = parseFloat(newUser.balance);
-    return newUser;
+    const res = await pool.query(query, [
+      String(telegramId),
+      username || 'Player',
+      firstName || 'User',
+      safeRef
+    ]);
+
+    const u = res.rows[0];
+    u.balance = parseFloat(u.balance);
+    return u;
   },
 
-  // 🚨 ስልክ ሲረጋገጥ ለጋባዡ 5 ETB ገቢ የሚያደርግ አስተማማኝ ፈንክሽን
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
     const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
     if (phoneCheck.rows.length > 0) {
       const existingUser = phoneCheck.rows[0];
       existingUser.balance = parseFloat(existingUser.balance);
 
-      if (existingUser.telegram_id !== telegramId) {
+      if (existingUser.telegram_id !== String(telegramId)) {
         throw new Error('DUPLICATE_PHONE_OTHER_ACCOUNT');
       }
 
@@ -126,7 +132,7 @@ const DB = {
       };
     }
 
-    const tgCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
+    const tgCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [String(telegramId)]);
     let currentUser = null;
 
     if (tgCheck.rows.length > 0) {
@@ -146,8 +152,11 @@ const DB = {
       currentUser = upRes.rows[0];
     } else {
       const inRes = await pool.query(
-        'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 10.0, 0, 0) RETURNING *',
-        [telegramId, username || 'Player', firstName || 'User', phoneNumber]
+        `INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) 
+         VALUES ($1, $2, $3, $4, 10.0, 0, 0) 
+         ON CONFLICT (telegram_id) DO UPDATE SET phone_number = EXCLUDED.phone_number, balance = users.balance + 10.0 
+         RETURNING *`,
+        [String(telegramId), username || 'Player', firstName || 'User', phoneNumber]
       );
       const newId = inRes.rows[0].id;
 
@@ -161,10 +170,9 @@ const DB = {
 
     currentUser.balance = parseFloat(currentUser.balance);
 
-    // 🎁 ለጋባዡ ሰው (Referrer) 5 ETB ክፍያ መፈጸም
+    // 🎁 ለጋባዡ 5 ETB ክፍያ መፈጸም
     let inviterRewarded = null;
-    if (currentUser.referred_by && currentUser.referred_by !== telegramId && currentUser.referred_by !== String(currentUser.id)) {
-      // ጋባዡን በ Telegram ID ወይም በ Database ID ፈልጎ ማግኘት
+    if (currentUser.referred_by && currentUser.referred_by !== String(telegramId) && currentUser.referred_by !== String(currentUser.id)) {
       const inviterRes = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1 OR id::text = $1 LIMIT 1',
         [currentUser.referred_by]
@@ -173,7 +181,6 @@ const DB = {
       if (inviterRes.rows.length > 0) {
         const inviter = inviterRes.rows[0];
 
-        // ቀድሞ ለዚህ ሰው ቦነስ እንዳልተሰጠ ማረጋገጥ
         const checkRefTx = await pool.query(
           "SELECT id FROM transactions WHERE user_id = $1 AND type = 'REFERRAL_BONUS' AND reference = $2",
           [inviter.id, `REF_${currentUser.id}`]
@@ -277,7 +284,6 @@ const DB = {
     return { success: true, txId: res.rows[0].id };
   },
 
-  // 🚨 ከቦነስ ወይም ከሪፈራል (ግብዣ) የተገኘ ገንዘብ የ 2x ገደብ እንዲኖረው ተደርጓል
   requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     const client = await pool.connect();
     try {
@@ -289,7 +295,6 @@ const DB = {
 
       if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
 
-      // ህግ 1፡ 25 ETB ቀሪ ተቀማጭ
       if (user.balance - amount < 25) {
         const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
         throw new Error(`❌ ብር ሲያወጡ አካውንትዎ ላይ ቢያንስ 25 ETB ቀሪ ተቀማጭ መኖር አለበት! በአሁኑ ሰዓት ማውጣት የሚችሉት ከፍተኛው መጠን ${maxAllowed} ETB ነው።`);
@@ -302,19 +307,16 @@ const DB = {
       const totalDeposited = parseFloat(depRes.rows[0].total_deposited) || 0;
       const depCount = parseInt(depRes.rows[0].dep_count, 10) || 0;
 
-      // ቢያንስ 50 ETB የመጀመሪያ ዲፖዚት ግዴታ ነው
       if (totalDeposited < 50 || depCount === 0) {
         throw new Error('❌ ብር ለማውጣት መጀመሪያ ቢያንስ አንድ ጊዜ 50 ETB ማስገባት (Deposit ማድረግ) አለብዎት!');
       }
 
-      // ከሪፈራል (ግብዣ) የተገኘ ገቢ መመርመር
       const refRes = await client.query(
         "SELECT COALESCE(SUM(amount), 0) as referral_earnings FROM transactions WHERE user_id = $1 AND type = 'REFERRAL_BONUS'",
         [userId]
       );
       const referralEarnings = parseFloat(refRes.rows[0]?.referral_earnings) || 0;
 
-      // በነጻ ቦነስ የተገኘ ድል መመርመር
       const firstDepRes = await client.query(
         "SELECT MIN(created_at) as first_dep_time FROM transactions WHERE user_id = $1 AND type = 'DEPOSIT' AND status = 'COMPLETED'",
         [userId]
@@ -330,7 +332,6 @@ const DB = {
         bonusWonAmount = parseFloat(bonusWinsRes.rows[0]?.bonus_won_amount) || 0;
       }
 
-      // 🚨 ከነጻ ቦነስ ወይም ከሪፈራል የተገኘ ገቢ ካለ ማውጫው ካስገቡት ዲፖዚት 2 እጥፍ መብለጥ አይችልም!
       const hasFreeOrReferralEarnings = (bonusWonAmount > 0 || referralEarnings > 0);
 
       if (hasFreeOrReferralEarnings) {
