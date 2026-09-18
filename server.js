@@ -64,21 +64,31 @@ if (process.env.BOT_TOKEN) {
     const firstName = msg.from.first_name || 'Player';
     const username = msg.from.username ? `@${msg.from.username}` : firstName;
 
-    // የጋበዘውን ሰው ID መለየት
-    let referrerTelegramId = null;
+    // የጋበዘውን ሰው ID መለየት (ለምሳሌ /start ref_7159802556)
+    let referrerRef = null;
     const startParam = (match && match[1]) ? match[1].trim() : '';
     if (startParam.startsWith('ref_')) {
       const rawRef = startParam.replace('ref_', '').trim();
       if (rawRef && rawRef !== telegramId) {
-        referrerTelegramId = rawRef;
+        referrerRef = rawRef;
       }
     }
 
     try {
-      const user = await DB.getOrCreateUser(telegramId, username, firstName, referrerTelegramId);
+      const user = await DB.getOrCreateUser(telegramId, username, firstName, referrerRef);
 
       if (user.is_banned === 1) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።');
+      }
+
+      // ጋባዡን "ጓደኛህ በሊንክህ ገብቷል" ብሎ ወዲያውኑ ማሳወቅ
+      if (referrerRef && !user.phone_number) {
+        try {
+          bot.sendMessage(
+            referrerRef,
+            `👋 አንድ ጓደኛዎ (${firstName}) በእርስዎ ሊንክ ገብቷል! ስልኩን እንዳረጋገጠ የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ይደረጋል!`
+          );
+        } catch (e) {}
       }
 
       if (!user.phone_number) {
@@ -154,18 +164,25 @@ if (process.env.BOT_TOKEN) {
           playKeyboard
         );
 
-        // 🎁 ለጋበዘው ሰው 5 ETB ገቢ ሲሆን ወዲያውኑ በቴሌግራም መልዕክት ላክለት!
+        // 🎁 ለጋባዡ ሰው 5 ETB ገቢ ሲሆን ወዲያውኑ በቴሌግራም መልዕክት ላክለት!
         if (regResult.inviterRewarded) {
           const inv = regResult.inviterRewarded;
-          bot.sendMessage(
-            inv.telegramId,
-            `🎉 እንኳን ደስ አለዎት! የጋበዙት ጓደኛ (${firstName}) ተመዝግቧል!\n🎁 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`
-          );
+          try {
+            bot.sendMessage(
+              inv.telegramId,
+              `🎉 እንኳን ደስ አለዎት! የጋበዙት ጓደኛ (${firstName}) ተመዝግቧል!\n🎁 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!\n💰 አጠቃላይ ባላንስዎ: ${inv.newBalance} ETB`
+            );
+          } catch (e) {}
 
           for (const [sockId, pInfo] of activeSockets.entries()) {
-            if (pInfo.telegramId === inv.telegramId) {
+            if (pInfo.telegramId === inv.telegramId || pInfo.dbId === inv.id) {
               pInfo.balance = inv.newBalance;
               io.to(sockId).emit('balance_updated', { balance: inv.newBalance });
+              io.to(sockId).emit('referral_credited', {
+                amount: 5.0,
+                newBalance: inv.newBalance,
+                message: `🎉 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`
+              });
             }
           }
         }
@@ -396,7 +413,6 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
-      // telegramId-ን ወደ frontend መላክ (ለሪፈራል ሊንክ)
       socket.emit('auth_success', {
         id: user.id,
         telegramId: user.telegram_id,

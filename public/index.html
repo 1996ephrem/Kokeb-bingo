@@ -295,7 +295,7 @@
       <button class="btn-sm btn-success" onclick="shareTelegramReferral()" data-i18n="btn_open">Open</button>
     </div>
 
-    <!-- 🎁 በ Telegram ID የተስተካከለው የግብዣ ሳጥን -->
+    <!-- 🎁 ትክክለኛ የግብዣ ሊንክ ሳጥን -->
     <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin: 10px 0 6px 0;" data-i18n="invite_hdr">INVITE FRIENDS</div>
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;" data-i18n="invite_desc">Earn <b>5 Birr</b> every time a friend joins and verifies their phone number!</p>
@@ -685,7 +685,7 @@
         auto_play_title: "Automatic play",
         auto_play_sub: "Mark numbers and claim bingo for me",
         language_opt: "Language",
-        language_sub: "Switch English / አማርኛ",
+        language_sub: "Tap to switch to አማርኛ",
         guide_opt: "How to play & rules",
         guide_sub: "The full guide — rounds, prizes, payouts",
         round_starts_in: "⏰ ROUND STARTS IN:",
@@ -958,6 +958,13 @@
     socket.on('withdrawal_rejected', (data) => {
       SoundFX.pop();
       showModal("የማውጣት ጥያቄ ተመላሽ ⚠️", data.message, "🪙");
+      fetchMyTransactions();
+    });
+
+    // 🎁 የግብዣ ቦነስ ገቢ ሲሆን ተጫዋቹ ስክሪን ላይ የሚመጣ ማሳወቂያ
+    socket.on('referral_credited', (data) => {
+      SoundFX.win();
+      showModal("የግብዣ ቦነስ ገቢ ሆኗል! 🎉", data.message, "🎁");
       fetchMyTransactions();
     });
 
@@ -1409,7 +1416,7 @@
       switchNav('dashboard'); 
     }
 
-    // 📋 ትክክለኛውን የ Telegram ID የያዘ የግብዣ ሊንክ መቅጃ
+    // 📋 በ Telegram ID አማካኝነት አስተማማኝ የሆነ የግብዣ ሊንክ መቅጃ
     function copyReferralLink() { 
       const myId = userState.telegramId || userState.dbId;
       const link = `https://t.me/${userState.botUsername || 'Kokeb_Bingo_Bot'}?start=ref_${myId}`;
