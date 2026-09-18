@@ -57,14 +57,25 @@ if (process.env.BOT_TOKEN) {
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
   }).catch((err) => console.error('Telegram bot init error:', err.message));
 
-  bot.onText(/\/start(.*)/, async (msg) => {
+  // /start ትዕዛዝ - የግብዣ ኮዱን (ref_XXXX) ተቀብሎ መያዝ
+  bot.onText(/\/start(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
     const firstName = msg.from.first_name || 'Player';
     const username = msg.from.username ? `@${msg.from.username}` : firstName;
 
+    // የጋበዘውን ሰው ID መለየት
+    let referrerTelegramId = null;
+    const startParam = (match && match[1]) ? match[1].trim() : '';
+    if (startParam.startsWith('ref_')) {
+      const rawRef = startParam.replace('ref_', '').trim();
+      if (rawRef && rawRef !== telegramId) {
+        referrerTelegramId = rawRef;
+      }
+    }
+
     try {
-      const user = await DB.getOrCreateUser(telegramId, username, firstName);
+      const user = await DB.getOrCreateUser(telegramId, username, firstName, referrerTelegramId);
 
       if (user.is_banned === 1) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።');
@@ -109,6 +120,7 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
+  // ስልክ ሲረጋገጥ ለጋባዡ ወዲያውኑ 5 ETB መላክና ማሳወቅ
   bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
@@ -141,6 +153,22 @@ if (process.env.BOT_TOKEN) {
           `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n🎁 የ 10 ETB ጀማሪ ቦነስ ወደ አካውንትዎ ገቢ ሆኗል!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         );
+
+        // 🎁 ለጋበዘው ሰው 5 ETB ገቢ ሲሆን ወዲያውኑ በቴሌግራም መልዕክት ላክለት!
+        if (regResult.inviterRewarded) {
+          const inv = regResult.inviterRewarded;
+          bot.sendMessage(
+            inv.telegramId,
+            `🎉 እንኳን ደስ አለዎት! የጋበዙት ጓደኛ (${firstName}) ተመዝግቧል!\n🎁 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`
+          );
+
+          for (const [sockId, pInfo] of activeSockets.entries()) {
+            if (pInfo.telegramId === inv.telegramId) {
+              pInfo.balance = inv.newBalance;
+              io.to(sockId).emit('balance_updated', { balance: inv.newBalance });
+            }
+          }
+        }
       } else {
         bot.sendMessage(
           chatId,
@@ -242,7 +270,6 @@ function startRoomLobby(roomName) {
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer });
 
     if (room.timer <= 0) {
-      // ቢያንስ 3 ተጫዋቾች መኖራቸውን ማረጋገጥ
       const uniquePlayerIds = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId));
 
       if (uniquePlayerIds.size >= 3 && room.takenCartelas.size >= 3) {
@@ -369,8 +396,10 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
+      // telegramId-ን ወደ frontend መላክ (ለሪፈራል ሊንክ)
       socket.emit('auth_success', {
         id: user.id,
+        telegramId: user.telegram_id,
         username: user.username,
         balance: user.balance,
         botUsername: detectedBotUsername,
@@ -757,13 +786,11 @@ app.post('/api/admin/approve-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// 🚨 የተስተካከለው REJECT WITHDRAWAL: ብሩን ለተጠቃሚው መልሶ ወዲያውኑ በስክሪኑ ላይ ያሳየዋል
 app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.rejectWithdrawal(txId);
 
-    // ተጫዋቹ አሁን ኦንላይን ካለ ባላንሱን ወዲያውኑ መልስለት እና ፖፕ-አፕ ላክለት
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance = result.newBalance;

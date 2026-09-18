@@ -295,12 +295,13 @@
       <button class="btn-sm btn-success" onclick="shareTelegramReferral()" data-i18n="btn_open">Open</button>
     </div>
 
+    <!-- 🎁 በ Telegram ID የተስተካከለው የግብዣ ሳጥን -->
     <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin: 10px 0 6px 0;" data-i18n="invite_hdr">INVITE FRIENDS</div>
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;" data-i18n="invite_desc">Earn <b>5 Birr</b> when a friend joins with your link and tops up.</p>
-      <div style="background: rgba(0,0,0,0.3); border: 1px dashed var(--accent-cyan); border-radius: 8px; padding: 8px; font-size: 11px; color: #00e5ff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <span id="ref-link-display">t.me/Kokeb_Bingo_Bot?start=ref_...</span>
-        <span style="cursor: pointer;" onclick="copyReferralLink()">📋</span>
+      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;" data-i18n="invite_desc">Earn <b>5 Birr</b> every time a friend joins and verifies their phone number!</p>
+      <div style="background: rgba(0,0,0,0.3); border: 1px dashed var(--accent-cyan); border-radius: 8px; padding: 8px; font-size: 11px; color: #00e5ff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; word-break: break-all;">
+        <span id="ref-link-display">https://t.me/Kokeb_Bingo_Bot?start=ref_...</span>
+        <span style="cursor: pointer; margin-left: 6px;" onclick="copyReferralLink()">📋</span>
       </div>
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="shareTelegramReferral()" data-i18n="btn_share_invite">Share Invite Link</button>
     </div>
@@ -399,7 +400,6 @@
       <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()" data-i18n="btn_submit_deposit">+ Deposit Request</button>
     </div>
 
-    <!-- 🚨 ፍትሃዊ የማውጫ መመሪያ ያለው ሳጥን -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;" id="cashout-header-lbl" data-i18n="cashout_title">📤 ብር አውጣ (Min: 50 ETB):</div>
       <div style="font-size: 9.5px; color: #8e8aa8; margin-top: 2px; margin-bottom: 6px;">
@@ -561,50 +561,50 @@
         tasks_hdr: "ተግባራት",
         task_channel: "የኮከብ ቢንጎ ቻናልን ይቀላቀሉ",
         btn_open: "ክፈት",
-        invite_hdr: "ጓደኛን መጋበዝ",
-        invite_desc: "ጓደኛዎ በእርስዎ ሊንክ ሲመዘገብና ሒሳብ ሲሞላ 5 ብር ያግኙ።",
-        btn_share_invite: "ሊንኩን በቴሌግራም አጋራ",
-        games_hdr: "ክፍሎች",
-        games_sub: "የሚፈልጉትን ክፍል መርጠው ይቀላቀሉ",
-        cards_lbl: "ካርቴላዎች",
-        active_prize: "የድል ቋት",
-        btn_join: "ግባ",
-        wallet_title: "የሂሳብ ቦርሳ",
-        wallet_sub: "ማስገቢያ፣ ማውጫ እና የዝውውር ታሪክ",
-        total_balance_caps: "አጠቃላይ ቀሪ ሒሳብ",
-        wallet_play_desc: "የሚጫወቱበት ጠቅላላ ሒሳብ",
-        cashable_hdr: "● የሚወጣ ገንዘብ",
-        cashable_desc: "ያሸነፉት ትርፍ — በቀጥታ ወደ ቴሌብር ይወጣል",
-        playonly_hdr: "● የመጫወቻ ቦነስ",
-        playonly_desc: "የተሰጠ ቦነስ — ካርቴላ ቆርጠው ይጫወቱበታል",
-        deposit_inst_title: "📥 ሒሳብ ሙላ (ወደ 0997575739 Ephrem Shitu ይላኩ):",
-        btn_submit_deposit: "+ የማስገቢያ ጥያቄ ላክ",
-        cashout_title: "📤 ብር አውጣ (Min: 50 ETB):",
-        btn_withdraw: "ብር አውጣ",
-        history_hdr: "የዝውውር ታሪክ",
-        no_tx: "ምንም ዝውውር የለም",
-        member_since: "⭐ የኮከብ ቢንጎ አባል",
-        level_1: "ደረጃ 1 (Level 1)",
-        xp_next: "ወደ ቀጣይ ደረጃ 260 XP",
-        day_streak: "ቀናት ተከታታይ",
-        win_streak: "ተከታታይ ድል",
-        games_played: "የተጫወቷቸው ዙሮች",
-        games_won: "ያሸነፏቸው ዙሮች",
-        total_won: "ጠቅላላ ያሸነፉት ብር",
-        total_bet: "ጠቅላላ የተጫወቱት ብር",
-        auto_play_title: "በራስ-ሰር ማርክ ማድረግ (Auto-play)",
-        auto_play_sub: "ኳሶች ሲወጡ ራሱ ማርክ እንዲያደርግ",
-        language_opt: "ቋንቋ (Language)",
-        language_sub: "ወደ English ለመቀየር ይጫኑ",
-        guide_opt: "የአጨዋወት መመሪያ & ህጎች",
-        guide_sub: "ስለ ዙሮች፣ ሽልማቶች እና ማውጫ ሙሉ መረጃ",
-        round_starts_in: "⏰ ጨዋታው በ:",
-        btn_enter_arena: "ወደ ሜዳው ግባ",
-        btn_leave: "🚪 ውጣ",
-        btn_claim: "🏆 ቢንጎ! (CLAIM)",
-        btn_back: "← ተመለስ",
-        btn_ok: "ቀጥል",
-        btn_gotit: "ገባኝ",
+        invite_hdr: "INVITE FRIENDS",
+        invite_desc: "ጓደኛዎ በእርስዎ ሊንክ ሲመዘገብና ስልኩን ሲያረጋግጥ 5 ብር ያግኙ!",
+        btn_share_invite: "Share Invite Link",
+        games_hdr: "Games",
+        games_sub: "Pick a stake and join the next round",
+        cards_lbl: "cards",
+        active_prize: "ACTIVE PRIZE",
+        btn_join: "Join",
+        wallet_title: "Wallet",
+        wallet_sub: "Balance, deposits, withdrawals and history",
+        total_balance_caps: "TOTAL BALANCE",
+        wallet_play_desc: "Everything you can play with",
+        cashable_hdr: "● CASHABLE",
+        cashable_desc: "Winnings & prizes — can be withdrawn",
+        playonly_hdr: "● PLAY-ONLY",
+        playonly_desc: "Deposits & bonuses — spend on cards",
+        deposit_inst_title: "📥 Deposit (Send to 0997575739 Ephrem Shitu):",
+        btn_submit_deposit: "+ Deposit Request",
+        cashout_title: "📤 Withdraw (Min: 50 ETB):",
+        btn_withdraw: "Withdraw",
+        history_hdr: "HISTORY",
+        no_tx: "No transactions yet",
+        member_since: "⭐ Kokeb Bingo Member",
+        level_1: "Level 1",
+        xp_next: "260 XP to next level",
+        day_streak: "day streak",
+        win_streak: "win streak",
+        games_played: "Games played",
+        games_won: "Games won",
+        total_won: "Total won",
+        total_bet: "Total bet",
+        auto_play_title: "Automatic play",
+        auto_play_sub: "Mark numbers and claim bingo for me",
+        language_opt: "Language (ቋንቋ)",
+        language_sub: "Switch English / አማርኛ",
+        guide_opt: "How to play & rules",
+        guide_sub: "The full guide — rounds, prizes, payouts",
+        round_starts_in: "⏰ ROUND STARTS IN:",
+        btn_enter_arena: "ENTER ARENA",
+        btn_leave: "🚪 LEAVE",
+        btn_claim: "🏆 CLAIM BINGO!",
+        btn_back: "← BACK",
+        btn_ok: "OK",
+        btn_gotit: "GOT IT!",
         guide_title: "📖 የአጨዋወት መመሪያ",
         g_step1_t: "1. ሒሳብዎን ይሙሉ:",
         g_step1_d: "በቴሌብር ወይም CBE ብር ያስገቡ።",
@@ -652,7 +652,7 @@
         task_channel: "Join Kokeb Bingo Channel",
         btn_open: "Open",
         invite_hdr: "INVITE FRIENDS",
-        invite_desc: "Earn 5 Birr when a friend joins with your link and tops up.",
+        invite_desc: "Earn 5 Birr every time a friend joins and verifies their phone number!",
         btn_share_invite: "Share Invite Link",
         games_hdr: "Games",
         games_sub: "Pick a stake and join the next round",
@@ -685,7 +685,7 @@
         auto_play_title: "Automatic play",
         auto_play_sub: "Mark numbers and claim bingo for me",
         language_opt: "Language",
-        language_sub: "Tap to switch to አማርኛ",
+        language_sub: "Switch English / አማርኛ",
         guide_opt: "How to play & rules",
         guide_sub: "The full guide — rounds, prizes, payouts",
         round_starts_in: "⏰ ROUND STARTS IN:",
@@ -714,7 +714,7 @@
       }
     };
 
-    let userState = { dbId: 1, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
+    let userState = { dbId: 1, telegramId: null, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
     let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
@@ -909,13 +909,15 @@
       if (tg?.initDataUnsafe?.user) {
         const u = tg.initDataUnsafe.user;
         userState.name = u.username ? `@${u.username}` : (u.first_name + (u.last_name ? ` ${u.last_name}` : ''));
+        userState.telegramId = u.id.toString();
         document.getElementById('hub-username').innerText = userState.name;
         document.getElementById('prof-name-big').innerText = userState.name;
         document.getElementById('prof-handle-big').innerText = `@${u.username || 'player'} · ID ${u.id}`;
         document.getElementById('hub-avatar').innerText = userState.name.charAt(0);
         document.getElementById('prof-avatar-big').innerText = userState.name.charAt(0);
+
+        document.getElementById('ref-link-display').innerText = `https://t.me/Kokeb_Bingo_Bot?start=ref_${u.id}`;
       }
-      document.getElementById('ref-link-display').innerText = `t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`;
       applyLanguageTranslations();
     };
 
@@ -929,8 +931,14 @@
 
     socket.on('auth_success', (u) => {
       userState.dbId = u.id;
+      userState.telegramId = u.telegramId;
       userState.coins = u.balance;
       userState.streak = u.checkinStreak || 0;
+      userState.botUsername = u.botUsername || 'Kokeb_Bingo_Bot';
+
+      const myRefId = u.telegramId || u.id;
+      document.getElementById('ref-link-display').innerText = `https://t.me/${userState.botUsername}?start=ref_${myRefId}`;
+
       updateCoinsDisplay();
       updateStreakUI(userState.streak, u.lastCheckinDate);
       switchNav('dashboard');
@@ -1109,13 +1117,18 @@
         const data = await res.json();
         const tbody = document.getElementById('my-tx-body');
         if (data.transactions?.length > 0) {
-          tbody.innerHTML = data.transactions.map(t => `
-            <tr>
-              <td><b>${t.type === 'DEPOSIT' ? '📥 Deposit' : '📤 Withdraw'}</b></td>
-              <td><b style="color:#ffd700;">${Math.abs(t.amount)} ETB</b></td>
-              <td><span style="color:${t.status === 'COMPLETED' ? '#00ff87' : t.status === 'PENDING' ? '#ffd700' : '#ff4757'}; font-weight:bold;">${t.status}</span></td>
-            </tr>
-          `).join('');
+          tbody.innerHTML = data.transactions.map(t => {
+            let label = '📥 Deposit';
+            if (t.type === 'WITHDRAW') label = '📤 Withdraw';
+            if (t.type === 'REFERRAL_BONUS') label = '🎁 Referral';
+            return `
+              <tr>
+                <td><b>${label}</b></td>
+                <td><b style="color:#ffd700;">${Math.abs(t.amount)} ETB</b></td>
+                <td><span style="color:${t.status === 'COMPLETED' ? '#00ff87' : t.status === 'PENDING' ? '#ffd700' : '#ff4757'}; font-weight:bold;">${t.status}</span></td>
+              </tr>
+            `;
+          }).join('');
         }
       } catch (e) {}
     }
@@ -1395,8 +1408,20 @@
       socket.emit('leave_room', { roomName: selectionState.roomName });
       switchNav('dashboard'); 
     }
-    function copyReferralLink() { navigator.clipboard.writeText(`https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}`); alert(userState.lang === 'am' ? "ሊንክ ተቀድቷል!" : "Link copied!"); }
-    function shareTelegramReferral() { tg?.openTelegramLink(`https://t.me/share/url?url=https://t.me/Kokeb_Bingo_Bot?start=ref_${userState.name.replace('@','')}&text=Play Kokeb Bingo!`); }
+
+    // 📋 ትክክለኛውን የ Telegram ID የያዘ የግብዣ ሊንክ መቅጃ
+    function copyReferralLink() { 
+      const myId = userState.telegramId || userState.dbId;
+      const link = `https://t.me/${userState.botUsername || 'Kokeb_Bingo_Bot'}?start=ref_${myId}`;
+      navigator.clipboard.writeText(link); 
+      alert(userState.lang === 'am' ? "የግብዣ ሊንክ ተቀድቷል!" : "Referral link copied!"); 
+    }
+
+    function shareTelegramReferral() { 
+      const myId = userState.telegramId || userState.dbId;
+      const link = `https://t.me/${userState.botUsername || 'Kokeb_Bingo_Bot'}?start=ref_${myId}`;
+      tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('🎮 ና የኮከብ ቢንጎ አብረን እንጫወት! የ 10 ETB መነሻ ቦነስ አለው!')}`); 
+    }
   </script>
 </body>
 </html>
