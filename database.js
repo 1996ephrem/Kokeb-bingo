@@ -8,10 +8,9 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// አንዴ ብቻ ግንኙነቱን አረጋግጦ ሎግ ያደርጋል
-pool.query('SELECT NOW()')
-  .then(() => console.log('[+] Connected to Persistent PostgreSQL Database'))
-  .catch((err) => console.error('[-] PostgreSQL Connection Error:', err.message));
+pool.on('connect', () => {
+  console.log('[+] Connected to Persistent PostgreSQL Database');
+});
 
 pool.on('error', (err) => {
   console.error('[-] PostgreSQL Pool Error:', err.message);
@@ -68,6 +67,27 @@ async function initDB() {
         value TEXT,
         salt TEXT
       );
+
+      -- 🎁 የፕሮሞኮድ ቴብሎች
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        code TEXT UNIQUE NOT NULL,
+        reward_amount NUMERIC(14, 2) NOT NULL,
+        max_users INT DEFAULT 100,
+        used_count INT DEFAULT 0,
+        expires_at TIMESTAMP,
+        is_active INT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS promo_claims (
+        id SERIAL PRIMARY KEY,
+        promo_id INT REFERENCES promo_codes(id),
+        user_id INT REFERENCES users(id),
+        claimed_amount NUMERIC(14, 2),
+        claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(promo_id, user_id)
+      );
     `);
 
     const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
@@ -84,34 +104,26 @@ async function initDB() {
 initDB();
 
 const DB = {
-  // 🚨 እጅግ አስተማማኝ አቶሚክ (ON CONFLICT) አሰራር፦ duplicate key error ፈጽሞ አይመጣም
   getOrCreateUser: async (telegramId, username, firstName, referrerRef = null) => {
-    const safeRef = (referrerRef && String(referrerRef) !== String(telegramId)) ? String(referrerRef) : null;
+    const res = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
 
-    const query = `
-      INSERT INTO users (telegram_id, username, first_name, referred_by, balance, is_banned, checkin_streak)
-      VALUES ($1, $2, $3, $4, 0.0, 0, 0)
-      ON CONFLICT (telegram_id) 
-      DO UPDATE SET 
-        username = EXCLUDED.username,
-        first_name = EXCLUDED.first_name,
-        referred_by = CASE 
-          WHEN users.referred_by IS NULL AND users.phone_number IS NULL THEN EXCLUDED.referred_by 
-          ELSE users.referred_by 
-        END
-      RETURNING *;
-    `;
+    if (res.rows.length > 0) {
+      const u = res.rows[0];
+      if (!u.referred_by && referrerRef && u.telegram_id !== String(referrerRef) && String(u.id) !== String(referrerRef) && !u.phone_number) {
+        await pool.query('UPDATE users SET referred_by = $1 WHERE id = $2', [String(referrerRef), u.id]);
+        u.referred_by = String(referrerRef);
+      }
+      u.balance = parseFloat(u.balance);
+      return u;
+    }
 
-    const res = await pool.query(query, [
-      String(telegramId),
-      username || 'Player',
-      firstName || 'User',
-      safeRef
-    ]);
-
-    const u = res.rows[0];
-    u.balance = parseFloat(u.balance);
-    return u;
+    const insertRes = await pool.query(
+      'INSERT INTO users (telegram_id, username, first_name, referred_by, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 0.0, 0, 0) RETURNING *',
+      [telegramId, username || 'Player', firstName || 'User', referrerRef ? String(referrerRef) : null]
+    );
+    const newUser = insertRes.rows[0];
+    newUser.balance = parseFloat(newUser.balance);
+    return newUser;
   },
 
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
@@ -120,7 +132,7 @@ const DB = {
       const existingUser = phoneCheck.rows[0];
       existingUser.balance = parseFloat(existingUser.balance);
 
-      if (existingUser.telegram_id !== String(telegramId)) {
+      if (existingUser.telegram_id !== telegramId) {
         throw new Error('DUPLICATE_PHONE_OTHER_ACCOUNT');
       }
 
@@ -132,7 +144,7 @@ const DB = {
       };
     }
 
-    const tgCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [String(telegramId)]);
+    const tgCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
     let currentUser = null;
 
     if (tgCheck.rows.length > 0) {
@@ -152,11 +164,8 @@ const DB = {
       currentUser = upRes.rows[0];
     } else {
       const inRes = await pool.query(
-        `INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) 
-         VALUES ($1, $2, $3, $4, 10.0, 0, 0) 
-         ON CONFLICT (telegram_id) DO UPDATE SET phone_number = EXCLUDED.phone_number, balance = users.balance + 10.0 
-         RETURNING *`,
-        [String(telegramId), username || 'Player', firstName || 'User', phoneNumber]
+        'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 10.0, 0, 0) RETURNING *',
+        [telegramId, username || 'Player', firstName || 'User', phoneNumber]
       );
       const newId = inRes.rows[0].id;
 
@@ -170,9 +179,8 @@ const DB = {
 
     currentUser.balance = parseFloat(currentUser.balance);
 
-    // 🎁 ለጋባዡ 5 ETB ክፍያ መፈጸም
     let inviterRewarded = null;
-    if (currentUser.referred_by && currentUser.referred_by !== String(telegramId) && currentUser.referred_by !== String(currentUser.id)) {
+    if (currentUser.referred_by && currentUser.referred_by !== telegramId && currentUser.referred_by !== String(currentUser.id)) {
       const inviterRes = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1 OR id::text = $1 LIMIT 1',
         [currentUser.referred_by]
@@ -281,14 +289,21 @@ const DB = {
       'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
       [userId, 'DEPOSIT', amount, 'PENDING', txRef, phoneNumber, paymentMethod]
     );
-    return { success: true, txId: res.rows[0].id };
+    const uRes = await pool.query('SELECT telegram_id, username, first_name FROM users WHERE id = $1', [userId]);
+    const user = uRes.rows[0] || {};
+    return { 
+      success: true, 
+      txId: res.rows[0].id, 
+      telegramId: user.telegram_id,
+      name: user.first_name || user.username
+    };
   },
 
   requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const uRes = await client.query('SELECT username, balance, is_banned FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      const uRes = await client.query('SELECT username, balance, is_banned, telegram_id FROM users WHERE id = $1 FOR UPDATE', [userId]);
       if (uRes.rows.length === 0) throw new Error('User not found');
       const user = uRes.rows[0];
       user.balance = parseFloat(user.balance);
@@ -333,7 +348,6 @@ const DB = {
       }
 
       const hasFreeOrReferralEarnings = (bonusWonAmount > 0 || referralEarnings > 0);
-
       if (hasFreeOrReferralEarnings) {
         const maxAllowedByDeposit = Math.floor(totalDeposited * 2);
         if (amount > maxAllowedByDeposit) {
@@ -352,7 +366,7 @@ const DB = {
       );
 
       await client.query('COMMIT');
-      return { success: true, txRef, remainingBalance };
+      return { success: true, txRef, remainingBalance, telegramId: user.telegram_id };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -363,7 +377,7 @@ const DB = {
 
   getUserTransactions: async (userId) => {
     const res = await pool.query(
-      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS') ORDER BY id DESC LIMIT 15",
+      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS') ORDER BY id DESC LIMIT 20",
       [userId]
     );
     return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
@@ -389,11 +403,22 @@ const DB = {
       const tx = tRes.rows[0];
       const amount = parseFloat(tx.amount);
 
-      await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [amount, tx.user_id]);
+      const uRes = await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance, telegram_id, first_name, username',
+        [amount, tx.user_id]
+      );
       await client.query("UPDATE transactions SET status = 'COMPLETED' WHERE id = $1", [txId]);
 
       await client.query('COMMIT');
-      return { success: true, userId: tx.user_id, amount };
+      const user = uRes.rows[0];
+      return {
+        success: true,
+        userId: tx.user_id,
+        amount,
+        newBalance: parseFloat(user.balance),
+        telegramId: user.telegram_id,
+        name: user.first_name || user.username
+      };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -415,12 +440,33 @@ const DB = {
       WHERE t.type = 'WITHDRAW' AND t.status = 'PENDING' 
       ORDER BY t.id DESC
     `);
-    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount), current_user_balance: parseFloat(r.current_user_balance) }));
+    return res.rows.map(r => ({ 
+      ...r, 
+      amount: parseFloat(r.amount), 
+      current_user_balance: parseFloat(r.current_user_balance),
+      payment_method: r.payment_method || 'TELEBIRR'
+    }));
   },
 
   approveWithdrawal: async (txId) => {
-    const res = await pool.query("UPDATE transactions SET status = 'COMPLETED' WHERE id = $1 AND status = 'PENDING'", [txId]);
-    return res.rowCount > 0;
+    const res = await pool.query(`
+      UPDATE transactions 
+      SET status = 'COMPLETED' 
+      WHERE id = $1 AND status = 'PENDING'
+      RETURNING user_id, amount, phone_number, payment_method
+    `, [txId]);
+    if (res.rows.length === 0) return null;
+    const tx = res.rows[0];
+    const uRes = await pool.query("SELECT telegram_id, balance FROM users WHERE id = $1", [tx.user_id]);
+    return {
+      success: true,
+      userId: tx.user_id,
+      amount: Math.abs(parseFloat(tx.amount)),
+      phoneNumber: tx.phone_number,
+      paymentMethod: tx.payment_method || 'TELEBIRR',
+      telegramId: uRes.rows[0]?.telegram_id,
+      balance: parseFloat(uRes.rows[0]?.balance)
+    };
   },
 
   rejectWithdrawal: async (txId) => {
@@ -432,7 +478,7 @@ const DB = {
       const tx = tRes.rows[0];
       const refundAmount = Math.abs(parseFloat(tx.amount));
 
-      const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance', [refundAmount, tx.user_id]);
+      const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance, telegram_id', [refundAmount, tx.user_id]);
       await client.query("UPDATE transactions SET status = 'REJECTED' WHERE id = $1", [txId]);
 
       await client.query('COMMIT');
@@ -440,8 +486,81 @@ const DB = {
         success: true,
         userId: tx.user_id,
         refundedAmount: refundAmount,
-        newBalance: parseFloat(uRes.rows[0].balance)
+        newBalance: parseFloat(uRes.rows[0].balance),
+        telegramId: uRes.rows[0].telegram_id
       };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 🎁 ==================== PROMO CODES SYSTEM ====================
+  createPromoCode: async (code, rewardAmount, maxUsers = 50, expiryHours = 24) => {
+    const cleanCode = code.trim().toUpperCase();
+    const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);
+    const res = await pool.query(
+      `INSERT INTO promo_codes (code, reward_amount, max_users, expires_at) 
+       VALUES ($1, $2, $3, $4) 
+       ON CONFLICT (code) DO UPDATE 
+       SET reward_amount = $2, max_users = $3, expires_at = $4, is_active = 1, used_count = 0 
+       RETURNING *`,
+      [cleanCode, rewardAmount, maxUsers, expiresAt]
+    );
+    return res.rows[0];
+  },
+
+  getAllPromoCodes: async () => {
+    const res = await pool.query('SELECT * FROM promo_codes ORDER BY id DESC LIMIT 50');
+    return res.rows.map(r => ({
+      ...r,
+      reward_amount: parseFloat(r.reward_amount),
+      is_expired: new Date(r.expires_at) < new Date()
+    }));
+  },
+
+  deletePromoCode: async (id) => {
+    await pool.query('DELETE FROM promo_claims WHERE promo_id = $1', [id]);
+    const res = await pool.query('DELETE FROM promo_codes WHERE id = $1', [id]);
+    return res.rowCount > 0;
+  },
+
+  claimPromoCode: async (userId, codeStr) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cleanCode = codeStr.trim().toUpperCase();
+
+      const pRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 FOR UPDATE', [cleanCode]);
+      if (pRes.rows.length === 0) throw new Error('❌ የተሳሳተ ፕሮሞኮድ ነው!');
+      const promo = pRes.rows[0];
+
+      if (promo.is_active !== 1) throw new Error('❌ ይህ ፕሮሞኮድ በአድሚን ተዘግቷል!');
+      if (new Date(promo.expires_at) < new Date()) throw new Error('⏳ የዚህ ፕሮሞኮድ ጊዜ አልቋል!');
+      if (promo.used_count >= promo.max_users) throw new Error('❌ ይህ ፕሮሞኮድ ሙሉ በሙሉ አልቋል!');
+
+      const cCheck = await client.query('SELECT id FROM promo_claims WHERE promo_id = $1 AND user_id = $2', [promo.id, userId]);
+      if (cCheck.rows.length > 0) throw new Error('⚠️ ይህንን ፕሮሞኮድ አስቀድመው ተጠቅመዋል!');
+
+      const reward = parseFloat(promo.reward_amount);
+
+      const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance', [reward, userId]);
+      if (uRes.rows.length === 0) throw new Error('User not found');
+
+      await client.query('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = $1', [promo.id]);
+      await client.query(
+        'INSERT INTO promo_claims (promo_id, user_id, claimed_amount) VALUES ($1, $2, $3)',
+        [promo.id, userId, reward]
+      );
+      await client.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, $2, $3, $4, $5)',
+        [userId, 'PROMO_BONUS', reward, 'COMPLETED', `PROMO_${cleanCode}`]
+      );
+
+      await client.query('COMMIT');
+      return { success: true, rewardAmount: reward, newBalance: parseFloat(uRes.rows[0].balance), code: cleanCode };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

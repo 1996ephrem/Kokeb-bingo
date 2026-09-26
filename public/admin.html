@@ -91,6 +91,7 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 አጠቃላይ ዳሽቦርድ</button>
     <button class="tab-btn" onclick="switchTab('deposits')">📥 ማስገቢያዎች <span id="badge-deposits" class="badge-count">0</span></button>
     <button class="tab-btn" onclick="switchTab('withdrawals')">📤 ማውጫዎች <span id="badge-withdrawals" class="badge-count">0</span></button>
+    <button class="tab-btn" onclick="switchTab('promos')">🎁 ፕሮሞኮድ</button>
     <button class="tab-btn" onclick="switchTab('archive')">📜 የዝውውር ማህደር</button>
     <button class="tab-btn" onclick="switchTab('rooms')">🎮 ክፍሎች</button>
     <button class="tab-btn" onclick="switchTab('users')">👥 ተጠቃሚዎች</button>
@@ -101,7 +102,6 @@
 
   <!-- TAB 1: DASHBOARD OVERVIEW -->
   <div id="tab-dashboard" class="panel-section active">
-    <!-- TODAY REPORT BANNER -->
     <div class="today-banner">
       <div><span style="font-size: 10px; color: #8e8aa8;">📅 የዛሬ ገቢ (Today Deposits):</span><div style="font-size: 16px; font-weight: bold; color: #00ff87;" id="today-deposits">0 ETB</div></div>
       <div><span style="font-size: 10px; color: #8e8aa8;">📅 የዛሬ የተከፈለ (Today Payouts):</span><div style="font-size: 16px; font-weight: bold; color: #ffd700;" id="today-payouts">0 ETB</div></div>
@@ -109,7 +109,6 @@
       <div><span style="font-size: 10px; color: #8e8aa8;">📅 የዛሬ ዙሮች ብዛት:</span><div style="font-size: 16px; font-weight: bold; color: #fff;" id="today-rounds">0</div></div>
     </div>
 
-    <!-- ALL TIME STATS -->
     <div class="stats-grid">
       <div class="stat-card"><h4>🟢 ኦንላይን ተጫዋቾች</h4><div class="val" style="color: #00ffcc;" id="stat-online">0</div></div>
       <div class="stat-card"><h4>💰 ጠቅላላ ትርፍ (All-Time Profit)</h4><div class="val" style="color: #00ff87;" id="stat-profit">0 ETB</div></div>
@@ -143,16 +142,54 @@
     </div>
   </div>
 
-  <!-- TAB 3: PENDING WITHDRAWALS QUEUE -->
+  <!-- TAB 3: PENDING WITHDRAWALS QUEUE (የክፍያ መንገድ የተስተካከለበት) -->
   <div id="tab-withdrawals" class="panel-section">
     <div class="box">
       <h3>📤 የተጠየቁ የገንዘብ ማውጫ ጥያቄዎች (Pending Cashouts)</h3>
-      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 10px;">በቴሌብር ስልካቸው ልከህ ስትጨርስ **"አጽድቅ (APPROVE)"** ን ተጫን።</p>
+      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 10px;">የክፍያ መንገዱን አይተህ በቴሌብር ወይም በሲቢኢ ብር ልከህ ስትጨርስ **"አጽድቅ (APPROVE)"** ን ተጫን።</p>
       <table>
         <thead>
-          <tr><th>ተጫዋች</th><th>ስልክ ቁጥር</th><th>መጠን</th><th>ቀን</th><th>እርምጃዎች</th></tr>
+          <tr><th>ተጫዋች</th><th>መንገድ (Method)</th><th>ስልክ / አካውንት</th><th>መጠን</th><th>ቀን</th><th>እርምጃዎች</th></tr>
         </thead>
         <tbody id="withdrawals-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: PROMO CODES MANAGEMENT (አዲስ የተጨመረ) -->
+  <div id="tab-promos" class="panel-section">
+    <div class="box" style="max-width: 550px; margin-bottom: 14px;">
+      <h3>🎁 አዲስ ፕሮሞኮድ መፍጠሪያ (Create Promo Code)</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">የኮድ ስም (Promo Code):</label>
+          <input type="text" id="promo-code-input" placeholder="ለምሳሌ KOKEB20" style="width: 100%; text-transform: uppercase; font-weight: bold;">
+        </div>
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">የቦነስ ብር መጠን (Bonus ETB):</label>
+          <input type="number" id="promo-amount-input" placeholder="ለምሳሌ 15" style="width: 100%;">
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">ከፍተኛ ተጠቃሚ ብዛት (Max Users):</label>
+          <input type="number" id="promo-max-input" placeholder="ለምሳሌ 50" style="width: 100%;" value="50">
+        </div>
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">የሚያበቃበት ጊዜ በሰዓት (Hours):</label>
+          <input type="number" id="promo-hours-input" placeholder="ለምሳሌ 24" style="width: 100%;" value="24">
+        </div>
+      </div>
+      <button class="btn-sm btn-gold" style="width: 100%; padding: 10px;" onclick="createPromoCode()">✨ ፕሮሞኮዱን ፍጠር (CREATE PROMO)</button>
+    </div>
+
+    <div class="box">
+      <h3>📋 የነቁ እና ያገለገሉ ፕሮሞኮዶች ዝርዝር</h3>
+      <table>
+        <thead>
+          <tr><th>ኮድ</th><th>ቦነስ</th><th>የተጠቀሙ/ጠቅላላ</th><th>የሚያበቃበት ቀን</th><th>ሁኔታ</th><th>እርምጃ</th></tr>
+        </thead>
+        <tbody id="promos-table-body"></tbody>
       </table>
     </div>
   </div>
@@ -165,6 +202,7 @@
           <option value="ALL">ሁሉም አይነት</option>
           <option value="DEPOSIT">📥 ማስገቢያዎች</option>
           <option value="WITHDRAW">📤 ማውጫዎች</option>
+          <option value="PROMO_BONUS">🎁 ፕሮሞኮድ ቦነስ</option>
         </select>
         <select id="archive-status" onchange="fetchTransactionArchive()">
           <option value="ALL">ሁሉም ሁኔታ</option>
@@ -200,7 +238,7 @@
   <div id="tab-users" class="panel-section">
     <div class="box">
       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <h3>👥 የተመዘገቡ ተጫዋቾች ዝርዝር (ስሙን በመጫን ፕሮፋይሉን እይ)</h3>
+        <h3>👥 የተመዘገቡ ተጫዋቾች ዝርዝር</h3>
         <input type="text" id="user-search-input" placeholder="በስም ወይም በ ID ፈልግ..." oninput="fetchAdminData()">
       </div>
       <table>
@@ -218,7 +256,7 @@
       <h3>⚙️ የክፍሎች ዋጋ እና የኮሚሽን ፐርሰንት ማስተካከያ</h3>
       <div style="margin-bottom: 10px;">
         <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የቤት ኮሚሽን ፐርሰንት (House Commission %):</label>
-        <input type="number" id="cfg-commission" style="width: 100%;" placeholder="10">
+        <input type="number" id="cfg-commission" style="width: 100%;" placeholder="15">
       </div>
       <div style="margin-bottom: 10px;">
         <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">🟢 ጀማሪ ክፍል ዋጋ (Beginner Stake ETB):</label>
@@ -333,6 +371,7 @@
       document.getElementById(`tab-${tabId}`).classList.add('active');
       event.target.classList.add('active');
       if (tabId === 'archive') fetchTransactionArchive();
+      if (tabId === 'promos') fetchPromoCodes();
     }
 
     async function fetchAdminData() {
@@ -373,7 +412,7 @@
         else { withBadge.style.display = 'none'; }
 
         if (!document.getElementById('cfg-commission').value) {
-          document.getElementById('cfg-commission').value = data.stats.globalCommission || 10;
+          document.getElementById('cfg-commission').value = data.stats.globalCommission || 15;
           document.getElementById('cfg-beg-stake').value = data.stats.activeRooms.Beginner.stake;
           document.getElementById('cfg-turbo-stake').value = data.stats.activeRooms.Turbo.stake;
           document.getElementById('cfg-vip-stake').value = data.stats.activeRooms.VIP.stake;
@@ -414,8 +453,9 @@
           withTbody.innerHTML = data.pendingWithdrawals.map(w => `
             <tr>
               <td><b>${w.username}</b></td>
-              <td><code style="color:#00ffcc; font-size:12.5px;">${w.phone_number}</code></td>
-              <td style="color: #ffd700; font-weight: bold;">${Math.abs(w.amount)} ETB</td>
+              <td><b style="color:#00ffcc; background:rgba(0,255,204,0.1); padding:2px 6px; border-radius:4px;">${w.payment_method || 'TELEBIRR'}</b></td>
+              <td><code style="color:#ffd700; font-size:12px;">${w.phone_number}</code></td>
+              <td style="color: #00ff87; font-weight: bold;">${Math.abs(w.amount)} ETB</td>
               <td><small>${new Date(w.created_at).toLocaleTimeString()}</small></td>
               <td>
                 <button class="btn-sm btn-green" onclick="approveWithdrawal(${w.id})">✅ አጽድቅ (APPROVE)</button>
@@ -424,7 +464,7 @@
             </tr>
           `).join('');
         } else {
-          withTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #8e8aa8;">ምንም ያልተከፈለ ጥያቄ የለም</td></tr>`;
+          withTbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #8e8aa8;">ምንም ያልተከፈለ ጥያቄ የለም</td></tr>`;
         }
 
         document.getElementById('rooms-control-body').innerHTML = Object.keys(data.stats.activeRooms).map(name => {
@@ -464,6 +504,66 @@
         `).join('');
 
       } catch (err) { console.error(err); }
+    }
+
+    async function createPromoCode() {
+      const code = document.getElementById('promo-code-input').value.trim();
+      const rewardAmount = document.getElementById('promo-amount-input').value.trim();
+      const maxUsers = document.getElementById('promo-max-input').value.trim();
+      const expiryHours = document.getElementById('promo-hours-input').value.trim();
+
+      if (!code || !rewardAmount) return alert("እባክዎን የኮድ ስም እና የብር መጠን ያስገቡ!");
+
+      try {
+        const res = await fetch('/api/admin/create-promo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ code, rewardAmount, maxUsers, expiryHours })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("🎉 " + data.message);
+          document.getElementById('promo-code-input').value = '';
+          document.getElementById('promo-amount-input').value = '';
+          fetchPromoCodes();
+        } else {
+          alert("❌ " + (data.error || "መፍጠር አልተቻለም"));
+        }
+      } catch (e) { alert("የሰርቨር ችግር!"); }
+    }
+
+    async function fetchPromoCodes() {
+      try {
+        const res = await fetch('/api/admin/promo-codes', {
+          headers: { 'x-admin-pin': adminPin }
+        });
+        const data = await res.json();
+        const tbody = document.getElementById('promos-table-body');
+        if (data.promos && data.promos.length > 0) {
+          tbody.innerHTML = data.promos.map(p => `
+            <tr>
+              <td><b style="color:#00ffcc; letter-spacing:1px;">${p.code}</b></td>
+              <td style="color:#00ff87; font-weight:bold;">${p.reward_amount} ETB</td>
+              <td><b>${p.used_count}</b> / ${p.max_users} ሰው</td>
+              <td><small>${new Date(p.expires_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</small></td>
+              <td><span style="color:${p.is_expired ? '#ff4757' : (p.used_count>=p.max_users ? '#f1c40f' : '#00ff87')}; font-weight:bold;">${p.is_expired ? 'EXPIRED' : (p.used_count>=p.max_users ? 'FULL' : 'ACTIVE')}</span></td>
+              <td><button class="btn-sm btn-red" onclick="deletePromo(${p.id})">🗑️ ሰርዝ</button></td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#8e8aa8;">ምንም ፕሮሞኮድ የለም</td></tr>`;
+        }
+      } catch (e) {}
+    }
+
+    async function deletePromo(promoId) {
+      if (!confirm("ይህንን ፕሮሞኮድ መሰረዝ ትፈልጋለህ?")) return;
+      await fetch('/api/admin/delete-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+        body: JSON.stringify({ promoId })
+      });
+      fetchPromoCodes();
     }
 
     async function fetchTransactionArchive() {
@@ -572,7 +672,7 @@
     }
 
     async function approveWithdrawal(txId) {
-      if (!confirm("ይህንን ክፍያ በቴሌብር ልከህ ጨርሰሃል? (ማጽደቅ ትፈልጋለህ?)")) return;
+      if (!confirm("ይህንን ክፍያ ልከህ ጨርሰሃል? (ማጽደቅ ትፈልጋለህ?)")) return;
       await fetch('/api/admin/approve-withdrawal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
