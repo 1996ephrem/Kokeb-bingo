@@ -94,7 +94,6 @@
     .cartela-btn.selected { background: linear-gradient(135deg, #00ff87 0%, #00e5ff 100%); color: #08051a; }
     .cartela-btn.taken { background: rgba(255,255,255,0.02); opacity: 0.25; cursor: not-allowed; }
 
-    /* 🎮 ARENA LIVE STATS & NOTIFICATION */
     .arena-live-bar {
       background: linear-gradient(135deg, #1b124a, #100a30);
       border: 1px solid rgba(0, 229, 255, 0.35);
@@ -238,10 +237,10 @@
 
     <div class="balance-master-card">
       <div style="font-size: 11px; color: var(--text-muted);">Total balance</div>
-      <div class="balance-val-huge"><span id="hub-coins">10</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
+      <div class="balance-val-huge"><span id="hub-coins">0</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
       <div class="balance-sub-pills">
         <span class="pill-cashable">● <span id="cashable-txt">0 Birr cashable</span></span>
-        <span class="pill-playonly"><span id="hub-coins-sub">10</span> <span>Birr play-only</span></span>
+        <span class="pill-playonly"><span id="hub-coins-sub">0</span> <span>Birr play-only</span></span>
       </div>
     </div>
 
@@ -293,7 +292,7 @@
     <div class="feature-banner" onclick="switchNav('earn')">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 18px;">🎁</span>
-        <div><b>Invite friends</b><div style="font-size: 10px; color: var(--text-muted);">Earn 5 ETB every time a friend joins</div></div>
+        <div><b>Invite friends</b><div style="font-size: 10px; color: var(--text-muted);">ጓደኞችዎን ይጋብዙና አብረው ይጫወቱ</div></div>
       </div>
       <span>></span>
     </div>
@@ -339,7 +338,7 @@
 
     <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin: 10px 0 6px 0;">INVITE FRIENDS</div>
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;">Earn <b>5 Birr</b> every time a friend joins and verifies their phone number!</p>
+      <p style="font-size: 11px; color: #dcdde1; line-height: 1.4; margin-bottom: 8px;">ጓደኞችዎን ይጋብዙ እና አብረው ይጫወቱ!</p>
       <div style="background: rgba(0,0,0,0.3); border: 1px dashed var(--accent-cyan); border-radius: 8px; padding: 8px; font-size: 11px; color: #00e5ff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; word-break: break-all;">
         <span id="ref-link-display">https://t.me/Kokeb_Bingo_Bot?start=ref_...</span>
         <span style="cursor: pointer; margin-left: 6px;" onclick="copyReferralLink()">📋</span>
@@ -411,7 +410,7 @@
 
     <div class="balance-master-card">
       <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">TOTAL BALANCE</div>
-      <div class="balance-val-huge"><span id="wallet-balance">10</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
+      <div class="balance-val-huge"><span id="wallet-balance">0</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
       <div style="font-size: 10.5px; color: var(--text-muted);">Everything you can play with</div>
     </div>
 
@@ -423,7 +422,7 @@
       </div>
       <div class="wallet-box-playonly">
         <div style="font-size: 10px; color: var(--accent-purple); font-weight: bold;">● PLAY-ONLY</div>
-        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">10</span> Birr</div>
+        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">0</span> Birr</div>
         <div style="font-size: 9.5px; color: var(--text-muted);">Deposits & bonuses — spend on cards</div>
       </div>
     </div>
@@ -507,7 +506,7 @@
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="cancelCartelaSelection()">← BACK</button>
       <h4 id="room-title" style="color: var(--accent-cyan);">Cartela Selection</h4>
-      <span class="pill-cashable">🪙 <span id="cartela-coins">10</span></span>
+      <span class="pill-cashable">🪙 <span id="cartela-coins">0</span></span>
     </div>
     <div style="background: #140d38; border-radius: 12px; padding: 10px; text-align: center; margin-bottom: 8px;">
       <h3 id="lobby-status-banner">⏰ ROUND STARTS IN: <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
@@ -585,7 +584,7 @@
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); tg.ready(); }
 
-    let userState = { dbId: 1, telegramId: null, name: "Player ♐", coins: 10, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
+    let userState = { dbId: 1, telegramId: null, name: "Player ♐", coins: 0, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
     let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
@@ -863,7 +862,6 @@
         document.getElementById('lounge-vip-status').innerText = `● ${status.VIP.state} · ${status.VIP.timer}s`;
       }
 
-      // እንዲሁም በጨዋታው ሜዳ ላይ ቁጥሮቹን አዘምን
       if (selectionState.roomName && status[selectionState.roomName]) {
         const curRoom = status[selectionState.roomName];
         const pEl = document.getElementById('arena-prize-pool');
@@ -926,7 +924,6 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
-    // 🎁 ፕሮሞኮድ መቀበያ ፈንክሽን
     async function claimPromoCode(inputId) {
       const inputEl = document.getElementById(inputId);
       const code = inputEl ? inputEl.value.trim() : '';
@@ -1076,7 +1073,6 @@
       selectionState.generatedCombinations = d.cartelas;
       selectionState.takenCartelaIds = new Set(d.takenCartelaIds);
 
-      // በሜዳው ላይ ያለውን ስታትስቲክስ አዘምን
       document.getElementById('arena-prize-pool').innerText = d.prizePool;
       document.getElementById('arena-cards-sold').innerText = d.takenCartelaIds.length;
       document.getElementById('arena-timer-val').innerText = d.timer;
@@ -1204,7 +1200,6 @@
       document.getElementById('claim-bingo-btn').disabled = true;
       document.getElementById('claim-bingo-btn').innerText = '🏆 CLAIM BINGO!';
 
-      // ደራሽ ብር፣ ካርቴላዎች ብዛት እና ቆጣሪን በሜዳው ላይ ማሳየት
       if (d.prizePool) document.getElementById('arena-prize-pool').innerText = d.prizePool;
       if (d.totalCards) document.getElementById('arena-cards-sold').innerText = d.totalCards;
       if (d.timer) document.getElementById('arena-timer-val').innerText = d.timer;
@@ -1245,7 +1240,6 @@
         cardBox.className = 'player-card';
         cardBox.id = `player-card-${id}`;
 
-        // 🚨 የካርቴላ ቁጥርና ID በግልጽ እንዲታይ ተደርጓል
         let html = `
           <div class="card-top">
             <span style="font-weight:900; color:#08051a;">ካርቴላ #${id} <small style="color:#7928ca; font-weight:bold;">(ID: ${id})</small></span>
@@ -1326,7 +1320,6 @@
       }
     });
 
-    // 🚨 ለቆ ሲወጣ የሚሰጠው የማስጠንቀቂያ መልዕክት
     function leaveCurrentGame() {
       let confirmMsg = "እርግጠኛ ነዎት ጨዋታውን ለቀው መውጣት ይፈልጋሉ?";
       if (gameState.isLive && !gameState.isSpectator) {
@@ -1356,7 +1349,7 @@
     function shareTelegramReferral() { 
       const myId = userState.telegramId || userState.dbId;
       const link = `https://t.me/${userState.botUsername || 'Kokeb_Bingo_Bot'}?start=ref_${myId}`;
-      tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('🎮 ና የኮከብ ቢንጎ አብረን እንጫወት! የ 10 ETB መነሻ ቦነስ አለው!')}`); 
+      tg?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('🎮 ና የኮከብ ቢንጎ አብረን እንጫወት! ኑ አብረን እናሸንፍ!')}`); 
     }
   </script>
 </body>

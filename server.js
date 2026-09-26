@@ -94,17 +94,18 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።').catch(() => {});
       }
 
+      // ጋባዡን ጓደኛህ ገብቷል ብሎ ማሳወቅ (ያለ ቦነስ ቃል)
       if (referrerRef && !user.phone_number) {
         bot.sendMessage(
           referrerRef,
-          `👋 አንድ ጓደኛዎ (${firstName}) በእርስዎ ሊንክ ገብቷል! ስልኩን እንዳረጋገጠ የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ይደረጋል!`
+          `👋 አንድ ጓደኛዎ (${firstName}) በእርስዎ ሊንክ ገብቷል!`
         ).catch(() => {});
       }
 
       if (!user.phone_number) {
         return bot.sendMessage(
           chatId,
-          `🎯 Welcome to Kokeb Bingo 🌟!\n\nየ 10 ETB የጀማሪ ቦነስዎን ለመቀበል እና ጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
+          `🎯 Welcome to Kokeb Bingo 🌟!\n\nጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
           {
             reply_markup: {
               keyboard: [[{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]],
@@ -159,36 +160,16 @@ if (process.env.BOT_TOKEN) {
         }
       };
 
-      if (regResult.isNewBonus) {
+      if (!regResult.alreadyRegistered) {
         bot.sendMessage(
           chatId,
-          `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n🎁 የ 10 ETB ጀማሪ ቦነስ ወደ አካውንትዎ ገቢ ሆኗል!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n💰 ለመጫወት በቴሌብር ወይም በሲቢኢ ሒሳብዎን ይሙሉ!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         ).catch(() => {});
-
-        if (regResult.inviterRewarded) {
-          const inv = regResult.inviterRewarded;
-          bot.sendMessage(
-            inv.telegramId,
-            `🎉 እንኳን ደስ አለዎት! የጋበዙት ጓደኛ (${firstName}) ተመዝግቧል!\n🎁 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!\n💰 አጠቃላይ ባላንስዎ: ${inv.newBalance} ETB`
-          ).catch(() => {});
-
-          for (const [sockId, pInfo] of activeSockets.entries()) {
-            if (pInfo.telegramId === inv.telegramId || pInfo.dbId === inv.id) {
-              pInfo.balance = inv.newBalance;
-              io.to(sockId).emit('balance_updated', { balance: inv.newBalance });
-              io.to(sockId).emit('referral_credited', {
-                amount: 5.0,
-                newBalance: inv.newBalance,
-                message: `🎉 የ 5 ETB የግብዣ ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`
-              });
-            }
-          }
-        }
       } else {
         bot.sendMessage(
           chatId,
-          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n*(የጀማሪ ቦነስ የሚሰጠው ለመጀመሪያ ምዝገባ ብቻ ነው)*\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         ).catch(() => {});
       }
@@ -647,7 +628,6 @@ app.post('/api/checkin/claim', async (req, res) => {
   }
 });
 
-// 🎁 ተጫዋች ፕሮሞኮድ ሲጠቀም (Redeem Promo Code)
 app.post('/api/promo/claim', async (req, res) => {
   const { userId, code } = req.body;
   if (!userId || !code) return res.status(400).json({ error: 'እባክዎን ፕሮሞኮዱን ያስገቡ!' });
@@ -911,7 +891,6 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// 🎁 ፕሮሞኮድ ለአድሚን ማስተዳደሪያ APIs
 app.get('/api/admin/promo-codes', adminAuth, async (req, res) => {
   try {
     const promos = await DB.getAllPromoCodes();
