@@ -94,6 +94,7 @@
     .cartela-btn.selected { background: linear-gradient(135deg, #00ff87 0%, #00e5ff 100%); color: #08051a; }
     .cartela-btn.taken { background: rgba(255,255,255,0.02); opacity: 0.25; cursor: not-allowed; }
 
+    /* 🎮 ARENA LIVE STATS & NOTIFICATION */
     .arena-live-bar {
       background: linear-gradient(135deg, #1b124a, #100a30);
       border: 1px solid rgba(0, 229, 255, 0.35);
@@ -281,6 +282,18 @@
       </div>
     </div>
 
+    <!-- 🏆 ሳምንታዊ የግብዣ ውድድር ባነር -->
+    <div class="feature-banner" onclick="openContestView()" style="border-color: rgba(255,215,0,0.35);">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 20px;">🏆</span>
+        <div>
+          <b style="color: var(--accent-gold);">ሳምንታዊ የግብዣ ውድድር (Referral Contest)</b>
+          <div style="font-size: 10px; color: var(--text-muted);">ብዙ ሰው ይጋብዙ፤ ሳምንታዊ የገንዘብ ሽልማት ያሸንፉ!</div>
+        </div>
+      </div>
+      <span style="color: var(--accent-gold); font-weight: bold;">></span>
+    </div>
+
     <div class="feature-banner" onclick="switchNav('leaderboard')">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 18px;">👑</span>
@@ -319,12 +332,6 @@
         <div class="checkin-pill" id="cpill-7">Day 7<br><small>7 ETB</small></div>
       </div>
       <button class="btn btn-gold" id="btn-claim-checkin" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyStreak()">Claim Today's Bonus</button>
-    </div>
-
-    <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin-bottom: 6px;">TASKS</div>
-    <div class="task-card">
-      <div><b>Join Kokeb Bingo Channel</b><div style="font-size: 10px; color: var(--accent-gold);">@Kokeb_Bingo_Bot · 1 Birr</div></div>
-      <button class="btn-sm btn-success" onclick="shareTelegramReferral()">Open</button>
     </div>
 
     <!-- 🎁 ፕሮሞኮድ ሳጥን በ Earn ገጽ ላይ -->
@@ -549,14 +556,54 @@
     </div>
   </div>
 
-  <!-- VIEW 9: REAL LEADERBOARD -->
+  <!-- VIEW 9: LEADERBOARDS (GAME & REFERRAL CONTEST) -->
   <div id="screen-leaderboard" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="switchNav('dashboard')">← BACK</button>
       <div class="app-logo-text">Leaderboard 🏆</div>
       <div></div>
     </div>
-    <div id="real-leaderboard-container" style="margin-top: 10px;"></div>
+
+    <!-- TABS TO SWITCH BETWEEN GAME WINS AND REFERRAL CONTEST -->
+    <div style="display: flex; gap: 6px; margin: 8px 0 12px 0;">
+      <button id="tab-btn-gamewins" class="btn-sm btn-purple" style="flex: 1; padding: 9px;" onclick="switchLeaderboardTab('game')">🎮 የጨዋታ አሸናፊዎች</button>
+      <button id="tab-btn-refcontest" class="btn-sm" style="flex: 1; padding: 9px; background: rgba(255,255,255,0.06); color: #fff;" onclick="switchLeaderboardTab('contest')">🏆 የግብዣ ውድድር</button>
+    </div>
+
+    <!-- 1. GAME WINS LEADERBOARD -->
+    <div id="box-game-leaderboard">
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">በቢንጎ ከፍተኛ ብር ያሸነፉ ምርጥ ተጫዋቾች ዝርዝር:</div>
+      <div id="real-leaderboard-container"></div>
+    </div>
+
+    <!-- 2. WEEKLY REFERRAL CONTEST LEADERBOARD -->
+    <div id="box-contest-leaderboard" style="display: none;">
+      <!-- PRIZES CARDS -->
+      <div style="background: linear-gradient(135deg, #1b124a, #100a30); border: 1px solid rgba(255, 215, 0, 0.35); border-radius: 14px; padding: 12px; margin-bottom: 12px; text-align: center;">
+        <h4 style="color: var(--accent-gold); margin-bottom: 6px;">🎁 የዚህ ሳምንት ሽልማቶች</h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+          <div style="background: rgba(255,215,0,0.1); border: 1px solid #ffd700; border-radius: 8px; padding: 6px;">
+            <div style="font-size: 16px;">🥇</div>
+            <div style="font-size: 9.5px; color:#ffd700;">1ኛ ደረጃ</div>
+            <b style="color:#00ff87; font-size:12px;" id="contest-p1-card">500 ETB</b>
+          </div>
+          <div style="background: rgba(192,192,192,0.1); border: 1px solid #c0c0c0; border-radius: 8px; padding: 6px;">
+            <div style="font-size: 16px;">🥈</div>
+            <div style="font-size: 9.5px; color:#c0c0c0;">2ኛ ደረጃ</div>
+            <b style="color:#00ff87; font-size:12px;" id="contest-p2-card">300 ETB</b>
+          </div>
+          <div style="background: rgba(205,127,50,0.1); border: 1px solid #cd7f32; border-radius: 8px; padding: 6px;">
+            <div style="font-size: 16px;">🥉</div>
+            <div style="font-size: 9.5px; color:#cd7f32;">3ኛ ደረጃ</div>
+            <b style="color:#00ff87; font-size:12px;" id="contest-p3-card">150 ETB</b>
+          </div>
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 8px;">ብዙ ሰው በመጋበዝ 1ኛ፣ 2ኛ ወይም 3ኛ ይውጡ፤ ሳምንቱ ሲጠናቀቅ ብሩ በቀጥታ ወደ ዋሌትዎ ገቢ ይደረጋል!</div>
+      </div>
+
+      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin-bottom: 6px;">📊 የዚህ ሳምንት ደረጃዎች (Top Inviters):</div>
+      <div id="contest-leaderboard-container"></div>
+    </div>
   </div>
 
   <!-- FLOATING 5-ITEM BOTTOM NAVIGATION BAR -->
@@ -750,7 +797,39 @@
 
       document.body.classList.add('with-nav');
       if (screenName === 'wallet') fetchMyTransactions();
-      if (screenName === 'leaderboard') fetchRealLeaderboard();
+      if (screenName === 'leaderboard') {
+        fetchRealLeaderboard();
+        fetchReferralContestLeaderboard();
+      }
+    }
+
+    function openContestView() {
+      switchNav('leaderboard');
+      switchLeaderboardTab('contest');
+    }
+
+    function switchLeaderboardTab(tab) {
+      SoundFX.pop();
+      const btnGame = document.getElementById('tab-btn-gamewins');
+      const btnContest = document.getElementById('tab-btn-refcontest');
+      const boxGame = document.getElementById('box-game-leaderboard');
+      const boxContest = document.getElementById('box-contest-leaderboard');
+
+      if (tab === 'game') {
+        btnGame.className = 'btn-sm btn-purple';
+        btnContest.className = 'btn-sm';
+        btnContest.style.background = 'rgba(255,255,255,0.06)';
+        boxGame.style.display = 'block';
+        boxContest.style.display = 'none';
+        fetchRealLeaderboard();
+      } else {
+        btnContest.className = 'btn-sm btn-purple';
+        btnGame.className = 'btn-sm';
+        btnGame.style.background = 'rgba(255,255,255,0.06)';
+        boxGame.style.display = 'none';
+        boxContest.style.display = 'block';
+        fetchReferralContestLeaderboard();
+      }
     }
 
     function showScreen(screenId) {
@@ -817,9 +896,10 @@
       fetchMyTransactions();
     });
 
-    socket.on('referral_credited', (data) => {
+    // 🏆 የግብዣ ውድድር አሸናፊ ሲሆኑ
+    socket.on('contest_winner', (data) => {
       SoundFX.win();
-      showModal("የግብዣ ቦነስ ገቢ ሆኗል! 🎉", data.message, "🎁");
+      showModal("🏆 የውድድር አሸናፊ!", data.message || `እንኳን ደስ አለዎት! የሳምንታዊው ውድድር አሸናፊ በመሆን ${data.prize} ETB ተሸልመዋል!`, "🎁");
       fetchMyTransactions();
     });
 
@@ -1015,8 +1095,8 @@
           tbody.innerHTML = data.transactions.map(t => {
             let label = '📥 Deposit';
             if (t.type === 'WITHDRAW') label = '📤 Withdraw';
-            if (t.type === 'REFERRAL_BONUS') label = '🎁 Referral';
             if (t.type === 'PROMO_BONUS') label = '✨ Promo Bonus';
+            if (t.type === 'REFERRAL_CONTEST_PRIZE') label = '🏆 Contest Prize';
             return `
               <tr>
                 <td><b>${label}</b></td>
@@ -1056,6 +1136,36 @@
       } catch (e) {
         container.innerHTML = `<p style="text-align: center; color: #ff4757; font-size: 12px; padding: 20px;">መረጃውን ማግኘት አልተቻለም!</p>`;
       }
+    }
+
+    // 🏆 ሳምንታዊ የግብዣ ውድድር ደረጃዎች መጫኛ
+    async function fetchReferralContestLeaderboard() {
+      const container = document.getElementById('contest-leaderboard-container');
+      try {
+        const res = await fetch('/api/referral-contest/leaderboard');
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('contest-p1-card').innerText = `${data.prizes.prize1} ETB`;
+          document.getElementById('contest-p2-card').innerText = `${data.prizes.prize2} ETB`;
+          document.getElementById('contest-p3-card').innerText = `${data.prizes.prize3} ETB`;
+
+          if (data.leaders && data.leaders.length > 0) {
+            const medals = ['🥇 1ኛ', '🥈 2ኛ', '🥉 3ኛ'];
+            const prizes = [data.prizes.prize1, data.prizes.prize2, data.prizes.prize3];
+            container.innerHTML = data.leaders.map((l, i) => `
+              <div class="leader-row" style="border-color: ${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'rgba(255,255,255,0.08)'};">
+                <div>
+                  <b style="color: ${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#fff'};">${i < 3 ? medals[i] : `${i + 1}ኛ`} ${l.username}</b>
+                  <div style="font-size: 9.5px; color: var(--text-muted);">${l.inviteCount} ሰዎችን ጋብዘዋል</div>
+                </div>
+                <b style="color: var(--accent-green); font-size:12.5px;">${i < 3 ? `+${prizes[i]} ETB` : ''}</b>
+              </div>
+            `).join('');
+          } else {
+            container.innerHTML = `<p style="text-align: center; color: #8e8aa8; font-size: 11.5px; padding: 18px;">በዚህ ሳምንት እስካሁን የተመዘገበ ጋባዥ የለም! አሁኑኑ ጓደኞችዎን በመጋበዝ የ 1ኛ ደረጃ ተሸላሚ ይሁኑ 🌟</p>`;
+          }
+        }
+      } catch (e) {}
     }
 
     // ==================== LIVE GAME & SPECTATOR ENGINE ====================
