@@ -913,7 +913,16 @@ app.get('/api/admin/referral-contest', adminAuth, async (req, res) => {
 app.post('/api/admin/referral-contest/update-prizes', adminAuth, async (req, res) => {
   const { prize1, prize2, prize3 } = req.body;
   try {
-    await DB.updateReferralContestPrizes(parseFloat(prize1) || 0, parseFloat(prize2) || 0, parseFloat(prize3) || 0);
+    const p1 = parseFloat(prize1) || 0;
+    const p2 = parseFloat(prize2) || 0;
+    const p3 = parseFloat(prize3) || 0;
+    await DB.updateReferralContestPrizes(p1, p2, p3);
+
+    // 📢 ለሁሉም ተጫዋቾች ወዲያውኑ አዲሱን የሽልማት ዋጋ በ Socket.IO ንገራቸው!
+    io.emit('contest_prizes_updated', {
+      prizes: { prize1: p1, prize2: p2, prize3: p3 }
+    });
+
     res.json({ success: true, message: 'የውድድር ሽልማት መጠኖች ተስተካክለዋል!' });
   } catch (e) {
     res.status(500).json({ error: e.message });

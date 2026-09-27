@@ -89,12 +89,22 @@ async function initDB() {
       );
     `);
 
+    // የአድሚን ፒን
     const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
     if (pinRes.rows.length === 0) {
       const salt = crypto.randomBytes(16).toString('hex');
       const hash = hashPassword(process.env.ADMIN_PIN || "1234", salt);
       await pool.query("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', $1, $2)", [hash, salt]);
     }
+
+    // 🏆 የሳምንታዊ የግብዣ ውድድር መነሻ ቅንብሮች
+    await pool.query(`
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_1', '500') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_2', '300') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_3', '150') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('ref_contest_start', CURRENT_TIMESTAMP::text) ON CONFLICT (key) DO NOTHING;
+    `);
+
   } catch (err) {
     console.error('[-] Database initialization error:', err.message);
   }
@@ -116,7 +126,6 @@ const DB = {
       return u;
     }
 
-    // አዲስ ተጠቃሚ 0.0 ETB ይዞ ይመዘገባል
     const insertRes = await pool.query(
       'INSERT INTO users (telegram_id, username, first_name, referred_by, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 0.0, 0, 0) RETURNING *',
       [telegramId, username || 'Player', firstName || 'User', referrerRef ? String(referrerRef) : null]
@@ -126,7 +135,6 @@ const DB = {
     return newUser;
   },
 
-  // 🚨 የተስተካከለ፡ ምንም አይነት የነጻ 10 ETB ጀማሪ ቦነስም ሆነ የ 5 ETB የሪፈራል ቦነስ አይሰጥም!
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
     const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
     if (phoneCheck.rows.length > 0) {
@@ -149,7 +157,6 @@ const DB = {
 
     if (tgCheck.rows.length > 0) {
       const tgUser = tgCheck.rows[0];
-      // ባላንስ አይጨመርም፤ ስልኩ ብቻ ይመዘገባል
       const upRes = await pool.query(
         'UPDATE users SET phone_number = $1, username = $2, first_name = $3 WHERE id = $4 RETURNING *',
         [phoneNumber, username || tgUser.username, firstName || tgUser.first_name, tgUser.id]
@@ -298,7 +305,7 @@ const DB = {
 
   getUserTransactions: async (userId) => {
     const res = await pool.query(
-      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS') ORDER BY id DESC LIMIT 20",
+      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS', 'REFERRAL_CONTEST_PRIZE') ORDER BY id DESC LIMIT 20",
       [userId]
     );
     return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
@@ -418,6 +425,134 @@ const DB = {
     }
   },
 
+  // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር አስተዳደር ====================
+  getReferralContestConfig: async () => {
+    const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('ref_prize_1', 'ref_prize_2', 'ref_prize_3', 'ref_contest_start')");
+    const cfg = { prize1: 500, prize2: 300, prize3: 150, startDate: new Date(Date.now() - 7 * 86400000).toISOString() };
+    res.rows.forEach(r => {
+      if (r.key === 'ref_prize_1') cfg.prize1 = parseFloat(r.value) || 500;
+      if (r.key === 'ref_prize_2') cfg.prize2 = parseFloat(r.value) || 300;
+      if (r.key === 'ref_prize_3') cfg.prize3 = parseFloat(r.value) || 150;
+      if (r.key === 'ref_contest_start') cfg.startDate = r.value;
+    });
+    return cfg;
+  },
+
+  updateReferralContestPrizes: async (p1, p2, p3) => {
+    await pool.query(`
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_1', $1) 
+      ON CONFLICT (key) DO UPDATE SET value = $1
+    `, [String(p1)]);
+    await pool.query(`
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_2', $1) 
+      ON CONFLICT (key) DO UPDATE SET value = $1
+    `, [String(p2)]);
+    await pool.query(`
+      INSERT INTO admin_config (key, value) VALUES ('ref_prize_3', $1) 
+      ON CONFLICT (key) DO UPDATE SET value = $1
+    `, [String(p3)]);
+    return true;
+  },
+
+  getWeeklyReferralLeaderboard: async () => {
+    const cfg = await DB.getReferralContestConfig();
+    const startDate = cfg.startDate || new Date(Date.now() - 7 * 86400000).toISOString();
+
+    // ስልካቸውን ያረጋገጡ እና ከውድድሩ መጀመሪያ ቀን ጀምሮ የተመዘገቡ ተጋባዦችን ብቻ ቆጥር
+    const res = await pool.query(`
+      SELECT 
+        inv.id as user_id,
+        inv.telegram_id,
+        COALESCE(inv.username, inv.first_name, 'Player') as username,
+        COUNT(u.id) as invite_count
+      FROM users u
+      JOIN users inv ON (u.referred_by = inv.telegram_id OR u.referred_by = inv.id::text)
+      WHERE u.phone_number IS NOT NULL 
+        AND u.created_at >= $1::timestamp
+      GROUP BY inv.id, inv.telegram_id, inv.username, inv.first_name
+      ORDER BY invite_count DESC
+      LIMIT 10
+    `, [startDate]);
+
+    return {
+      prizes: { prize1: cfg.prize1, prize2: cfg.prize2, prize3: cfg.prize3 },
+      startDate: cfg.startDate,
+      leaders: res.rows.map(r => ({
+        userId: r.user_id,
+        telegramId: r.telegram_id,
+        username: r.username,
+        inviteCount: parseInt(r.invite_count, 10)
+      }))
+    };
+  },
+
+  payoutWeeklyReferralContest: async (p1, p2, p3) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cfg = await DB.getReferralContestConfig();
+      const prize1 = p1 !== undefined ? parseFloat(p1) : cfg.prize1;
+      const prize2 = p2 !== undefined ? parseFloat(p2) : cfg.prize2;
+      const prize3 = p3 !== undefined ? parseFloat(p3) : cfg.prize3;
+      const startDate = cfg.startDate || new Date(Date.now() - 7 * 86400000).toISOString();
+
+      const topRes = await client.query(`
+        SELECT 
+          inv.id as user_id,
+          inv.telegram_id,
+          COALESCE(inv.username, inv.first_name, 'Player') as username,
+          COUNT(u.id) as invite_count
+        FROM users u
+        JOIN users inv ON (u.referred_by = inv.telegram_id OR u.referred_by = inv.id::text)
+        WHERE u.phone_number IS NOT NULL 
+          AND u.created_at >= $1::timestamp
+        GROUP BY inv.id, inv.telegram_id, inv.username, inv.first_name
+        ORDER BY invite_count DESC
+        LIMIT 3
+      `, [startDate]);
+
+      const winners = [];
+      const prizeList = [prize1, prize2, prize3];
+
+      for (let i = 0; i < topRes.rows.length; i++) {
+        const row = topRes.rows[i];
+        const prize = prizeList[i];
+        if (prize > 0 && row.invite_count > 0) {
+          const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance', [prize, row.user_id]);
+          await client.query(
+            'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, $2, $3, $4, $5)',
+            [row.user_id, 'REFERRAL_CONTEST_PRIZE', prize, 'COMPLETED', `CONTEST_RANK_${i + 1}`]
+          );
+          winners.push({
+            rank: i + 1,
+            userId: row.user_id,
+            telegramId: row.telegram_id,
+            username: row.username,
+            inviteCount: parseInt(row.invite_count, 10),
+            prize,
+            newBalance: parseFloat(uRes.rows[0].balance)
+          });
+        }
+      }
+
+      // አዲሱን ሳምንት ከአሁን ጀምር
+      const nowStr = new Date().toISOString();
+      await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_contest_start'", [nowStr]);
+      await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_prize_1'", [String(prize1)]);
+      await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_prize_2'", [String(prize2)]);
+      await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_prize_3'", [String(prize3)]);
+
+      await client.query('COMMIT');
+      return { success: true, winners, newStartDate: nowStr };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 🎁 ==================== PROMO CODES ====================
   createPromoCode: async (code, rewardAmount, maxUsers = 50, expiryHours = 24) => {
     const cleanCode = code.trim().toUpperCase();
     const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);

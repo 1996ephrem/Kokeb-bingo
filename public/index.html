@@ -876,6 +876,10 @@
 
       updateCoinsDisplay();
       updateStreakUI(userState.streak, u.lastCheckinDate);
+
+      // 🏆 አዲሶቹን የውድድር ሽልማቶች ከዳታቤዝ ወዲያውኑ ጫን
+      fetchReferralContestLeaderboard();
+
       switchNav('dashboard');
     });
 
@@ -901,6 +905,17 @@
       SoundFX.win();
       showModal("🏆 የውድድር አሸናፊ!", data.message || `እንኳን ደስ አለዎት! የሳምንታዊው ውድድር አሸናፊ በመሆን ${data.prize} ETB ተሸልመዋል!`, "🎁");
       fetchMyTransactions();
+    });
+
+    // 📢 አድሚኑ የሽልማት መጠኑን ሲቀይር በተጫዋቹ ስክሪን ላይ በቅጽበት ቀይር
+    socket.on('contest_prizes_updated', ({ prizes }) => {
+      const p1 = document.getElementById('contest-p1-card');
+      const p2 = document.getElementById('contest-p2-card');
+      const p3 = document.getElementById('contest-p3-card');
+      if (p1) p1.innerText = `${prizes.prize1} ETB`;
+      if (p2) p2.innerText = `${prizes.prize2} ETB`;
+      if (p3) p3.innerText = `${prizes.prize3} ETB`;
+      fetchReferralContestLeaderboard();
     });
 
     socket.on('admin_broadcast', ({ message }) => {
@@ -1145,9 +1160,12 @@
         const res = await fetch('/api/referral-contest/leaderboard');
         const data = await res.json();
         if (data.success) {
-          document.getElementById('contest-p1-card').innerText = `${data.prizes.prize1} ETB`;
-          document.getElementById('contest-p2-card').innerText = `${data.prizes.prize2} ETB`;
-          document.getElementById('contest-p3-card').innerText = `${data.prizes.prize3} ETB`;
+          const p1 = document.getElementById('contest-p1-card');
+          const p2 = document.getElementById('contest-p2-card');
+          const p3 = document.getElementById('contest-p3-card');
+          if (p1) p1.innerText = `${data.prizes.prize1} ETB`;
+          if (p2) p2.innerText = `${data.prizes.prize2} ETB`;
+          if (p3) p3.innerText = `${data.prizes.prize3} ETB`;
 
           if (data.leaders && data.leaders.length > 0) {
             const medals = ['🥇 1ኛ', '🥈 2ኛ', '🥉 3ኛ'];
