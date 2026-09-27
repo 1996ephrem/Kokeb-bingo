@@ -91,6 +91,7 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 አጠቃላይ ዳሽቦርድ</button>
     <button class="tab-btn" onclick="switchTab('deposits')">📥 ማስገቢያዎች <span id="badge-deposits" class="badge-count">0</span></button>
     <button class="tab-btn" onclick="switchTab('withdrawals')">📤 ማውጫዎች <span id="badge-withdrawals" class="badge-count">0</span></button>
+    <button class="tab-btn" onclick="switchTab('contest')">🏆 የግብዣ ውድድር</button>
     <button class="tab-btn" onclick="switchTab('promos')">🎁 ፕሮሞኮድ</button>
     <button class="tab-btn" onclick="switchTab('archive')">📜 የዝውውር ማህደር</button>
     <button class="tab-btn" onclick="switchTab('rooms')">🎮 ክፍሎች</button>
@@ -142,7 +143,7 @@
     </div>
   </div>
 
-  <!-- TAB 3: PENDING WITHDRAWALS QUEUE (የክፍያ መንገድ የተስተካከለበት) -->
+  <!-- TAB 3: PENDING WITHDRAWALS QUEUE -->
   <div id="tab-withdrawals" class="panel-section">
     <div class="box">
       <h3>📤 የተጠየቁ የገንዘብ ማውጫ ጥያቄዎች (Pending Cashouts)</h3>
@@ -156,7 +157,48 @@
     </div>
   </div>
 
-  <!-- TAB: PROMO CODES MANAGEMENT (አዲስ የተጨመረ) -->
+  <!-- 🏆 TAB: WEEKLY REFERRAL CONTEST MANAGEMENT (ሳምንታዊ የግብዣ ውድድር) -->
+  <div id="tab-contest" class="panel-section">
+    <div class="box" style="max-width: 600px; margin-bottom: 14px;">
+      <h3>🏆 የሳምንቱ የሽልማት መጠኖች ማስተካከያ (Configurable Prizes)</h3>
+      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 10px;">እንደፈለግህ የ 1ኛ፣ 2ኛ እና 3ኛ የሽልማት መጠኑን ቀይረህ "ሽልማት አከፋፍል" ስትለው ለተጫዋቾቹ በቀጥታ ይከፈላቸዋል!</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
+        <div>
+          <label style="font-size: 11px; color:#ffd700; font-weight:bold;">🥇 1ኛ ደረጃ ሽልማት (ETB):</label>
+          <input type="number" id="contest-prize-1" placeholder="500" style="width: 100%; font-weight: bold; color:#00ff87;">
+        </div>
+        <div>
+          <label style="font-size: 11px; color:#c0c0c0; font-weight:bold;">🥈 2ኛ ደረጃ ሽልማት (ETB):</label>
+          <input type="number" id="contest-prize-2" placeholder="300" style="width: 100%; font-weight: bold; color:#00ff87;">
+        </div>
+        <div>
+          <label style="font-size: 11px; color:#cd7f32; font-weight:bold;">🥉 3ኛ ደረጃ ሽልማት (ETB):</label>
+          <input type="number" id="contest-prize-3" placeholder="150" style="width: 100%; font-weight: bold; color:#00ff87;">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-sm btn-purple" style="flex: 1; padding: 10px;" onclick="saveContestPrizes()">💾 መጠኖቹን መዝግብ</button>
+        <button class="btn-sm btn-gold" style="flex: 1.5; padding: 10px;" onclick="payoutContestWinners()">🎁 ሳምንታዊ ሽልማት አከፋፍል እና አዲስ ጀምር</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3>📊 የዚህ ሳምንት ከፍተኛ ጋባዦች ደረጃ (Live Leaderboard)</h3>
+        <span style="font-size: 11px; color: #8e8aa8;">የአሁኑ ሳምንት የጀመረው፦ <b style="color:#00ffcc;" id="contest-start-date">-</b></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ደረጃ</th><th>ተጫዋች</th><th>Telegram ID</th><th>የጋበዙት ሰዎች ብዛት</th><th>የሚገባቸው ሽልማት</th></tr>
+        </thead>
+        <tbody id="contest-leaderboard-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: PROMO CODES MANAGEMENT -->
   <div id="tab-promos" class="panel-section">
     <div class="box" style="max-width: 550px; margin-bottom: 14px;">
       <h3>🎁 አዲስ ፕሮሞኮድ መፍጠሪያ (Create Promo Code)</h3>
@@ -203,6 +245,7 @@
           <option value="DEPOSIT">📥 ማስገቢያዎች</option>
           <option value="WITHDRAW">📤 ማውጫዎች</option>
           <option value="PROMO_BONUS">🎁 ፕሮሞኮድ ቦነስ</option>
+          <option value="REFERRAL_CONTEST_PRIZE">🏆 የግብዣ ውድድር ሽልማት</option>
         </select>
         <select id="archive-status" onchange="fetchTransactionArchive()">
           <option value="ALL">ሁሉም ሁኔታ</option>
@@ -372,6 +415,7 @@
       event.target.classList.add('active');
       if (tabId === 'archive') fetchTransactionArchive();
       if (tabId === 'promos') fetchPromoCodes();
+      if (tabId === 'contest') fetchContestData();
     }
 
     async function fetchAdminData() {
@@ -506,6 +550,81 @@
       } catch (err) { console.error(err); }
     }
 
+    // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር JS ====================
+    async function fetchContestData() {
+      try {
+        const res = await fetch('/api/admin/referral-contest', {
+          headers: { 'x-admin-pin': adminPin }
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('contest-prize-1').value = data.prizes.prize1;
+          document.getElementById('contest-prize-2').value = data.prizes.prize2;
+          document.getElementById('contest-prize-3').value = data.prizes.prize3;
+          document.getElementById('contest-start-date').innerText = new Date(data.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+
+          const tbody = document.getElementById('contest-leaderboard-body');
+          if (data.leaders && data.leaders.length > 0) {
+            const prizes = [data.prizes.prize1, data.prizes.prize2, data.prizes.prize3];
+            const medals = ['🥇 1ኛ', '🥈 2ኛ', '🥉 3ኛ'];
+            tbody.innerHTML = data.leaders.map((l, i) => `
+              <tr>
+                <td><b>${i < 3 ? medals[i] : `${i + 1}ኛ`}</b></td>
+                <td><b style="color:#00ffcc;">${l.username}</b></td>
+                <td><code>${l.telegramId}</code></td>
+                <td><b style="color:#ffd700; font-size:13px;">${l.inviteCount}</b> ሰዎች</td>
+                <td style="color:#00ff87; font-weight:bold;">${i < 3 ? `${prizes[i]} ETB` : '-'}</td>
+              </tr>
+            `).join('');
+          } else {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#8e8aa8;">በዚህ ሳምንት እስካሁን የተመዘገበ ጋባዥ የለም</td></tr>`;
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function saveContestPrizes() {
+      const prize1 = document.getElementById('contest-prize-1').value;
+      const prize2 = document.getElementById('contest-prize-2').value;
+      const prize3 = document.getElementById('contest-prize-3').value;
+
+      try {
+        const res = await fetch('/api/admin/referral-contest/update-prizes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ prize1, prize2, prize3 })
+        });
+        const data = await res.json();
+        alert(data.message || "የሽልማት መጠኑ ተመዝግቧል!");
+        fetchContestData();
+      } catch (e) { alert("የሰርቨር ችግር!"); }
+    }
+
+    async function payoutContestWinners() {
+      const p1 = document.getElementById('contest-prize-1').value;
+      const p2 = document.getElementById('contest-prize-2').value;
+      const p3 = document.getElementById('contest-prize-3').value;
+
+      if (!confirm(`እርግጠኛ ነዎት ለ 1ኛ: ${p1} ETB፣ 2ኛ: ${p2} ETB እና 3ኛ: ${p3} ETB ሽልማት አከፋፍለው አዲስ ሳምንት መጀመር ይፈልጋሉ?`)) return;
+
+      try {
+        const res = await fetch('/api/admin/referral-contest/payout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ prize1: p1, prize2: p2, prize3: p3 })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("🎉 " + data.message);
+          fetchContestData();
+          fetchAdminData();
+        } else {
+          alert("❌ " + (data.error || "ክፍያው አልተሳካም"));
+        }
+      } catch (e) { alert("የሰርቨር ችግር!"); }
+    }
+
+    // 🎁 PROMO CODES JS
     async function createPromoCode() {
       const code = document.getElementById('promo-code-input').value.trim();
       const rewardAmount = document.getElementById('promo-amount-input').value.trim();

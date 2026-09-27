@@ -94,7 +94,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, '❌ ይቅርታ! አካውንትዎ ታግዷል፤ ወደ ጨዋታው መግባት አይችሉም።').catch(() => {});
       }
 
-      // ጋባዡን ጓደኛህ ገብቷል ብሎ ማሳወቅ (ያለ ቦነስ ቃል)
       if (referrerRef && !user.phone_number) {
         bot.sendMessage(
           referrerRef,
@@ -193,7 +192,7 @@ if (process.env.BOT_TOKEN) {
 function sendTelegramNotification(telegramId, message, withPlayButton = false) {
   if (!bot || !telegramId || String(telegramId).startsWith('demo_')) return;
   try {
-    const options = {};
+    const options = { parse_mode: 'HTML' };
     if (withPlayButton) {
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
       options.reply_markup = {
@@ -610,6 +609,16 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// 🏆 ተጫዋቾች ሳምንታዊ የግብዣ ውድድር ደረጃዎችን የሚያዩበት API
+app.get('/api/referral-contest/leaderboard', async (req, res) => {
+  try {
+    const data = await DB.getWeeklyReferralLeaderboard();
+    res.json({ success: true, ...data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/checkin/claim', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'User ID required' });
@@ -891,6 +900,70 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
+// 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ADMIN APIs ====================
+app.get('/api/admin/referral-contest', adminAuth, async (req, res) => {
+  try {
+    const data = await DB.getWeeklyReferralLeaderboard();
+    res.json({ success: true, ...data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/referral-contest/update-prizes', adminAuth, async (req, res) => {
+  const { prize1, prize2, prize3 } = req.body;
+  try {
+    await DB.updateReferralContestPrizes(parseFloat(prize1) || 0, parseFloat(prize2) || 0, parseFloat(prize3) || 0);
+    res.json({ success: true, message: 'የውድድር ሽልማት መጠኖች ተስተካክለዋል!' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
+  const { prize1, prize2, prize3 } = req.body;
+  try {
+    const result = await DB.payoutWeeklyReferralContest(prize1, prize2, prize3);
+
+    // ለአሸናፊዎቹ በ Socket.IO እና በቴሌግራም ቦት ማሳወቅ
+    result.winners.forEach(w => {
+      for (const [sockId, pInfo] of activeSockets.entries()) {
+        if (pInfo.dbId === w.userId) {
+          pInfo.balance = w.newBalance;
+          io.to(sockId).emit('balance_updated', { balance: w.newBalance });
+          io.to(sockId).emit('contest_winner', {
+            rank: w.rank,
+            prize: w.prize,
+            message: `🎉 እንኳን ደስ አለዎት! በሳምንታዊው የግብዣ ውድድር የ ${w.rank}ኛ ደረጃ አሸናፊ በመሆን ${w.prize} ETB ተሸልመዋል!`
+          });
+        }
+      }
+
+      if (w.telegramId) {
+        const medal = w.rank === 1 ? '🥇 1ኛ' : w.rank === 2 ? '🥈 2ኛ' : '🥉 3ኛ';
+        sendTelegramNotification(
+          w.telegramId,
+          `🎉 <b>እንኳን ደስ አለዎት!</b>\n\n` +
+          `🏆 በሳምንታዊው የግብዣ ውድድር <b>${medal} ደረጃ</b> በመውጣት የ <b>${w.prize} ETB</b> ተሸላሚ ሆነዋል!\n` +
+          `👥 የጋበዟቸው ጓደኞች: ${w.inviteCount} ሰዎች\n` +
+          `💰 አጠቃላይ ባላንስዎ: <b>${w.newBalance} ETB</b>\n\n` +
+          `ሽልማትዎ በቀጥታ ወደ ዋሌትዎ ገቢ ተደርጓል፤ አሁኑኑ ይግቡና ይጫወቱ! 🌟`,
+          true
+        );
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `ሽልማቱ ለ ${result.winners.length} አሸናፊዎች በተሳካ ሁኔታ ተከፍሎ አዲሱ ሳምንት ጀምሯል!`,
+      winners: result.winners
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 🎁 ፕሮሞኮድ APIs
 app.get('/api/admin/promo-codes', adminAuth, async (req, res) => {
   try {
     const promos = await DB.getAllPromoCodes();
