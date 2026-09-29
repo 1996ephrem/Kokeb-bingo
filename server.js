@@ -104,7 +104,7 @@ if (process.env.BOT_TOKEN) {
       if (!user.phone_number) {
         return bot.sendMessage(
           chatId,
-          `🎯 Welcome to Kokeb Bingo 🌟!\n\nጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
+          `🎯 Welcome to Kokeb Bingo 🌟!\n\nየ 15 ETB የመጫወቻ ቦነስዎን (Play-Only Bonus) ለመቀበል እና ጨዋታውን ለመጀመር እባክዎ ከታች ያለውን ሰማያዊ '📲 ስልክ ቁጥር አረጋግጥ' የሚለውን በተን ይጫኑ።`,
           {
             reply_markup: {
               keyboard: [[{ text: '📲 ስልክ ቁጥር አረጋግጥ (Share Phone Number)', request_contact: true }]],
@@ -159,16 +159,27 @@ if (process.env.BOT_TOKEN) {
         }
       };
 
-      if (!regResult.alreadyRegistered) {
+      if (regResult.isNewBonus) {
+        // 🎁 የ 15 ETB የመጫወቻ ቦነስ መልዕክት
         bot.sendMessage(
           chatId,
-          `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n💰 ለመጫወት በቴሌብር ወይም በሲቢኢ ሒሳብዎን ይሙሉ!\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n` +
+          `✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n` +
+          `🎁 የ 15 ETB የመጫወቻ ቦነስ (Play-Only Bonus) ወደ አካውንትዎ ገቢ ሆኗል!\n\n` +
+          `ለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         ).catch(() => {});
+
+        for (const [sockId, pInfo] of activeSockets.entries()) {
+          if (pInfo.telegramId === telegramId || pInfo.dbId === regResult.user.id) {
+            pInfo.balance = regResult.user.balance;
+            io.to(sockId).emit('balance_updated', { balance: regResult.user.balance });
+          }
+        }
       } else {
         bot.sendMessage(
           chatId,
-          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n*(የጀማሪ ቦነስ የሚሰጠው ለመጀመሪያ ምዝገባ ብቻ ነው)*\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
           playKeyboard
         ).catch(() => {});
       }
@@ -609,7 +620,7 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// 🏆 ተጫዋቾች ሳምንታዊ የግብዣ ውድድር ደረጃዎችን የሚያዩበት API
+// 🏆 ሳምንታዊ የግብዣ ውድድር ደረጃዎች API
 app.get('/api/referral-contest/leaderboard', async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -900,7 +911,7 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ADMIN APIs ====================
+// 🏆 ሳምንታዊ የሪፈራል ውድድር ADMIN APIs
 app.get('/api/admin/referral-contest', adminAuth, async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -918,7 +929,7 @@ app.post('/api/admin/referral-contest/update-prizes', adminAuth, async (req, res
     const p3 = parseFloat(prize3) || 0;
     await DB.updateReferralContestPrizes(p1, p2, p3);
 
-    // 📢 ለሁሉም ተጫዋቾች ወዲያውኑ አዲሱን የሽልማት ዋጋ በ Socket.IO ንገራቸው!
+    // 📢 ለተጫዋቾች ወዲያውኑ አዲሱን የሽልማት መጠን በ Socket.IO አሳውቅ
     io.emit('contest_prizes_updated', {
       prizes: { prize1: p1, prize2: p2, prize3: p3 }
     });
@@ -934,7 +945,6 @@ app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
   try {
     const result = await DB.payoutWeeklyReferralContest(prize1, prize2, prize3);
 
-    // ለአሸናፊዎቹ በ Socket.IO እና በቴሌግራም ቦት ማሳወቅ
     result.winners.forEach(w => {
       for (const [sockId, pInfo] of activeSockets.entries()) {
         if (pInfo.dbId === w.userId) {
