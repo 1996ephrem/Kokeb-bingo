@@ -157,16 +157,31 @@ const DB = {
 
     if (tgCheck.rows.length > 0) {
       const tgUser = tgCheck.rows[0];
+      const newBal = parseFloat(tgUser.balance) + 15.0; // 🎁 15 ETB ቦነስ
+
       const upRes = await pool.query(
-        'UPDATE users SET phone_number = $1, username = $2, first_name = $3 WHERE id = $4 RETURNING *',
-        [phoneNumber, username || tgUser.username, firstName || tgUser.first_name, tgUser.id]
+        'UPDATE users SET phone_number = $1, balance = $2, username = $3, first_name = $4 WHERE id = $5 RETURNING *',
+        [phoneNumber, newBal, username || tgUser.username, firstName || tgUser.first_name, tgUser.id]
       );
+
+      await pool.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES ($1, $2, $3, $4, $5, $6)',
+        [tgUser.id, 'WELCOME_BONUS', 15.0, 'COMPLETED', 'NEWCOMER_15ETB', phoneNumber]
+      );
+
       currentUser = upRes.rows[0];
     } else {
       const inRes = await pool.query(
-        'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 0.0, 0, 0) RETURNING *',
+        'INSERT INTO users (telegram_id, username, first_name, phone_number, balance, is_banned, checkin_streak) VALUES ($1, $2, $3, $4, 15.0, 0, 0) RETURNING *',
         [telegramId, username || 'Player', firstName || 'User', phoneNumber]
       );
+      const newId = inRes.rows[0].id;
+
+      await pool.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number) VALUES ($1, $2, $3, $4, $5, $6)',
+        [newId, 'WELCOME_BONUS', 15.0, 'COMPLETED', 'NEWCOMER_15ETB', phoneNumber]
+      );
+
       currentUser = inRes.rows[0];
     }
 
@@ -174,7 +189,7 @@ const DB = {
 
     return {
       user: currentUser,
-      isNewBonus: false,
+      isNewBonus: true,
       alreadyRegistered: false
     };
   },
