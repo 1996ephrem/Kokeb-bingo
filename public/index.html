@@ -27,6 +27,17 @@
     body { background: var(--bg-color); color: #ffffff; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; font-size: 13.5px; }
     body.with-nav { padding-bottom: 75px; }
 
+    /* 🎆 ZERO-LAG LIGHTWEIGHT FX CANVAS */
+    #fx-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 999999;
+    }
+
     .view-screen { display: none; flex-direction: column; width: 100%; min-height: 100vh; padding: 14px; }
     .view-screen.active { display: flex; }
     body.with-nav .view-screen { min-height: calc(100vh - 75px); }
@@ -47,7 +58,8 @@
     .btn-play-glow { background: linear-gradient(135deg, #00e5ff 0%, #0081ff 100%); color: #08051a; font-weight: 900; padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer; box-shadow: 0 0 15px rgba(0, 229, 255, 0.5); font-size: 13px; }
 
     .rooms-quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-    .room-tile-btn { background: #140d38; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 6px; text-align: center; cursor: pointer; }
+    .room-tile-btn { background: #140d38; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 6px; text-align: center; cursor: pointer; transition: transform 0.15s; }
+    .room-tile-btn:active { transform: scale(0.96); }
     .room-tile-btn .tile-stake { font-size: 15px; font-weight: 900; margin-bottom: 2px; }
 
     .feature-banner { background: #130d33; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer; }
@@ -90,11 +102,11 @@
     .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
 
     .cartelas-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 52vh; overflow-y: auto; }
-    .cartela-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+    .cartela-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
+    .cartela-btn:active { transform: scale(0.94); }
     .cartela-btn.selected { background: linear-gradient(135deg, #00ff87 0%, #00e5ff 100%); color: #08051a; }
     .cartela-btn.taken { background: rgba(255,255,255,0.02); opacity: 0.25; cursor: not-allowed; }
 
-    /* 🎮 ARENA LIVE STATS & NOTIFICATION */
     .arena-live-bar {
       background: linear-gradient(135deg, #1b124a, #100a30);
       border: 1px solid rgba(0, 229, 255, 0.35);
@@ -130,16 +142,64 @@
     .header-o { background: #9b59b6; color: #fff; }
 
     .right-section { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; max-height: 70vh; overflow-y: auto; }
-    .call-sphere { width: 75px; height: 75px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4a2882 0%, #150d2e 100%); box-shadow: 0 6px 20px rgba(121, 40, 202, 0.5); display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid var(--accent-cyan); flex-shrink: 0; }
-    .call-sphere-num { font-size: 20px; font-weight: 900; font-family: monospace; color: var(--accent-cyan); }
-    .call-amharic-label { font-size: 8px; color: var(--accent-gold); font-weight: 800; margin-top: 2px; }
+    
+    /* 🔮 3D REALISTIC CALL SPHERE */
+    .call-sphere {
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 28%, #a855f7 0%, #6b21a8 55%, #1e0938 100%);
+      box-shadow: inset -6px -6px 12px rgba(0,0,0,0.8), inset 5px 5px 10px rgba(255,255,255,0.4), 0 8px 24px rgba(121, 40, 202, 0.6);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border: 2px solid var(--accent-cyan);
+      flex-shrink: 0;
+      position: relative;
+    }
+    .call-sphere.ball-spin-3d {
+      animation: ballDrop3D 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes ballDrop3D {
+      0% { transform: scale(0.3) rotate(-140deg) translateY(-25px); opacity: 0.2; }
+      75% { transform: scale(1.12) rotate(10deg) translateY(0); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .call-sphere-num { font-size: 21px; font-weight: 900; font-family: monospace; color: #ffffff; text-shadow: 0 0 10px var(--accent-cyan); }
+    .call-amharic-label { font-size: 8px; color: var(--accent-gold); font-weight: 900; margin-top: 1px; }
 
     .player-card { background: rgba(235, 240, 250, 0.95); border-radius: 10px; padding: 4px; width: 100%; color: #111; margin-bottom: 6px; }
     .player-card.near-win { border: 2px solid var(--accent-gold); box-shadow: 0 0 14px rgba(255, 215, 0, 0.6); animation: pulse 1s infinite; }
     .card-top { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-bottom: 2px; }
     .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
-    .card-num-cell { background: #ffffff; height: 23px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9.5px; color: #1a162b; cursor: pointer; transition: background 0.1s; }
-    .card-num-cell.marked { background: linear-gradient(135deg, #7928ca, #ff007f); color: white; }
+    
+    /* 🎯 3D STAMP POP EFFECT */
+    .card-num-cell {
+      background: #ffffff;
+      height: 23px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 9.5px;
+      color: #1a162b;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .card-num-cell:active { transform: scale(0.85); }
+    .card-num-cell.marked {
+      background: linear-gradient(135deg, #7928ca, #ff007f);
+      color: white;
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), 0 3px 6px rgba(255, 0, 127, 0.4);
+      animation: stampPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes stampPop {
+      0% { transform: scale(0.5); }
+      60% { transform: scale(1.22); }
+      100% { transform: scale(1); }
+    }
     .card-num-cell.star { background: #7928ca; color: var(--accent-gold); font-size: 11px; }
 
     .spectator-banner-card {
@@ -174,6 +234,9 @@
   </style>
 </head>
 <body>
+
+  <!-- 🎆 FX CANVAS FOR CONFETTI & SPARKS -->
+  <canvas id="fx-canvas"></canvas>
 
   <!-- BAN OVERLAY -->
   <div id="banned-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #08051a; z-index: 99999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
@@ -442,7 +505,7 @@
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="font-size: 11px; color: #ffd700; font-weight: bold;">📥 ሒሳብ ሙላ (Deposit to 0997575739 Ephrem Shitu):</div>
       <input type="tel" id="deposit-phone-input" placeholder="የላኩበት ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
-      <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ቢያንስ 10 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
+      <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ቢያንስ 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
       <input type="text" id="deposit-ref-input" placeholder="የትራንዛክሽን መለያ ቁጥር (Txn ID/Ref)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-gold" style="width: 100%; padding: 10px;" onclick="submitDepositRequest()">+ Deposit Request</button>
     </div>
@@ -546,7 +609,8 @@
     <div class="game-layout">
       <div class="full-board"><div id="full-board-grid" style="display: flex; gap: 2px;"></div></div>
       <div class="right-section">
-        <div class="call-sphere">
+        <!-- 🔮 3D BALL SPHERE -->
+        <div class="call-sphere" id="call-sphere-3d">
           <div class="call-sphere-num" id="current-call">--</div>
           <div class="call-amharic-label" id="current-call-amharic"></div>
         </div>
@@ -635,6 +699,66 @@
     let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
     let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
+
+    // 🎆 LIGHTWEIGHT CANVAS CONFETTI / GOLD BURST ENGINE
+    const fxCanvas = document.getElementById('fx-canvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    let fxParticles = [];
+    let fxAnimationId = null;
+
+    function resizeFxCanvas() {
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeFxCanvas);
+    resizeFxCanvas();
+
+    function fireLightweightConfetti() {
+      resizeFxCanvas();
+      const colors = ['#ffd700', '#00ff87', '#00e5ff', '#ff007f', '#ffffff'];
+      fxParticles = [];
+      for (let i = 0; i < 65; i++) {
+        fxParticles.push({
+          x: fxCanvas.width / 2,
+          y: fxCanvas.height * 0.4,
+          vx: (Math.random() - 0.5) * 12,
+          vy: (Math.random() - 0.8) * 14,
+          size: Math.random() * 6 + 3,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          decay: Math.random() * 0.015 + 0.01
+        });
+      }
+      if (!fxAnimationId) renderFxLoop();
+    }
+
+    function renderFxLoop() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      for (let i = fxParticles.length - 1; i >= 0; i--) {
+        const p = fxParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.35; // gravity
+        p.alpha -= p.decay;
+        if (p.alpha <= 0) {
+          fxParticles.splice(i, 1);
+        } else {
+          fxCtx.save();
+          fxCtx.globalAlpha = p.alpha;
+          fxCtx.fillStyle = p.color;
+          fxCtx.beginPath();
+          fxCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          fxCtx.fill();
+          fxCtx.restore();
+        }
+      }
+      if (fxParticles.length > 0) {
+        fxAnimationId = requestAnimationFrame(renderFxLoop);
+      } else {
+        fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+        fxAnimationId = null;
+      }
+    }
 
     function toggleLanguage() {
       userState.lang = userState.lang === 'am' ? 'en' : 'am';
@@ -890,6 +1014,7 @@
 
     socket.on('deposit_approved', (data) => {
       SoundFX.win();
+      fireLightweightConfetti();
       showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
       fetchMyTransactions();
     });
@@ -903,6 +1028,7 @@
     // 🏆 የግብዣ ውድድር አሸናፊ ሲሆኑ
     socket.on('contest_winner', (data) => {
       SoundFX.win();
+      fireLightweightConfetti();
       showModal("🏆 የውድድር አሸናፊ!", data.message || `እንኳን ደስ አለዎት! የሳምንታዊው ውድድር አሸናፊ በመሆን ${data.prize} ETB ተሸልመዋል!`, "🎁");
       fetchMyTransactions();
     });
@@ -1012,6 +1138,7 @@
           updateCoinsDisplay();
           updateStreakUI(data.newStreak, new Date().toISOString().split('T')[0]);
           SoundFX.win();
+          fireLightweightConfetti();
           showModal("እንኳን ደስ አለዎት!", `🎉 የቀን ${data.newStreak} የ ${data.rewardAmount} ETB ተከታታይ ቦነስዎ ገቢ ሆኗል!`, "🎁");
         } else {
           alert(data.error || "ዛሬ ወስደዋል!");
@@ -1035,6 +1162,7 @@
           userState.coins = data.newBalance;
           updateCoinsDisplay();
           SoundFX.win();
+          fireLightweightConfetti();
           showModal("🎉 ፕሮሞኮድ ተቀብለዋል!", `እንኳን ደስ አለዎት! የ ${data.rewardAmount} ETB ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`, "🎁");
           inputEl.value = '';
           fetchMyTransactions();
@@ -1056,7 +1184,7 @@
       const amount = parseFloat(document.getElementById('deposit-amount-input').value.trim());
       const txRef = document.getElementById('deposit-ref-input').value.trim();
       if (!phone || !amount || !txRef) return alert("እባክዎን ሁሉንም መረጃዎች ይሙሉ!");
-      if (amount < 10) return alert("ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!");
+      if (amount < 50) return alert("ዝቅተኛው የማስገቢያ መጠን 50 ETB ነው!");
 
       try {
         const res = await fetch('/api/payment/deposit-request', {
@@ -1387,10 +1515,19 @@
       });
     }
 
+    // 🔮 3D BALL DRAWN WITH SPIN ANIMATION
     socket.on('ball_drawn', ({ number, letter, callString }) => {
       gameState.calledNumbers.add(number);
       SoundFX.ball();
       SoundFX.speakCall(letter, number);
+
+      // Trigger 3D Spin Animation on Sphere
+      const sphere = document.getElementById('call-sphere-3d');
+      if (sphere) {
+        sphere.classList.remove('ball-spin-3d');
+        void sphere.offsetWidth; // trigger reflow
+        sphere.classList.add('ball-spin-3d');
+      }
 
       document.getElementById('current-call').innerText = callString;
       document.getElementById('current-call-amharic').innerText = `${letter} ${getAmharicNumberWord(number)}`;
@@ -1433,6 +1570,7 @@
       if (d.winner) {
         if (!gameState.isSpectator && d.winner.username === userState.name) {
           SoundFX.win();
+          fireLightweightConfetti();
           showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${d.winner.cartelaId} የ ${d.winner.prize} ETB የድል ቋቱን አሸንፈዋል!`, "🎉");
         } else {
           SoundFX.pop();
