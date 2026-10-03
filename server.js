@@ -160,7 +160,6 @@ if (process.env.BOT_TOKEN) {
       };
 
       if (regResult.isNewBonus) {
-        // 🎁 የ 15 ETB የመጫወቻ ቦነስ መልዕክት
         bot.sendMessage(
           chatId,
           `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n` +
@@ -666,12 +665,13 @@ app.post('/api/promo/claim', async (req, res) => {
   }
 });
 
+// 📥 ዝቅተኛው የማስገቢያ መጠን 50 ETB ተደርጎ የተስተካከለበት
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
 
-  if (!depositAmount || isNaN(depositAmount) || depositAmount < 10) {
-    return res.status(400).json({ error: 'ዝቅተኛው የማስገቢያ መጠን 10 ETB ነው!' });
+  if (!depositAmount || isNaN(depositAmount) || depositAmount < 50) {
+    return res.status(400).json({ error: 'ዝቅተኛው የማስገቢያ መጠን 50 ETB ነው!' });
   }
   if (!phoneNumber || phoneNumber.length < 9) {
     return res.status(400).json({ error: 'እባክዎን የላኩበትን ትክክለኛ ስልክ ቁጥር ያስገቡ!' });
@@ -911,7 +911,7 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// 🏆 ሳምንታዊ የሪፈራል ውድድር ADMIN APIs
+// 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ADMIN APIs ====================
 app.get('/api/admin/referral-contest', adminAuth, async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -929,7 +929,6 @@ app.post('/api/admin/referral-contest/update-prizes', adminAuth, async (req, res
     const p3 = parseFloat(prize3) || 0;
     await DB.updateReferralContestPrizes(p1, p2, p3);
 
-    // 📢 ለተጫዋቾች ወዲያውኑ አዲሱን የሽልማት መጠን በ Socket.IO አሳውቅ
     io.emit('contest_prizes_updated', {
       prizes: { prize1: p1, prize2: p2, prize3: p3 }
     });
