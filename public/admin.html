@@ -157,7 +157,7 @@
     </div>
   </div>
 
-  <!-- 🏆 TAB: WEEKLY REFERRAL CONTEST MANAGEMENT (ሳምንታዊ የግብዣ ውድድር) -->
+  <!-- 🏆 TAB: WEEKLY REFERRAL CONTEST MANAGEMENT -->
   <div id="tab-contest" class="panel-section">
     <div class="box" style="max-width: 600px; margin-bottom: 14px;">
       <h3>🏆 የሳምንቱ የሽልማት መጠኖች ማስተካከያ (Configurable Prizes)</h3>
@@ -317,12 +317,15 @@
     </div>
   </div>
 
-  <!-- TAB 8: BROADCAST -->
+  <!-- 📢 TAB 8: BROADCAST (ቀጥታ በቴሌግራም መልዕክት መላኪያ) -->
   <div id="tab-broadcast" class="panel-section">
-    <div class="box" style="max-width: 500px;">
-      <h3>📢 ለሁሉም ተጫዋቾች የቀጥታ መልዕክት ላክ</h3>
-      <textarea id="broadcast-msg" rows="4" style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); color:#fff; border-radius: 8px; border:1px solid rgba(255,255,255,0.1); margin-bottom: 10px;" placeholder="መልዕክትህን እዚህ ጻፍ..."></textarea>
-      <button class="btn-sm btn-green" style="padding: 9px 16px;" onclick="sendBroadcast()">🚀 መልዕክቱን ላክ (SEND BROADCAST)</button>
+    <div class="box" style="max-width: 550px;">
+      <h3>📢 ለሁሉም ተጫዋቾች ቀጥታ በቴሌግራም መልዕክት ላክ (Direct Telegram Broadcast)</h3>
+      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 12px; line-height: 1.5;">
+        እዚህ የምትጽፈው ማስታወቂያ ወይም ፕሮሞሽን በዳታቤዙ ውስጥ ላሉ <b>ሁሉም የተመዘገቡ ተጫዋቾች</b> (ጨዋታው ውስጥ ባይሆኑም እንኳ) በቴሌግራም ቦቱ ቀጥታ ከነ <b>[ 🎮 Play Now ]</b> በተኑ ይደርሳቸዋል!
+      </p>
+      <textarea id="broadcast-msg" rows="5" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); color:#fff; border-radius: 8px; border:1px solid rgba(255,255,255,0.1); margin-bottom: 12px; font-size: 12.5px; line-height: 1.5;" placeholder="ለምሳሌ፦ 🎉 ዛሬ ማታ ልዩ የቢንጎ ውድድር ተጀምሯል! አሁኑኑ ገብተው ካርቴላ ይቁረጡ..."></textarea>
+      <button class="btn-sm btn-green" style="padding: 11px 20px; font-size: 12.5px; width: 100%;" onclick="sendBroadcast()">🚀 ማስታወቂያውን በቴሌግራም ላክ (SEND BROADCAST)</button>
     </div>
   </div>
 
@@ -846,16 +849,29 @@
       fetchAdminData();
     }
 
+    // 📢 ለሁሉም ተጠቃሚዎች ቀጥታ በቴሌግራም መልዕክት መላኪያ
     async function sendBroadcast() {
-      const message = document.getElementById('broadcast-msg').value;
+      const message = document.getElementById('broadcast-msg').value.trim();
       if (!message) return alert("እባክዎን መልዕክት ያስገቡ!");
-      await fetch('/api/admin/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
-        body: JSON.stringify({ message })
-      });
-      alert("መልዕክቱ ለሁሉም ተጫዋቾች ተልኳል!");
-      document.getElementById('broadcast-msg').value = '';
+
+      if (!confirm("ይህ መልዕክት ለሁሉም የተመዘገቡ ተጫዋቾች ቀጥታ በቴሌግራም ቦቱ ይላካል፤ እርግጠኛ ነዎት?")) return;
+
+      try {
+        const res = await fetch('/api/admin/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("🎉 " + data.message);
+          document.getElementById('broadcast-msg').value = '';
+        } else {
+          alert("❌ " + (data.error || "መልዕክቱን መላክ አልተቻለም!"));
+        }
+      } catch (e) {
+        alert("የሰርቨር ግንኙነት ችግር!");
+      }
     }
 
     async function changeAdminPin() {
