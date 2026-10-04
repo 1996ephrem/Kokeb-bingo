@@ -143,7 +143,6 @@
 
     .right-section { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; max-height: 70vh; overflow-y: auto; }
     
-    /* 🔮 3D REALISTIC CALL SPHERE */
     .call-sphere {
       width: 78px;
       height: 78px;
@@ -174,7 +173,6 @@
     .card-top { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-bottom: 2px; }
     .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
     
-    /* 🎯 3D STAMP POP EFFECT */
     .card-num-cell {
       background: #ffffff;
       height: 23px;
@@ -255,7 +253,7 @@
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> <span>በቴሌብር ወይም CBE ብር ያስገቡ።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);">2. ካርቴላ ይቁረጡ:</b> <span>ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይምረጡ።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-gold);">3. ኳሶችን ይከታተሉ:</b> <span>Auto-Daub ማብራት ይመረጣል።</span></div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);">4. አሸንፈው ብር ያውጡ:</b> <span>መስመር ሲሞላ CLAIM BINGO ይጫኑ!</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);">4. አሸንፈው ብር ያውጡ:</b> <span>መስመር ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!</span></div>
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="closeGuide()">ገባኝ (GOT IT!)</button>
     </div>
   </div>
@@ -511,7 +509,6 @@
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <!-- 🚨 ዝቅተኛው ማውጫ 225 ETB -->
       <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">📤 ብር አውጣ (Min: 225 ETB):</div>
       <div style="font-size: 9.5px; color: #8e8aa8; margin-top: 2px; margin-bottom: 6px;">
         ℹ️ በእውነተኛ ብር አስገብተው ሲጫወቱ ያሸነፉትን ሙሉ ገንዘብ ማውጣት ይችላሉ። (25 ETB ተቀማጭ ግዴታ ነው)።
@@ -1023,7 +1020,6 @@
       fetchMyTransactions();
     });
 
-    // 🏆 የግብዣ ውድድር አሸናፊ ሲሆኑ
     socket.on('contest_winner', (data) => {
       SoundFX.win();
       fireLightweightConfetti();
@@ -1031,7 +1027,6 @@
       fetchMyTransactions();
     });
 
-    // 📢 አድሚኑ የሽልማት መጠኑን ሲቀይር በተጫዋቹ ስክሪን ላይ በቅጽበት ቀይር
     socket.on('contest_prizes_updated', ({ prizes }) => {
       const p1 = document.getElementById('contest-p1-card');
       const p2 = document.getElementById('contest-p2-card');
@@ -1561,18 +1556,34 @@
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
     }
 
+    // 🏆 አውቶማቲክ ቢንጎ እና የበርካታ አሸናፊዎች ማሳወቂያ
     socket.on('game_finished', (d) => {
       gameState.isLive = false;
       document.getElementById('claim-bingo-btn').disabled = true;
 
-      if (d.winner) {
-        if (!gameState.isSpectator && d.winner.username === userState.name) {
+      const myName = userState.name;
+      const winnersList = d.winners || (d.winner ? [d.winner] : []);
+      const amIWinner = winnersList.some(w => w.username === myName);
+
+      if (winnersList.length > 0) {
+        if (!gameState.isSpectator && amIWinner) {
           SoundFX.win();
           fireLightweightConfetti();
-          showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${d.winner.cartelaId} የ ${d.winner.prize} ETB የድል ቋቱን አሸንፈዋል!`, "🎉");
+          const myWin = winnersList.find(w => w.username === myName);
+          if (winnersList.length === 1) {
+            showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${myWin.cartelaId} የ ${myWin.prize} ETB ደራሽ ብር አሸንፈዋል!`, "🎉");
+          } else {
+            showModal("🏆 እንኳን ደስ አለዎት! አሸንፈዋል!", `🎉 በካርቴላ #${myWin.cartelaId} ከሌሎች አሸናፊዎች ጋር እኩል በመውጣትዎ የተከፋፈለ የ ${myWin.prize} ETB ድርሻዎን አሸንፈዋል!`, "🎉");
+          }
         } else {
           SoundFX.pop();
-          showModal("🏆 ዙሩ ተጠናቋል (Winner)", `🎉 አሸናፊ: ${d.winner.username}\n🎟️ ያሸነፈበት ካርቴላ: #${d.winner.cartelaId}\n💰 የተሸለመው ብር: ${d.winner.prize} ETB`, "🏆");
+          if (winnersList.length === 1) {
+            const w = winnersList[0];
+            showModal("🏆 ዙሩ ተጠናቋል (Winner)", `🎉 አሸናፊ: ${w.username}\n🎟️ ካርቴላ: #${w.cartelaId}\n💰 የተሸለመው ብር: ${w.prize} ETB`, "🏆");
+          } else {
+            const listText = winnersList.map(w => `• ${w.username} (#${w.cartelaId}) — ${w.prize} ETB`).join('\n');
+            showModal("🏆 ዙሩ ተጠናቋል (በርካታ አሸናፊዎች)", `🎉 ${winnersList.length} አሸናፊዎች እኩል ወጥተዋል! ደራሽ ብሩ እኩል ተከፋፍሏል፦\n\n${listText}`, "🏆");
+          }
         }
       } else {
         SoundFX.pop();
