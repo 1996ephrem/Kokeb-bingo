@@ -312,6 +312,7 @@ function startRoomLobby(roomName) {
   }, 1000);
 }
 
+// 🎯 የቀጥታ ጨዋታ ኢንጂን (ከነ አውቶማቲክ ቢንጎ እና በርካታ አሸናፊዎች ክፍፍል ጋር)
 function startRoomGame(roomName) {
   const room = rooms[roomName];
   if (!room) return;
@@ -332,7 +333,7 @@ function startRoomGame(roomName) {
 
   if (room.gameInterval) clearInterval(room.gameInterval);
 
-  room.gameInterval = setInterval(() => {
+  room.gameInterval = setInterval(async () => {
     if (room.isPaused || room.winnerDeclared) return;
 
     if (room.uncalledNumbers.length === 0 || room.state !== 'PLAYING') {
@@ -341,6 +342,7 @@ function startRoomGame(roomName) {
       return;
     }
 
+    // 1. አዲስ ኳስ መጣል
     const randIdx = Math.floor(Math.random() * room.uncalledNumbers.length);
     const num = room.uncalledNumbers.splice(randIdx, 1)[0];
     room.calledNumbers.add(num);
@@ -354,34 +356,95 @@ function startRoomGame(roomName) {
       callString: `${letter}-${num}`,
       drawnCount: room.drawnCount
     });
+
+    // 🚨 2. ሰርቨሩ በራሱ ሁሉንም ካርቴላዎች አውቶማቲክ መርምሮ አሸናፊዎችን የመለየት ስራ
+    const detectedWinners = [];
+
+    for (const [cardId, cardInfo] of room.takenCartelas.entries()) {
+      const cardGrid = room.cartelas[cardId];
+      if (!cardGrid) continue;
+
+      // ካርቴላው ላይ የወጣውን ቁጥር መቁረጥ (Mark ማድረግ)
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
+            cardInfo.markedMatrix[r][c] = true;
+          }
+        }
+      }
+
+      // ቢንጎ መሆኑን ማረጋገጥ
+      if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
+        detectedWinners.push({
+          dbId: cardInfo.dbId,
+          username: cardInfo.username,
+          cartelaId: cardId,
+          socketId: cardInfo.socketId
+        });
+      }
+    }
+
+    // 🏆 3. አሸናፊ(ዎች) ሲገኙ ጨዋታውን አቁሞ ደራሽ ብሩን እኩል ማከፋፈል
+    if (detectedWinners.length > 0) {
+      room.winnerDeclared = true;
+      room.state = 'FINISHED';
+      clearInterval(room.gameInterval);
+
+      const totalWinners = detectedWinners.length;
+      const eachPrize = Math.max(1, Math.floor(prizePool / totalWinners));
+
+      for (const w of detectedWinners) {
+        w.prize = eachPrize;
+        try {
+          const newBal = await DB.updateBalance(w.dbId, eachPrize, 'WIN', `${roomName} Bingo`);
+          w.newBalance = newBal;
+
+          for (const [sockId, pInfo] of activeSockets.entries()) {
+            if (pInfo.dbId === w.dbId) {
+              pInfo.balance = newBal;
+              io.to(sockId).emit('balance_updated', { balance: newBal });
+            }
+          }
+
+          await DB.saveGameRound(roomName, w.username, w.cartelaId, eachPrize, room.takenCartelas.size, room.drawnCount);
+        } catch (err) {
+          console.error('Auto payout error:', err);
+        }
+      }
+
+      endGame(roomName, detectedWinners, null);
+    }
   }, room.callSpeed);
 }
 
-async function endGame(roomName, winnerData, message) {
+// 🏁 ጨዋታ ማጠናቀቂያ (ለአንድም ሆነ ለበርካታ አሸናፊዎች የሚሰራ)
+async function endGame(roomName, winnersData, fallbackMessage) {
   const room = rooms[roomName];
   if (!room) return;
   room.state = 'FINISHED';
   room.winnerDeclared = true;
   if (room.gameInterval) clearInterval(room.gameInterval);
 
-  if (winnerData) {
-    await DB.saveGameRound(
-      roomName,
-      winnerData.username,
-      winnerData.cartelaId,
-      winnerData.prize,
-      room.takenCartelas.size,
-      room.drawnCount
-    );
+  let finishMsg = fallbackMessage || 'ጨዋታው ተጠናቋል!';
+
+  if (winnersData && winnersData.length > 0) {
+    if (winnersData.length === 1) {
+      const w = winnersData[0];
+      finishMsg = `🎉 ቢንጎ! ${w.username} በካርቴላ #${w.cartelaId} ${w.prize} ETB አሸነፈ!`;
+    } else {
+      const namesList = winnersData.map(w => `${w.username} (#${w.cartelaId})`).join(', ');
+      finishMsg = `🎉 ቢንጎ! ${winnersData.length} አሸናፊዎች እኩል ወጥተዋል! ደራሽ ብሩ እኩል ተከፋፍሏል፦ ${namesList} ለእያንዳንዳቸው ${winnersData[0].prize} ETB ተሸልመዋል!`;
+    }
   }
 
   io.to(roomName).emit('game_finished', {
-    winner: winnerData,
-    message: winnerData ? `🎉 ${winnerData.username} በካርቴላ #${winnerData.cartelaId} ${winnerData.prize} ETB አሸነፈ!` : message
+    winners: winnersData || [],
+    winner: winnersData && winnersData.length > 0 ? winnersData[0] : null,
+    message: finishMsg
   });
 
   broadcastRealRoomsStatus();
-  setTimeout(() => { startRoomLobby(roomName); }, 5000);
+  setTimeout(() => { startRoomLobby(roomName); }, 6000);
 }
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
@@ -553,12 +616,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ተጫዋቹ ራሱም ቢንጎ ቢል ተጨማሪ ማረጋገጫ (Fallback Claim)
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
 
     if (!player || !room || room.state !== 'PLAYING' || room.winnerDeclared) {
-      return socket.emit('error_message', 'ይህ ዙር አስቀድሞ በሌላ ተጫዋች ተሸንፏል!');
+      return socket.emit('error_message', 'ይህ ዙር አስቀድሞ ተጠናቋል!');
     }
 
     const cardInfo = room.takenCartelas.get(cartelaId);
@@ -567,7 +631,6 @@ io.on('connection', (socket) => {
     }
 
     const cardGrid = room.cartelas[cartelaId];
-
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
@@ -592,8 +655,8 @@ io.on('connection', (socket) => {
 
         endGame(
           roomName,
-          { username: player.username, cartelaId, prize },
-          `🎉 ቢንጎ! ${player.username} በካርቴላ #${cartelaId} ${prize} ETB አሸነፈ!`
+          [{ username: player.username, cartelaId, prize, dbId: player.dbId }],
+          null
         );
       } catch (dbErr) {
         console.error('Win payout error:', dbErr);
@@ -619,7 +682,6 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// 🏆 ሳምንታዊ የግብዣ ውድድር ደረጃዎች API
 app.get('/api/referral-contest/leaderboard', async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -709,7 +771,7 @@ app.get('/api/payment/my-transactions', async (req, res) => {
   }
 });
 
-// 📤 ዝቅተኛው የማውጫ መጠን 225 ETB ተደርጎ የተስተካከለበት
+// 📤 ዝቅተኛው የማውጫ መጠን 225 ETB
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber, method } = req.body;
   const withdrawAmount = parseFloat(amount);
