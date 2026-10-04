@@ -709,12 +709,13 @@ app.get('/api/payment/my-transactions', async (req, res) => {
   }
 });
 
+// 📤 ዝቅተኛው የማውጫ መጠን 225 ETB ተደርጎ የተስተካከለበት
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber, method } = req.body;
   const withdrawAmount = parseFloat(amount);
 
-  if (!withdrawAmount || isNaN(withdrawAmount) || withdrawAmount < 50) {
-    return res.status(400).json({ error: 'ዝቅተኛው የማውጫ መጠን 50 ETB ነው!' });
+  if (!withdrawAmount || isNaN(withdrawAmount) || withdrawAmount < 225) {
+    return res.status(400).json({ error: 'ዝቅተኛው የማውጫ መጠን 225 ETB ነው!' });
   }
   if (!phoneNumber || phoneNumber.length < 9) {
     return res.status(400).json({ error: 'ትክክለኛ የስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!' });
@@ -1102,16 +1103,14 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-// 📢 ለሁሉም ተጫዋቾች (ከመስመር ውጭ ላሉትም ጭምር) ቀጥታ በቴሌግራም መልዕክት መላኪያ
+// 📢 ማስታወቂያ በቴሌግራም መላኪያ
 app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
-  // 1. ጨዋታው ላይ ላሉት በቅጽበት ስክሪናቸው ላይ ያሳያል
   io.emit('admin_broadcast', { message });
 
   try {
-    // 2. የተመዘገቡ ተጫዋቾችን የቴሌግራም ID በሙሉ ከዳታቤዝ አምጣ
     const tgIds = await DB.getAllTelegramIds();
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     const options = {
@@ -1121,7 +1120,6 @@ app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
       }
     };
 
-    // በ Background ለእያንዳንዳቸው በቅደም ተከተል ይልካል (ሰርቨሩ እንዳይጨናነቅ 35ms እያረፈ)
     (async () => {
       let sentCount = 0;
       for (const tgId of tgIds) {
@@ -1131,9 +1129,7 @@ app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
             sentCount++;
             await new Promise(r => setTimeout(r, 35));
           }
-        } catch (err) {
-          // Block ያደረጉትን ሰዎች በሰላም ዝም ብሎ ያልፋል
-        }
+        } catch (err) {}
       }
       console.log(`[+] Broadcast sent to ${sentCount}/${tgIds.length} Telegram users.`);
     })();
