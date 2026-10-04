@@ -135,6 +135,7 @@ const DB = {
     return newUser;
   },
 
+  // 🎁 15 ETB ቦነስ የሚሰጥበት ክፍል
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
     const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
     if (phoneCheck.rows.length > 0) {
@@ -157,7 +158,7 @@ const DB = {
 
     if (tgCheck.rows.length > 0) {
       const tgUser = tgCheck.rows[0];
-      const newBal = parseFloat(tgUser.balance) + 15.0; // 🎁 15 ETB ቦነስ
+      const newBal = parseFloat(tgUser.balance) + 15.0; // 15 ETB ቦነስ
 
       const upRes = await pool.query(
         'UPDATE users SET phone_number = $1, balance = $2, username = $3, first_name = $4 WHERE id = $5 RETURNING *',
@@ -440,6 +441,14 @@ const DB = {
     }
   },
 
+  // 📢 ለሁሉም ተጫዋቾች ማስታወቂያ ለመላክ የቴሌግራም ID ዝርዝር ማምጫ ፈንክሽን
+  getAllTelegramIds: async () => {
+    const res = await pool.query(
+      "SELECT DISTINCT telegram_id FROM users WHERE telegram_id IS NOT NULL AND telegram_id NOT LIKE 'demo_%'"
+    );
+    return res.rows.map(r => r.telegram_id);
+  },
+
   // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር አስተዳደር ====================
   getReferralContestConfig: async () => {
     const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('ref_prize_1', 'ref_prize_2', 'ref_prize_3', 'ref_contest_start')");
@@ -473,7 +482,6 @@ const DB = {
     const cfg = await DB.getReferralContestConfig();
     const startDate = cfg.startDate || new Date(Date.now() - 7 * 86400000).toISOString();
 
-    // ስልካቸውን ያረጋገጡ እና ከውድድሩ መጀመሪያ ቀን ጀምሮ የተመዘገቡ ተጋባዦችን ብቻ ቆጥር
     const res = await pool.query(`
       SELECT 
         inv.id as user_id,
@@ -550,7 +558,6 @@ const DB = {
         }
       }
 
-      // አዲሱን ሳምንት ከአሁን ጀምር
       const nowStr = new Date().toISOString();
       await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_contest_start'", [nowStr]);
       await client.query("UPDATE admin_config SET value = $1 WHERE key = 'ref_prize_1'", [String(prize1)]);
