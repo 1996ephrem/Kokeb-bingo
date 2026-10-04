@@ -511,12 +511,13 @@
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">📤 ብር አውጣ (Min: 50 ETB):</div>
+      <!-- 🚨 ዝቅተኛው ማውጫ 225 ETB -->
+      <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">📤 ብር አውጣ (Min: 225 ETB):</div>
       <div style="font-size: 9.5px; color: #8e8aa8; margin-top: 2px; margin-bottom: 6px;">
         ℹ️ በእውነተኛ ብር አስገብተው ሲጫወቱ ያሸነፉትን ሙሉ ገንዘብ ማውጣት ይችላሉ። (25 ETB ተቀማጭ ግዴታ ነው)።
       </div>
       <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
-      <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
+      <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 225 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()">Withdraw</button>
     </div>
 
@@ -738,7 +739,7 @@
         const p = fxParticles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.35; // gravity
+        p.vy += 0.35;
         p.alpha -= p.decay;
         if (p.alpha <= 0) {
           fxParticles.splice(i, 1);
@@ -1000,10 +1001,7 @@
 
       updateCoinsDisplay();
       updateStreakUI(userState.streak, u.lastCheckinDate);
-
-      // 🏆 አዲሶቹን የውድድር ሽልማቶች ከዳታቤዝ ወዲያውኑ ጫን
       fetchReferralContestLeaderboard();
-
       switchNav('dashboard');
     });
 
@@ -1201,10 +1199,11 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
+    // 📤 ዝቅተኛው ማውጫ 225 ETB
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amount = parseFloat(document.getElementById('withdraw-amount-input').value.trim());
-      if (!phone || !amount || amount < 50) return alert("ዝቅተኛው የማውጫ መጠን 50 ETB ነው!");
+      if (!phone || !amount || amount < 225) return alert("ዝቅተኛው የማውጫ መጠን 225 ETB ነው!");
 
       if (userState.coins - amount < 25) {
         const maxAllowed = Math.max(0, Math.floor(userState.coins - 25));
@@ -1521,11 +1520,10 @@
       SoundFX.ball();
       SoundFX.speakCall(letter, number);
 
-      // Trigger 3D Spin Animation on Sphere
       const sphere = document.getElementById('call-sphere-3d');
       if (sphere) {
         sphere.classList.remove('ball-spin-3d');
-        void sphere.offsetWidth; // trigger reflow
+        void sphere.offsetWidth;
         sphere.classList.add('ball-spin-3d');
       }
 
