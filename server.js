@@ -665,7 +665,7 @@ app.post('/api/promo/claim', async (req, res) => {
   }
 });
 
-// 📥 ዝቅተኛው የማስገቢያ መጠን 50 ETB ተደርጎ የተስተካከለበት
+// 📥 ዝቅተኛው የማስገቢያ መጠን 50 ETB
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -911,7 +911,7 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   }
 });
 
-// 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ADMIN APIs ====================
+// 🏆 ሳምንታዊ የሪፈራል ውድድር ADMIN APIs
 app.get('/api/admin/referral-contest', adminAuth, async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -1102,12 +1102,49 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-app.post('/api/admin/broadcast', adminAuth, (req, res) => {
+// 📢 ለሁሉም ተጫዋቾች (ከመስመር ውጭ ላሉትም ጭምር) ቀጥታ በቴሌግራም መልዕክት መላኪያ
+app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
+  // 1. ጨዋታው ላይ ላሉት በቅጽበት ስክሪናቸው ላይ ያሳያል
   io.emit('admin_broadcast', { message });
-  res.json({ success: true, message: 'መልዕክቱ ለሁሉም ተጫዋቾች ተልኳል!' });
+
+  try {
+    // 2. የተመዘገቡ ተጫዋቾችን የቴሌግራም ID በሙሉ ከዳታቤዝ አምጣ
+    const tgIds = await DB.getAllTelegramIds();
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+    const options = {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }]]
+      }
+    };
+
+    // በ Background ለእያንዳንዳቸው በቅደም ተከተል ይልካል (ሰርቨሩ እንዳይጨናነቅ 35ms እያረፈ)
+    (async () => {
+      let sentCount = 0;
+      for (const tgId of tgIds) {
+        try {
+          if (bot && tgId && !String(tgId).startsWith('demo_')) {
+            await bot.sendMessage(tgId, `📢 <b>መልዕክት ከአድሚን</b>\n\n${message}`, options);
+            sentCount++;
+            await new Promise(r => setTimeout(r, 35));
+          }
+        } catch (err) {
+          // Block ያደረጉትን ሰዎች በሰላም ዝም ብሎ ያልፋል
+        }
+      }
+      console.log(`[+] Broadcast sent to ${sentCount}/${tgIds.length} Telegram users.`);
+    })();
+
+    res.json({
+      success: true,
+      message: `ማስታወቂያው ለ ${tgIds.length} ተጠቃሚዎች በቴሌግራም መላክ ጀምሯል!`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
