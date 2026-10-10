@@ -29,9 +29,10 @@ function generateCartela() {
   return card;
 }
 
-function generate100Cartelas() {
+// 🎟️ የካርቴላዎች ብዛት ወደ 400 ከፍ ተደርጓል
+function generate400Cartelas() {
   const cartelas = {};
-  for (let i = 1; i <= 100; i++) {
+  for (let i = 1; i <= 400; i++) {
     cartelas[i] = generateCartela();
   }
   return cartelas;
@@ -73,6 +74,7 @@ function validateBingo(cardGrid, markedMatrix, calledNumbersSet) {
 
 module.exports = {
   generateCartela,
-  generate100Cartelas,
+  generate400Cartelas,
+  generate100Cartelas: generate400Cartelas, // ለተኳሃኝነት
   validateBingo
 };
