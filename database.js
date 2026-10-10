@@ -135,7 +135,15 @@ const DB = {
     return newUser;
   },
 
-  // 🎁 15 ETB ቦነስ የሚሰጥበት ክፍል
+  getUserByTelegramId: async (telegramId) => {
+    const res = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [String(telegramId)]);
+    if (res.rows.length === 0) return null;
+    const user = res.rows[0];
+    user.balance = parseFloat(user.balance);
+    return user;
+  },
+
+  // 🎁 የ 15 ETB የመጫወቻ ቦነስ (Play-Only)
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
     const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
     if (phoneCheck.rows.length > 0) {
@@ -158,7 +166,7 @@ const DB = {
 
     if (tgCheck.rows.length > 0) {
       const tgUser = tgCheck.rows[0];
-      const newBal = parseFloat(tgUser.balance) + 15.0; // 15 ETB ቦነስ
+      const newBal = parseFloat(tgUser.balance) + 15.0; // 15 ETB የመጫወቻ ቦነስ
 
       const upRes = await pool.query(
         'UPDATE users SET phone_number = $1, balance = $2, username = $3, first_name = $4 WHERE id = $5 RETURNING *',
@@ -273,6 +281,7 @@ const DB = {
     };
   },
 
+  // 📤 ዝቅተኛው ማውጫ 225 ETB
   requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     const client = await pool.connect();
     try {
@@ -283,6 +292,10 @@ const DB = {
       user.balance = parseFloat(user.balance);
 
       if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+
+      if (amount < 225) {
+        throw new Error('❌ ዝቅተኛው የማውጫ መጠን 225 ETB ነው!');
+      }
 
       if (user.balance - amount < 25) {
         const maxAllowed = Math.max(0, Math.floor(user.balance - 25));
@@ -441,7 +454,7 @@ const DB = {
     }
   },
 
-  // 📢 ለሁሉም ተጫዋቾች ማስታወቂያ ለመላክ የቴሌግራም ID ዝርዝር ማምጫ ፈንክሽን
+  // 📢 የተመዘገቡ ተጫዋቾች የቴሌግራም ID ዝርዝር
   getAllTelegramIds: async () => {
     const res = await pool.query(
       "SELECT DISTINCT telegram_id FROM users WHERE telegram_id IS NOT NULL AND telegram_id NOT LIKE 'demo_%'"
@@ -449,7 +462,51 @@ const DB = {
     return res.rows.map(r => r.telegram_id);
   },
 
-  // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር አስተዳደር ====================
+  // 📊 የፕሮፋይል ስታትስቲክስ እና የ Cashable / Play-Only ዋሌት ስሌት (Real-Time)
+  getUserDetailedProfile: async (userId) => {
+    const uRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (uRes.rows.length === 0) throw new Error('User not found');
+    const user = uRes.rows[0];
+    user.balance = parseFloat(user.balance);
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as total_deposited,
+        COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as total_withdrawn,
+        COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) ELSE 0 END), 0) as total_bet_amount,
+        COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount ELSE 0 END), 0) as total_won_amount,
+        COALESCE(COUNT(CASE WHEN type = 'BET' THEN 1 END), 0) as games_played,
+        COALESCE(COUNT(CASE WHEN type = 'WIN' THEN 1 END), 0) as games_won
+      FROM transactions 
+      WHERE user_id = $1
+    `, [userId]);
+
+    const stats = statsRes.rows[0];
+    const totalDeposited = parseFloat(stats.total_deposited);
+    const hasDeposited = totalDeposited > 0;
+
+    // 💡 ህግ፡ ዲፖዚት ካላደረገ በሙሉ Play-Only ነው፤ ዲፖዚት ካደረገ በኋላ Cashable ይሆናል!
+    const cashableBalance = hasDeposited ? user.balance : 0.00;
+    const playOnlyBalance = hasDeposited ? 0.00 : user.balance;
+
+    return {
+      user,
+      cashableBalance,
+      playOnlyBalance,
+      hasDeposited,
+      stats: {
+        totalDeposited,
+        totalWithdrawn: parseFloat(stats.total_withdrawn),
+        totalBet: parseFloat(stats.total_bet_amount),
+        totalWon: parseFloat(stats.total_won_amount),
+        gamesPlayed: parseInt(stats.games_played, 10) || 0,
+        gamesWon: parseInt(stats.games_won, 10) || 0,
+        winCount: parseInt(stats.games_won, 10) || 0
+      }
+    };
+  },
+
+  // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ====================
   getReferralContestConfig: async () => {
     const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('ref_prize_1', 'ref_prize_2', 'ref_prize_3', 'ref_contest_start')");
     const cfg = { prize1: 500, prize2: 300, prize3: 150, startDate: new Date(Date.now() - 7 * 86400000).toISOString() };
@@ -704,37 +761,6 @@ const DB = {
 
     const res = await pool.query(query, params);
     return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
-  },
-
-  getUserDetailedProfile: async (userId) => {
-    const uRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    if (uRes.rows.length === 0) throw new Error('User not found');
-    const user = uRes.rows[0];
-    user.balance = parseFloat(user.balance);
-
-    const statsRes = await pool.query(`
-      SELECT 
-        COALESCE(SUM(CASE WHEN type = 'DEPOSIT' AND status = 'COMPLETED' THEN amount ELSE 0 END), 0) as total_deposited,
-        COALESCE(SUM(CASE WHEN type = 'WITHDRAW' AND status = 'COMPLETED' THEN ABS(amount) ELSE 0 END), 0) as total_withdrawn,
-        COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) ELSE 0 END), 0) as total_bet_amount,
-        COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount ELSE 0 END), 0) as total_won_amount
-      FROM transactions 
-      WHERE user_id = $1
-    `, [userId]);
-
-    const winRes = await pool.query('SELECT COUNT(*) as win_count FROM game_rounds WHERE winner_username = $1', [user.username]);
-
-    const stats = statsRes.rows[0];
-    return {
-      user,
-      stats: {
-        totalDeposited: parseFloat(stats.total_deposited),
-        totalWithdrawn: parseFloat(stats.total_withdrawn),
-        totalBet: parseFloat(stats.total_bet_amount),
-        totalWon: parseFloat(stats.total_won_amount),
-        winCount: parseInt(winRes.rows[0].win_count, 10) || 0
-      }
-    };
   },
 
   saveGameRound: async (roomName, winnerUsername, winnerCartelaId, prizePool, totalCartelas, calledCount) => {
