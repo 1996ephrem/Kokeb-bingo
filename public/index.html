@@ -101,7 +101,8 @@
     .btn-danger { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
     .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
 
-    .cartelas-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 52vh; overflow-y: auto; }
+    /* 🎟️ 400 CARTELAS GRID WITH SMOOTH SCROLL */
+    .cartelas-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 54vh; overflow-y: auto; padding-right: 2px; }
     .cartela-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
     .cartela-btn:active { transform: scale(0.94); }
     .cartela-btn.selected { background: linear-gradient(135deg, #00ff87 0%, #00e5ff 100%); color: #08051a; }
@@ -250,8 +251,8 @@
         <h3 style="color: var(--accent-gold);">📖 የአጨዋወት መመሪያ</h3>
         <button class="btn-sm btn-danger" style="padding: 2px 8px;" onclick="closeGuide()">✕</button>
       </div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> <span>በቴሌብር ወይም CBE ብር ያስገቡ።</span></div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);">2. ካርቴላ ይቁረጡ:</b> <span>ከ 1 እስከ 100 ያሉ ካርቴላዎችን ይምረጡ።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> <span>በቴሌብር ወይም CBE ብር ያስገቡ (Min: 50 ETB)።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);">2. ካርቴላ ይቁረጡ:</b> <span>ከ 1 እስከ 400 ያሉ ካርቴላዎችን ይምረጡ።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-gold);">3. ኳሶችን ይከታተሉ:</b> <span>Auto-Daub ማብራት ይመረጣል።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);">4. አሸንፈው ብር ያውጡ:</b> <span>መስመር ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!</span></div>
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="closeGuide()">ገባኝ (GOT IT!)</button>
@@ -299,10 +300,10 @@
 
     <div class="balance-master-card">
       <div style="font-size: 11px; color: var(--text-muted);">Total balance</div>
-      <div class="balance-val-huge"><span id="hub-coins">0</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
+      <div class="balance-val-huge"><span id="hub-coins">0.00</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
       <div class="balance-sub-pills">
-        <span class="pill-cashable">● <span id="cashable-txt">0 Birr cashable</span></span>
-        <span class="pill-playonly"><span id="hub-coins-sub">0</span> <span>Birr play-only</span></span>
+        <span class="pill-cashable">● <span id="cashable-txt">0.00 Birr cashable</span></span>
+        <span class="pill-playonly"><span id="hub-coins-sub">0.00</span> <span>Birr play-only</span></span>
       </div>
     </div>
 
@@ -478,20 +479,20 @@
 
     <div class="balance-master-card">
       <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">TOTAL BALANCE</div>
-      <div class="balance-val-huge"><span id="wallet-balance">0</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
+      <div class="balance-val-huge"><span id="wallet-balance">0.00</span> <span style="font-size: 18px; color: var(--text-muted);">Birr</span></div>
       <div style="font-size: 10.5px; color: var(--text-muted);">Everything you can play with</div>
     </div>
 
     <div class="wallet-boxes-grid">
       <div class="wallet-box-cashable">
         <div style="font-size: 10px; color: var(--accent-gold); font-weight: bold;">● CASHABLE</div>
-        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="cashable-balance">0</span> Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">Winnings & prizes — can be withdrawn</div>
+        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="cashable-balance">0.00</span> Birr</div>
+        <div style="font-size: 9.5px; color: var(--text-muted);">Winnings & deposits — can be withdrawn</div>
       </div>
       <div class="wallet-box-playonly">
         <div style="font-size: 10px; color: var(--accent-purple); font-weight: bold;">● PLAY-ONLY</div>
-        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">0</span> Birr</div>
-        <div style="font-size: 9.5px; color: var(--text-muted);">Deposits & bonuses — spend on cards</div>
+        <div style="font-size: 18px; font-weight: 900; margin: 4px 0;"><span id="playonly-balance">0.00</span> Birr</div>
+        <div style="font-size: 9.5px; color: var(--text-muted);">Welcome bonuses & free rewards — spend on cards</div>
       </div>
     </div>
 
@@ -526,13 +527,13 @@
     </div>
   </div>
 
-  <!-- VIEW 6: PROFILE TAB -->
+  <!-- VIEW 6: PROFILE TAB (REAL-TIME STATS) -->
   <div id="screen-profile" class="view-screen">
     <div class="profile-header-card">
       <div class="user-avatar-lg" style="width: 60px; height: 60px; margin: auto; font-size: 24px; margin-bottom: 8px;" id="prof-avatar-big">E</div>
       <h3 id="prof-name-big" style="color: #fff;">Player ♐</h3>
       <div style="font-size: 11px; color: var(--text-muted);" id="prof-handle-big">@player · ID 7159802556</div>
-      <div style="margin-top: 6px;"><span class="pill-cashable">⭐ Member since 2026</span></div>
+      <div style="margin-top: 6px;"><span class="pill-cashable">⭐ Kokeb Bingo Member</span></div>
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
@@ -546,11 +547,12 @@
       <div style="font-size: 10.5px; color: var(--text-muted);">🔥 <span id="prof-streak-val">0</span> day streak · 🏆 0 win streak</div>
     </div>
 
+    <!-- 📊 REAL-TIME PROFILE STATS GRID -->
     <div class="profile-stats-grid">
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);">0</div><div style="font-size: 10px; color: var(--text-muted);">Games played</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);">0</div><div style="font-size: 10px; color: var(--text-muted);">Games won</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total won</div></div>
-      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-pink);">0 Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total bet</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);" id="prof-games-played">0</div><div style="font-size: 10px; color: var(--text-muted);">Games played</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);" id="prof-games-won">0</div><div style="font-size: 10px; color: var(--text-muted);">Games won</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-gold);"><span id="prof-total-won">0</span> Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total won</div></div>
+      <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-pink);"><span id="prof-total-bet">0</span> Birr</div><div style="font-size: 10px; color: var(--text-muted);">Total bet</div></div>
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 10px;">
@@ -569,19 +571,20 @@
     </div>
   </div>
 
-  <!-- VIEW 7: CARTELA SELECTION -->
+  <!-- VIEW 7: CARTELA SELECTION (400 CARDS) -->
   <div id="screen-cartela-select" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="cancelCartelaSelection()">← BACK</button>
       <h4 id="room-title" style="color: var(--accent-cyan);">Cartela Selection</h4>
-      <span class="pill-cashable">🪙 <span id="cartela-coins">0</span></span>
+      <span class="pill-cashable">🪙 <span id="cartela-coins">0.00</span></span>
     </div>
     <div style="background: #140d38; border-radius: 12px; padding: 10px; text-align: center; margin-bottom: 8px;">
       <h3 id="lobby-status-banner">⏰ ROUND STARTS IN: <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
       <div id="lobby-waiting-alert" style="display: none; color: #ffd700; font-size: 11.5px; font-weight: bold; margin-top: 4px;"></div>
     </div>
+    <!-- 400 CARTELAS CONTAINER -->
     <div class="cartelas-grid" id="cartelas-container"></div>
-    <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()">ENTER ARENA (<span id="btn-cartela-count">0</span>)</button>
+    <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()">ENTER ARENA (<span id="btn-cartela-count">0 Cards</span>)</button>
   </div>
 
   <!-- VIEW 8: LIVE GAME ENGINE (PLAYER & SPECTATOR) -->
@@ -626,7 +629,6 @@
       <div></div>
     </div>
 
-    <!-- TABS TO SWITCH BETWEEN GAME WINS AND REFERRAL CONTEST -->
     <div style="display: flex; gap: 6px; margin: 8px 0 12px 0;">
       <button id="tab-btn-gamewins" class="btn-sm btn-purple" style="flex: 1; padding: 9px;" onclick="switchLeaderboardTab('game')">🎮 የጨዋታ አሸናፊዎች</button>
       <button id="tab-btn-refcontest" class="btn-sm" style="flex: 1; padding: 9px; background: rgba(255,255,255,0.06); color: #fff;" onclick="switchLeaderboardTab('contest')">🏆 የግብዣ ውድድር</button>
@@ -640,7 +642,6 @@
 
     <!-- 2. WEEKLY REFERRAL CONTEST LEADERBOARD -->
     <div id="box-contest-leaderboard" style="display: none;">
-      <!-- PRIZES CARDS -->
       <div style="background: linear-gradient(135deg, #1b124a, #100a30); border: 1px solid rgba(255, 215, 0, 0.35); border-radius: 14px; padding: 12px; margin-bottom: 12px; text-align: center;">
         <h4 style="color: var(--accent-gold); margin-bottom: 6px;">🎁 የዚህ ሳምንት ሽልማቶች</h4>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
@@ -693,8 +694,28 @@
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.expand(); tg.ready(); }
 
-    let userState = { dbId: 1, telegramId: null, name: "Player ♐", coins: 0, lang: 'am', botUsername: 'Kokeb_Bingo_Bot', selectedMethod: 'TELEBIRR', streak: 0 };
-    let selectionState = { roomName: 'Beginner', costPerCartela: 10, timerSeconds: 25, selectedCartelaIds: new Set(), takenCartelaIds: new Set(), generatedCombinations: {} };
+    let userState = {
+      dbId: 1,
+      telegramId: null,
+      name: "Player ♐",
+      coins: 0,
+      cashableBalance: 0,
+      playOnlyBalance: 0,
+      lang: 'am',
+      botUsername: 'Kokeb_Bingo_Bot',
+      selectedMethod: 'TELEBIRR',
+      streak: 0
+    };
+
+    let selectionState = {
+      roomName: 'Beginner',
+      costPerCartela: 10,
+      timerSeconds: 25,
+      selectedCartelaIds: new Set(),
+      takenCartelaIds: new Set(),
+      generatedCombinations: {}
+    };
+
     let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
 
@@ -919,6 +940,7 @@
 
       document.body.classList.add('with-nav');
       if (screenName === 'wallet') fetchMyTransactions();
+      if (screenName === 'profile') fetchUserProfileStats();
       if (screenName === 'leaderboard') {
         fetchRealLeaderboard();
         fetchReferralContestLeaderboard();
@@ -989,7 +1011,9 @@
     socket.on('auth_success', (u) => {
       userState.dbId = u.id;
       userState.telegramId = u.telegramId;
-      userState.coins = u.balance;
+      userState.coins = parseFloat(u.balance) || 0;
+      userState.cashableBalance = parseFloat(u.cashableBalance) || 0;
+      userState.playOnlyBalance = parseFloat(u.playOnlyBalance) || 0;
       userState.streak = u.checkinStreak || 0;
       userState.botUsername = u.botUsername || 'Kokeb_Bingo_Bot';
 
@@ -998,6 +1022,8 @@
 
       updateCoinsDisplay();
       updateStreakUI(userState.streak, u.lastCheckinDate);
+      if (u.stats) updateProfileStatsUI(u.stats);
+
       fetchReferralContestLeaderboard();
       switchNav('dashboard');
     });
@@ -1012,12 +1038,14 @@
       fireLightweightConfetti();
       showModal("ክፍያዎ ጸድቋል! 🎉", data.message || "የማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!", "✅");
       fetchMyTransactions();
+      fetchUserProfileStats();
     });
 
     socket.on('withdrawal_rejected', (data) => {
       SoundFX.pop();
       showModal("የማውጣት ጥያቄ ተመላሽ ⚠️", data.message, "🪙");
       fetchMyTransactions();
+      fetchUserProfileStats();
     });
 
     socket.on('contest_winner', (data) => {
@@ -1025,6 +1053,7 @@
       fireLightweightConfetti();
       showModal("🏆 የውድድር አሸናፊ!", data.message || `እንኳን ደስ አለዎት! የሳምንታዊው ውድድር አሸናፊ በመሆን ${data.prize} ETB ተሸልመዋል!`, "🎁");
       fetchMyTransactions();
+      fetchUserProfileStats();
     });
 
     socket.on('contest_prizes_updated', ({ prizes }) => {
@@ -1042,10 +1071,13 @@
       showModal('📢 መልዕክት ከአድሚን', message, '📢');
     });
 
-    socket.on('balance_updated', ({ balance }) => {
-      userState.coins = balance;
+    socket.on('balance_updated', ({ balance, cashableBalance, playOnlyBalance }) => {
+      userState.coins = parseFloat(balance) || 0;
+      if (cashableBalance !== undefined) userState.cashableBalance = parseFloat(cashableBalance);
+      if (playOnlyBalance !== undefined) userState.playOnlyBalance = parseFloat(playOnlyBalance);
       updateCoinsDisplay();
       fetchMyTransactions();
+      fetchUserProfileStats();
     });
 
     socket.on('all_rooms_update', (status) => {
@@ -1085,15 +1117,44 @@
       }
     });
 
+    // 💡 የተስተካከለ፡ የ Cashable እና Play-only ዋሌት ማሳያ
     function updateCoinsDisplay() {
-      document.getElementById('hub-coins').innerText = userState.coins;
-      document.getElementById('hub-coins-sub').innerText = userState.coins;
-      document.getElementById('wallet-balance').innerText = userState.coins;
-      document.getElementById('playonly-balance').innerText = userState.coins;
-      document.getElementById('cartela-coins').innerText = userState.coins;
-      if (document.getElementById('cashable-balance')) {
-        document.getElementById('cashable-balance').innerText = userState.coins;
-      }
+      document.getElementById('hub-coins').innerText = userState.coins.toFixed(2);
+      document.getElementById('hub-coins-sub').innerText = userState.playOnlyBalance.toFixed(2);
+      document.getElementById('wallet-balance').innerText = userState.coins.toFixed(2);
+      document.getElementById('playonly-balance').innerText = userState.playOnlyBalance.toFixed(2);
+      document.getElementById('cashable-balance').innerText = userState.cashableBalance.toFixed(2);
+      document.getElementById('cashable-txt').innerText = `${userState.cashableBalance.toFixed(2)} Birr cashable`;
+      document.getElementById('cartela-coins').innerText = userState.coins.toFixed(2);
+    }
+
+    // 📊 የፕሮፋይል ስታትስቲክስ ማሳያ
+    function updateProfileStatsUI(stats) {
+      if (!stats) return;
+      const elPlayed = document.getElementById('prof-games-played');
+      const elWon = document.getElementById('prof-games-won');
+      const elTotWon = document.getElementById('prof-total-won');
+      const elTotBet = document.getElementById('prof-total-bet');
+
+      if (elPlayed) elPlayed.innerText = stats.gamesPlayed || 0;
+      if (elWon) elWon.innerText = stats.gamesWon || stats.winCount || 0;
+      if (elTotWon) elTotWon.innerText = (stats.totalWon || 0).toLocaleString();
+      if (elTotBet) elTotBet.innerText = (stats.totalBet || 0).toLocaleString();
+    }
+
+    async function fetchUserProfileStats() {
+      if (!userState.dbId) return;
+      try {
+        const res = await fetch(`/api/user/profile?userId=${userState.dbId}`);
+        const data = await res.json();
+        if (data.success) {
+          userState.coins = parseFloat(data.user.balance) || 0;
+          userState.cashableBalance = parseFloat(data.cashableBalance) || 0;
+          userState.playOnlyBalance = parseFloat(data.playOnlyBalance) || 0;
+          updateCoinsDisplay();
+          updateProfileStatsUI(data.stats);
+        }
+      } catch (e) {}
     }
 
     function updateStreakUI(streak, lastDate) {
@@ -1126,13 +1187,14 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          userState.coins = data.newBalance;
+          userState.coins = parseFloat(data.newBalance);
           userState.streak = data.newStreak;
           updateCoinsDisplay();
           updateStreakUI(data.newStreak, new Date().toISOString().split('T')[0]);
           SoundFX.win();
           fireLightweightConfetti();
           showModal("እንኳን ደስ አለዎት!", `🎉 የቀን ${data.newStreak} የ ${data.rewardAmount} ETB ተከታታይ ቦነስዎ ገቢ ሆኗል!`, "🎁");
+          fetchUserProfileStats();
         } else {
           alert(data.error || "ዛሬ ወስደዋል!");
         }
@@ -1152,13 +1214,14 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          userState.coins = data.newBalance;
+          userState.coins = parseFloat(data.newBalance);
           updateCoinsDisplay();
           SoundFX.win();
           fireLightweightConfetti();
           showModal("🎉 ፕሮሞኮድ ተቀብለዋል!", `እንኳን ደስ አለዎት! የ ${data.rewardAmount} ETB ቦነስ ወደ ዋሌትዎ ገቢ ሆኗል!`, "🎁");
           inputEl.value = '';
           fetchMyTransactions();
+          fetchUserProfileStats();
         } else {
           alert(data.error || "ፕሮሞኮዱ የተሳሳተ ነው!");
         }
@@ -1194,7 +1257,6 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
-    // 📤 ዝቅተኛው ማውጫ 225 ETB
     async function submitWithdrawal() {
       const phone = document.getElementById('withdraw-phone-input').value.trim();
       const amount = parseFloat(document.getElementById('withdraw-amount-input').value.trim());
@@ -1213,10 +1275,11 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          userState.coins = data.remainingBalance;
+          userState.coins = parseFloat(data.remainingBalance);
           updateCoinsDisplay();
           showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በ${userState.selectedMethod} ይላክሎታል።`, "⚡");
           fetchMyTransactions();
+          fetchUserProfileStats();
         } else {
           alert(data.error || "ጥያቄው አልተሳካም!");
         }
@@ -1275,7 +1338,6 @@
       }
     }
 
-    // 🏆 ሳምንታዊ የግብዣ ውድድር ደረጃዎች መጫኛ
     async function fetchReferralContestLeaderboard() {
       const container = document.getElementById('contest-leaderboard-container');
       try {
@@ -1363,7 +1425,7 @@
         showScreen('screen-cartela-select');
         document.getElementById('cartela-timer').innerText = d.timer;
         document.getElementById('lobby-waiting-alert').style.display = 'none';
-        renderCartelaGrid100();
+        renderCartelaGrid();
       }
     });
 
@@ -1383,7 +1445,7 @@
 
     socket.on('cartelas_locked', ({ takenIds, prizePool }) => {
       selectionState.takenCartelaIds = new Set(takenIds);
-      renderCartelaGrid100();
+      renderCartelaGrid();
       if (document.getElementById('arena-cards-sold')) {
         document.getElementById('arena-cards-sold').innerText = takenIds.length;
       }
@@ -1405,42 +1467,66 @@
         }
 
         document.getElementById('lobby-waiting-alert').style.display = 'none';
-        renderCartelaGrid100();
+        renderCartelaGrid();
       }
     });
 
-    function renderCartelaGrid100() {
+    // 🎟️ 400 ካርቴላዎችን በግሪድ የመደርደር ፈንክሽን
+    function renderCartelaGrid() {
       const c = document.getElementById('cartelas-container');
       c.innerHTML = '';
-      for (let i = 1; i <= 100; i++) {
+      for (let i = 1; i <= 400; i++) {
         const btn = document.createElement('div');
         btn.className = 'cartela-btn';
         if (selectionState.takenCartelaIds.has(i)) btn.classList.add('taken');
         if (selectionState.selectedCartelaIds.has(i)) btn.classList.add('selected');
         btn.onclick = () => toggleCartela(i);
-        btn.innerHTML = `<div style="font-weight:900;">#${i}</div><div style="font-size:9px; color:#8e8aa8;">${selectionState.costPerCartela}🪙</div>`;
+        btn.innerHTML = `<div style="font-weight:900;">#${i}</div><div style="font-size:8.5px; color:#8e8aa8;">${selectionState.costPerCartela}🪙</div>`;
         c.appendChild(btn);
       }
     }
 
+    // 🚨 1. ባላንስ በቂ ካልሆነ ካርቴላ እንዳይመረጥ የሚከለክል ፈንክሽን
     function toggleCartela(id) {
       if (selectionState.takenCartelaIds.has(id)) return;
+
+      // ተጫዋቹ አዲስ ካርቴላ ለመምረጥ ሲነካ ባላንሱን መፈተሽ
+      if (!selectionState.selectedCartelaIds.has(id)) {
+        const nextTotalCost = (selectionState.selectedCartelaIds.size + 1) * selectionState.costPerCartela;
+        if (nextTotalCost > userState.coins) {
+          SoundFX.pop();
+          return alert(`❌ ቀሪ ሒሳብዎ በቂ አይደለም! (Insufficient Balance)\n\nየአንድ ካርቴላ ዋጋ: ${selectionState.costPerCartela} ETB ነው፤ አካውንትዎ ላይ ያለው ቀሪ ሒሳብ: ${userState.coins} ETB ነው።\n\nእባክዎን መጀመሪያ ሒሳብዎን ይሙሉ (Deposit ያድርጉ)!`);
+        }
+      }
+
       SoundFX.pop();
-      if (selectionState.selectedCartelaIds.has(id)) selectionState.selectedCartelaIds.delete(id);
-      else selectionState.selectedCartelaIds.add(id);
-      renderCartelaGrid100();
+      if (selectionState.selectedCartelaIds.has(id)) {
+        selectionState.selectedCartelaIds.delete(id);
+      } else {
+        selectionState.selectedCartelaIds.add(id);
+      }
+      renderCartelaGrid();
       document.getElementById('btn-cartela-count').innerText = `${selectionState.selectedCartelaIds.size} Cards = ${selectionState.selectedCartelaIds.size * selectionState.costPerCartela} ETB`;
     }
 
     function confirmAndEnterArena() {
       const ids = Array.from(selectionState.selectedCartelaIds);
       if (ids.length === 0) return alert("እባክዎን ቢያንስ 1 ካርቴላ ይምረጡ!");
+
+      const totalCost = ids.length * selectionState.costPerCartela;
+      if (totalCost > userState.coins) {
+        return alert(`❌ ቀሪ ሒሳብዎ በቂ አይደለም! (Insufficient Balance)\n\nአካውንትዎ ላይ ያለው: ${userState.coins} ETB ነው፤ የሚያስፈልገው: ${totalCost} ETB ነው።\nእባክዎን መጀመሪያ ሒሳብዎን ይሙሉ!`);
+      }
+
       socket.emit('buy_cartelas', { roomName: selectionState.roomName, cartelaIds: ids });
     }
 
     socket.on('cartelas_bought_success', (d) => {
-      userState.coins = d.balance;
+      userState.coins = parseFloat(d.balance) || 0;
+      if (d.cashableBalance !== undefined) userState.cashableBalance = parseFloat(d.cashableBalance);
+      if (d.playOnlyBalance !== undefined) userState.playOnlyBalance = parseFloat(d.playOnlyBalance);
       updateCoinsDisplay();
+
       gameState.isLive = true;
       gameState.isSpectator = false;
       gameState.calledNumbers.clear();
@@ -1457,6 +1543,7 @@
 
       renderFullBoard();
       renderPlayerCards();
+      fetchUserProfileStats();
     });
 
     socket.on('game_started', (d) => {
@@ -1556,7 +1643,7 @@
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
     }
 
-    // 🏆 አውቶማቲክ ቢንጎ እና የበርካታ አሸናፊዎች ማሳወቂያ
+    // 🏆 አውቶማቲክ ቢንጎ እና በርካታ አሸናፊዎች ማሳወቂያ
     socket.on('game_finished', (d) => {
       gameState.isLive = false;
       document.getElementById('claim-bingo-btn').disabled = true;
@@ -1589,6 +1676,8 @@
         SoundFX.pop();
         showModal("Game Finished", d.message, "🏁");
       }
+
+      fetchUserProfileStats();
 
       if (!gameState.isSpectator) {
         switchNav('dashboard');
