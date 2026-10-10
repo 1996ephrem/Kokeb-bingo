@@ -16,7 +16,7 @@ const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 
 const DB = require('./database');
-const { generate100Cartelas, validateBingo } = require('./gameEngine');
+const { generate400Cartelas, validateBingo } = require('./gameEngine');
 const { verifyTelegramAuth } = require('./telegramAuth');
 
 const app = express();
@@ -49,6 +49,21 @@ function getAppBaseUrl() {
     return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
   }
   return 'https://kokeb-bingo.onrender.com';
+}
+
+// 📱 የቴሌግራም ቦቱ ዋና ሜኑ (Persistent Keyboard Buttons)
+function getBotMainMenu(webAppUrl) {
+  return {
+    reply_markup: {
+      keyboard: [
+        [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }],
+        [{ text: '💰 ቀሪ ሒሳብ (Balance)' }, { text: '🎁 ጓደኛ ጋብዝ (Invite)' }],
+        [{ text: '📥 ብር ማስገቢያ (Deposit)' }, { text: '📤 ብር ማውጫ (Withdraw)' }],
+        [{ text: 'ℹ️ መመሪያ (Help)' }]
+      ],
+      resize_keyboard: true
+    }
+  };
 }
 
 // ==================== TELEGRAM BOT SETUP ====================
@@ -118,16 +133,8 @@ if (process.env.BOT_TOKEN) {
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
       bot.sendMessage(
         chatId,
-        `🎯 እንኳን ደህና መጡ ${firstName}!\nአካውንትዎ አስቀድሞ ተመዝግቧል።\n💰 ቀሪ ሒሳብዎ: ${user.balance} ETB\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
-        {
-          reply_markup: {
-            remove_keyboard: true,
-            inline_keyboard: [
-              [{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }],
-              [{ text: 'ℹ️ መመሪያ (Help)', callback_data: 'help' }]
-            ]
-          }
-        }
+        `🎯 እንኳን ደህና መጡ ${firstName}!\nአካውንትዎ ዝግጁ ነው።\n💰 ቀሪ ሒሳብዎ: ${user.balance} ETB\n\nለመጫወት ወይም ሒሳብዎን ለመቆጣጠር ከታች ያሉትን በተኖች ይጠቀሙ!`,
+        getBotMainMenu(webAppUrl)
       ).catch(() => {});
     } catch (e) {
       console.error('Bot start error:', e.message);
@@ -152,12 +159,6 @@ if (process.env.BOT_TOKEN) {
     try {
       const regResult = await DB.registerVerifiedPhone(telegramId, username, firstName, phone);
       const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
-      const playKeyboard = {
-        reply_markup: {
-          remove_keyboard: true,
-          inline_keyboard: [[{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }]]
-        }
-      };
 
       if (regResult.isNewBonus) {
         bot.sendMessage(
@@ -165,21 +166,25 @@ if (process.env.BOT_TOKEN) {
           `🎉 እንኳን ደስ አለዎት ምዝገባዎ ተጠናቋል!\n\n` +
           `✅ ስልክ ቁጥርዎ ተረጋግጧል (${phone})\n` +
           `🎁 የ 15 ETB የመጫወቻ ቦነስ (Play-Only Bonus) ወደ አካውንትዎ ገቢ ሆኗል!\n\n` +
-          `ለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
-          playKeyboard
+          `ለመጫወት ከታች ያለውን 'Play Now' በተን ይጫኑ!`,
+          getBotMainMenu(webAppUrl)
         ).catch(() => {});
 
         for (const [sockId, pInfo] of activeSockets.entries()) {
           if (pInfo.telegramId === telegramId || pInfo.dbId === regResult.user.id) {
             pInfo.balance = regResult.user.balance;
-            io.to(sockId).emit('balance_updated', { balance: regResult.user.balance });
+            io.to(sockId).emit('balance_updated', {
+              balance: regResult.user.balance,
+              cashableBalance: 0.00,
+              playOnlyBalance: regResult.user.balance
+            });
           }
         }
       } else {
         bot.sendMessage(
           chatId,
-          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n*(የጀማሪ ቦነስ የሚሰጠው ለመጀመሪያ ምዝገባ ብቻ ነው)*\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
-          playKeyboard
+          `ℹ️ ይህ ስልክ ቁጥር (${phone}) አስቀድሞ የተመዘገበ ነው!\n\n💰 ቀሪ ሒሳብዎ: ${regResult.user.balance} ETB\n\nለመጫወት ከታች ያለውን Play Now በተን ይጫኑ!`,
+          getBotMainMenu(webAppUrl)
         ).catch(() => {});
       }
     } catch (err) {
@@ -189,11 +194,92 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
+  // 🤖 የቴሌግራም ቦት ቋሚ ሜኑ መልዕክቶች መመለሻ (Interactive Menu Handlers)
+  bot.on('message', async (msg) => {
+    if (!msg.text || msg.text.startsWith('/')) return;
+    const chatId = msg.chat.id;
+    const telegramId = msg.from.id.toString();
+    const text = msg.text.trim();
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+
+    try {
+      const user = await DB.getUserByTelegramId(telegramId);
+      if (!user) return;
+
+      // 1. 💰 ቀሪ ሒሳብ መፈተሻ
+      if (text === '💰 ቀሪ ሒሳብ (Balance)') {
+        const prof = await DB.getUserDetailedProfile(user.id);
+        const reply = 
+          `💰 <b>የሒሳብዎ ዝርዝር (Account Balance):</b>\n\n` +
+          `💵 ጠቅላላ ሒሳብ: <b>${user.balance.toFixed(2)} ETB</b>\n` +
+          `🟢 የሚወጣ (Cashable): <b>${prof.cashableBalance.toFixed(2)} ETB</b>\n` +
+          `🟣 የመጫወቻ (Play-Only): <b>${prof.playOnlyBalance.toFixed(2)} ETB</b>\n\n` +
+          `<i>💡 ማሳሰቢያ፦ ዲፖዚት ሳያደርጉ በፊት ያገኙት ነጻ ቦነስ በ Play-Only ይቀመጣል፤ ዲፖዚት ሲያደርጉ ወደ Cashable ይዘዋወራል!</i>`;
+        return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
+      }
+
+      // 2. 📥 ብር ማስገቢያ መመሪያ
+      if (text === '📥 ብር ማስገቢያ (Deposit)') {
+        const reply = 
+          `📥 <b>ሒሳብ መሙያ መመሪያ (Deposit Info):</b>\n\n` +
+          `🟢 <b>ቴሌብር (Telebirr):</b> <code>0997575739</code> (Ephrem Shitu)\n` +
+          `🟣 <b>CBE Birr / ንግድ ባንክ</b>\n\n` +
+          `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
+          `<b>አሞላሉ፦</b>\n` +
+          `1. በቴሌብር ብር ይላኩ\n` +
+          `2. የደረሶትን የትራንዛክሽን ቁጥር (Txn ID) ይቅዱ\n` +
+          `3. ከታች 'Play Now' ተጭነው Wallet ውስጥ ጥያቄውን ያስገቡ!`;
+        return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
+      }
+
+      // 3. 📤 ብር ማውጫ መመሪያ
+      if (text === '📤 ብር ማውጫ (Withdraw)') {
+        const reply = 
+          `📤 <b>ብር ማውጫ መመሪያ (Withdrawal Info):</b>\n\n` +
+          `📌 <b>ዝቅተኛው የማውጫ መጠን:</b> 225 ETB\n` +
+          `📌 <b>ቀሪ ተቀማጭ:</b> ቢያንስ 25 ETB መኖር አለበት\n` +
+          `📌 ብር ለማውጣት መጀመሪያ ቢያንስ አንድ ጊዜ 50 ETB ማስገባት ግዴታ ነው!\n\n` +
+          `ያሸነፉትን ገንዘብ ለማውጣት ከታች 'Play Now' ተጭነው Wallet ውስጥ የቴሌብር ስልክዎን ያስገቡ!`;
+        return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
+      }
+
+      // 4. 🎁 ጓደኛ መጋበዣ
+      if (text === '🎁 ጓደኛ ጋብዝ (Invite)') {
+        const refLink = `https://t.me/${detectedBotUsername}?start=ref_${telegramId}`;
+        const reply = 
+          `🎁 <b>ጓደኞችዎን ይጋብዙና ሳምንታዊ ሽልማት ያሸንፉ!</b>\n\n` +
+          `የእርስዎ መጋበዣ ሊንክ፦\n<code>${refLink}</code>\n\n` +
+          `🏆 <b>ሳምንታዊ የግብዣ ውድድር፦</b>\n` +
+          `በዚህ ሳምንት ብዙ ሰው በመጋበዝ ከ 1ኛ - 3ኛ ይውጡ፤ በየሳምንቱ እስከ 500+ ETB ተሸላሚ ይሁኑ!`;
+        return bot.sendMessage(chatId, reply, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📲 ሊንኩን ለጓደኞችህ አጋራ (Share Link)', url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('🎮 ና የኮከብ ቢንጎ አብረን እንጫወት!')}` }]
+            ]
+          }
+        });
+      }
+
+      // 5. ℹ️ መመሪያ
+      if (text === 'ℹ️ መመሪያ (Help)') {
+        const reply = 
+          `📖 <b>የኮከብ ቢንጎ አጨዋወት መመሪያ:</b>\n\n` +
+          `1. በቴሌብር ሒሳብዎን ይሙሉ (Min: 50 ETB)\n` +
+          `2. ካርቴላ ይቁረጡ (ከ 1 እስከ 400 ባሉት ካርቴላዎች)\n` +
+          `3. ኳሶችን ይከታተሉ (Auto-daub ማብራት ይመረጣል)\n` +
+          `4. መስመር ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!`;
+        return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
+      }
+
+    } catch (e) {}
+  });
+
   bot.on('callback_query', (query) => {
     if (query.data === 'help') {
       bot.sendMessage(
         query.message.chat.id,
-        `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ (10፣ 25 ወይም 100 ETB)\n3. ኳሶችን ይከታተሉ\n4. መስመር ወይም 4 ማዕዘን ሲሞላ CLAIM BINGO ይጫኑ!`
+        `📖 የኮከብ ቢንጎ አጨዋወት መመሪያ:\n\n1. በቴሌብር ወይም CBE ብር ያስገቡ\n2. ካርቴላ ይቁረጡ\n3. ኳሶችን ይከታተሉ\n4. ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!`
       ).catch(() => {});
     }
   });
@@ -217,7 +303,7 @@ function sendTelegramNotification(telegramId, message, withPlayButton = false) {
   }
 }
 
-// ==================== BINGO ROOMS ENGINE ====================
+// ==================== BINGO ROOMS ENGINE (400 CARTELAS) ====================
 function createRoomState(name, stake, callSpeed) {
   return {
     name,
@@ -227,7 +313,7 @@ function createRoomState(name, stake, callSpeed) {
     timer: 30,
     timerInterval: null,
     gameInterval: null,
-    cartelas: generate100Cartelas(),
+    cartelas: generate400Cartelas(), // 🎟️ 400 ካርቴላዎች
     takenCartelas: new Map(),
     calledNumbers: new Set(),
     uncalledNumbers: Array.from({ length: 75 }, (_, i) => i + 1),
@@ -270,7 +356,7 @@ function startRoomLobby(roomName) {
   room.uncalledNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
   room.drawnCount = 0;
   room.takenCartelas.clear();
-  room.cartelas = generate100Cartelas();
+  room.cartelas = generate400Cartelas(); // አዲስ 400 ካርቴላዎች
 
   io.to(roomName).emit('room_reset', {
     roomName,
@@ -312,7 +398,7 @@ function startRoomLobby(roomName) {
   }, 1000);
 }
 
-// 🎯 የቀጥታ ጨዋታ ኢንጂን (ከነ አውቶማቲክ ቢንጎ እና በርካታ አሸናፊዎች ክፍፍል ጋር)
+// 🎯 የቀጥታ ጨዋታ ኢንጂን (ከነ አውቶማቲክ ቢንጎ እና እኩል ክፍፍል ጋር)
 function startRoomGame(roomName) {
   const room = rooms[roomName];
   if (!room) return;
@@ -342,7 +428,6 @@ function startRoomGame(roomName) {
       return;
     }
 
-    // 1. አዲስ ኳስ መጣል
     const randIdx = Math.floor(Math.random() * room.uncalledNumbers.length);
     const num = room.uncalledNumbers.splice(randIdx, 1)[0];
     room.calledNumbers.add(num);
@@ -357,14 +442,13 @@ function startRoomGame(roomName) {
       drawnCount: room.drawnCount
     });
 
-    // 🚨 2. ሰርቨሩ በራሱ ሁሉንም ካርቴላዎች አውቶማቲክ መርምሮ አሸናፊዎችን የመለየት ስራ
+    // 🚨 ሰርቨሩ በራሱ ሁሉንም ካርቴላዎች መርምሮ አሸናፊዎችን የመለየት ስራ
     const detectedWinners = [];
 
     for (const [cardId, cardInfo] of room.takenCartelas.entries()) {
       const cardGrid = room.cartelas[cardId];
       if (!cardGrid) continue;
 
-      // ካርቴላው ላይ የወጣውን ቁጥር መቁረጥ (Mark ማድረግ)
       for (let r = 0; r < 5; r++) {
         for (let c = 0; c < 5; c++) {
           if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
@@ -373,7 +457,6 @@ function startRoomGame(roomName) {
         }
       }
 
-      // ቢንጎ መሆኑን ማረጋገጥ
       if (validateBingo(cardGrid, cardInfo.markedMatrix, room.calledNumbers)) {
         detectedWinners.push({
           dbId: cardInfo.dbId,
@@ -384,7 +467,7 @@ function startRoomGame(roomName) {
       }
     }
 
-    // 🏆 3. አሸናፊ(ዎች) ሲገኙ ጨዋታውን አቁሞ ደራሽ ብሩን እኩል ማከፋፈል
+    // 🏆 አሸናፊዎች ሲገኙ ዙሩን አቁሞ ደራሽ ብሩን እኩል ማከፋፈል
     if (detectedWinners.length > 0) {
       room.winnerDeclared = true;
       room.state = 'FINISHED';
@@ -399,10 +482,16 @@ function startRoomGame(roomName) {
           const newBal = await DB.updateBalance(w.dbId, eachPrize, 'WIN', `${roomName} Bingo`);
           w.newBalance = newBal;
 
+          const prof = await DB.getUserDetailedProfile(w.dbId);
+
           for (const [sockId, pInfo] of activeSockets.entries()) {
             if (pInfo.dbId === w.dbId) {
               pInfo.balance = newBal;
-              io.to(sockId).emit('balance_updated', { balance: newBal });
+              io.to(sockId).emit('balance_updated', {
+                balance: newBal,
+                cashableBalance: prof.cashableBalance,
+                playOnlyBalance: prof.playOnlyBalance
+              });
             }
           }
 
@@ -417,7 +506,6 @@ function startRoomGame(roomName) {
   }, room.callSpeed);
 }
 
-// 🏁 ጨዋታ ማጠናቀቂያ (ለአንድም ሆነ ለበርካታ አሸናፊዎች የሚሰራ)
 async function endGame(roomName, winnersData, fallbackMessage) {
   const room = rooms[roomName];
   if (!room) return;
@@ -479,11 +567,17 @@ io.on('connection', (socket) => {
         balance: user.balance
       });
 
+      // የተጫዋቹን ትክክለኛ የፕሮፋይል ስታትስቲክስና ዋሌት አምጣ
+      const prof = await DB.getUserDetailedProfile(user.id);
+
       socket.emit('auth_success', {
         id: user.id,
         telegramId: user.telegram_id,
         username: user.username,
         balance: user.balance,
+        cashableBalance: prof.cashableBalance,
+        playOnlyBalance: prof.playOnlyBalance,
+        stats: prof.stats,
         botUsername: detectedBotUsername,
         checkinStreak: user.checkin_streak || 0,
         lastCheckinDate: user.last_checkin_date
@@ -539,7 +633,14 @@ io.on('connection', (socket) => {
         try {
           const newBal = await DB.updateBalance(player.dbId, refundTotal, 'REFUND', `${roomName} Lobby Leave`);
           player.balance = newBal;
-          socket.emit('balance_updated', { balance: newBal });
+          const prof = await DB.getUserDetailedProfile(player.dbId);
+
+          socket.emit('balance_updated', {
+            balance: newBal,
+            cashableBalance: prof.cashableBalance,
+            playOnlyBalance: prof.playOnlyBalance
+          });
+
           io.to(roomName).emit('cartelas_locked', {
             takenIds: Array.from(room.takenCartelas.keys()),
             totalTaken: room.takenCartelas.size,
@@ -570,6 +671,7 @@ io.on('connection', (socket) => {
     try {
       const newBalance = await DB.updateBalance(player.dbId, -totalCost, 'BET', roomName);
       player.balance = newBalance;
+      const prof = await DB.getUserDetailedProfile(player.dbId);
 
       cartelaIds.forEach(id => {
         const markedMatrix = Array.from({ length: 5 }, () => Array(5).fill(false));
@@ -587,6 +689,8 @@ io.on('connection', (socket) => {
 
       socket.emit('cartelas_bought_success', {
         balance: newBalance,
+        cashableBalance: prof.cashableBalance,
+        playOnlyBalance: prof.playOnlyBalance,
         boughtIds: cartelaIds,
         roomName,
         prizePool,
@@ -616,7 +720,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ተጫዋቹ ራሱም ቢንጎ ቢል ተጨማሪ ማረጋገጫ (Fallback Claim)
   socket.on('claim_bingo', async ({ roomName, cartelaId }) => {
     const player = activeSockets.get(socket.id);
     const room = rooms[roomName];
@@ -651,7 +754,13 @@ io.on('connection', (socket) => {
       try {
         const updatedBalance = await DB.updateBalance(player.dbId, prize, 'WIN', roomName);
         player.balance = updatedBalance;
-        socket.emit('balance_updated', { balance: updatedBalance });
+        const prof = await DB.getUserDetailedProfile(player.dbId);
+
+        socket.emit('balance_updated', {
+          balance: updatedBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
 
         endGame(
           roomName,
@@ -682,6 +791,18 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// 📊 የተጫዋች ፕሮፋይል ስታትስቲክስ (Real-Time Stats)
+app.get('/api/user/profile', async (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ error: 'User ID is required' });
+  try {
+    const prof = await DB.getUserDetailedProfile(userId);
+    res.json({ success: true, ...prof });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/referral-contest/leaderboard', async (req, res) => {
   try {
     const data = await DB.getWeeklyReferralLeaderboard();
@@ -697,10 +818,16 @@ app.post('/api/checkin/claim', async (req, res) => {
 
   try {
     const result = await DB.claimDailyCheckinStreak(userId);
+    const prof = await DB.getUserDetailedProfile(userId);
+
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = result.newBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: result.newBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
       }
     }
     res.json(result);
@@ -715,10 +842,16 @@ app.post('/api/promo/claim', async (req, res) => {
 
   try {
     const result = await DB.claimPromoCode(parseInt(userId, 10), code);
+    const prof = await DB.getUserDetailedProfile(userId);
+
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === parseInt(userId, 10)) {
         pInfo.balance = result.newBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: result.newBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
       }
     }
     res.json(result);
@@ -727,7 +860,7 @@ app.post('/api/promo/claim', async (req, res) => {
   }
 });
 
-// 📥 ዝቅተኛው የማስገቢያ መጠን 50 ETB
+// 📥 ዝቅተኛው ማስገቢያ 50 ETB
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef, method } = req.body;
   const depositAmount = parseFloat(amount);
@@ -771,7 +904,7 @@ app.get('/api/payment/my-transactions', async (req, res) => {
   }
 });
 
-// 📤 ዝቅተኛው የማውጫ መጠን 225 ETB
+// 📤 ዝቅተኛው ማውጫ 225 ETB
 app.post('/api/payment/withdraw', async (req, res) => {
   const { userId, amount, phoneNumber, method } = req.body;
   const withdrawAmount = parseFloat(amount);
@@ -785,10 +918,16 @@ app.post('/api/payment/withdraw', async (req, res) => {
 
   try {
     const result = await DB.requestWithdrawal(userId, withdrawAmount, phoneNumber, method || 'TELEBIRR');
+    const prof = await DB.getUserDetailedProfile(userId);
+
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === userId) {
         pInfo.balance = result.remainingBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.remainingBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: result.remainingBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
       }
     }
 
@@ -877,10 +1016,16 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.approveDeposit(txId);
+    const prof = await DB.getUserDetailedProfile(result.userId);
+
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance = result.newBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: result.newBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
         io.to(sockId).emit('deposit_approved', {
           txId,
           amount: result.amount,
@@ -944,11 +1089,16 @@ app.post('/api/admin/reject-withdrawal', adminAuth, async (req, res) => {
   const { txId } = req.body;
   try {
     const result = await DB.rejectWithdrawal(txId);
+    const prof = await DB.getUserDetailedProfile(result.userId);
 
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === result.userId) {
         pInfo.balance = result.newBalance;
-        io.to(sockId).emit('balance_updated', { balance: result.newBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: result.newBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
         io.to(sockId).emit('withdrawal_rejected', {
           txId,
           amount: result.refundedAmount,
@@ -1007,11 +1157,17 @@ app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
   try {
     const result = await DB.payoutWeeklyReferralContest(prize1, prize2, prize3);
 
-    result.winners.forEach(w => {
+    for (const w of result.winners) {
+      const prof = await DB.getUserDetailedProfile(w.userId);
+
       for (const [sockId, pInfo] of activeSockets.entries()) {
         if (pInfo.dbId === w.userId) {
           pInfo.balance = w.newBalance;
-          io.to(sockId).emit('balance_updated', { balance: w.newBalance });
+          io.to(sockId).emit('balance_updated', {
+            balance: w.newBalance,
+            cashableBalance: prof.cashableBalance,
+            playOnlyBalance: prof.playOnlyBalance
+          });
           io.to(sockId).emit('contest_winner', {
             rank: w.rank,
             prize: w.prize,
@@ -1032,7 +1188,7 @@ app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
           true
         );
       }
-    });
+    }
 
     res.json({
       success: true,
@@ -1115,10 +1271,16 @@ app.post('/api/admin/adjust-balance', adminAuth, async (req, res) => {
   const { userId, amount, reason } = req.body;
   try {
     const newBalance = await DB.updateBalance(userId, parseFloat(amount), 'ADMIN_ADJUST', reason || 'Admin action');
+    const prof = await DB.getUserDetailedProfile(userId);
+
     for (const [sockId, pInfo] of activeSockets.entries()) {
       if (pInfo.dbId === parseInt(userId, 10)) {
         pInfo.balance = newBalance;
-        io.to(sockId).emit('balance_updated', { balance: newBalance });
+        io.to(sockId).emit('balance_updated', {
+          balance: newBalance,
+          cashableBalance: prof.cashableBalance,
+          playOnlyBalance: prof.playOnlyBalance
+        });
       }
     }
     res.json({ success: true, message: 'ሒሳቡ ተስተካክሏል!', newBalance });
@@ -1165,7 +1327,6 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-// 📢 ማስታወቂያ በቴሌግራም መላኪያ
 app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
