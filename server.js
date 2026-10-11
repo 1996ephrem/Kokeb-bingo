@@ -51,7 +51,6 @@ function getAppBaseUrl() {
   return 'https://kokeb-bingo.onrender.com';
 }
 
-// 📱 ልክ እንደ ሽን ቢንጎ (Shen Bingo) የተዘጋጀ ቋሚ የሜኑ አቀማመጥ
 function getBotMainMenu(webAppUrl) {
   return {
     reply_markup: {
@@ -87,6 +86,16 @@ if (process.env.BOT_TOKEN) {
   bot.getMe().then((botInfo) => {
     detectedBotUsername = botInfo.username;
     console.log(`[+] Telegram Bot Active: @${detectedBotUsername}`);
+
+    bot.setMyCommands([
+      { command: 'play', description: '🎮 አሁኑኑ ተጫወት (Play Now)' },
+      { command: 'balance', description: '💰 ቀሪ ሒሳብ መፈተሻ' },
+      { command: 'deposit', description: '📥 ብር ማስገቢያ መመሪያ' },
+      { command: 'withdraw', description: '📤 ብር ማውጫ መመሪያ' },
+      { command: 'invite', description: '🎁 ጓደኛ መጋበዣ ሊንክ' },
+      { command: 'help', description: 'ℹ️ የአጨዋወት መመሪያ' }
+    ]).catch(() => {});
+
   }).catch((err) => console.error('Telegram bot init error:', err.message));
 
   bot.onText(/\/start(.*)/, async (msg, match) => {
@@ -196,7 +205,86 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
-  // 🤖 ተጠቃሚው ከታች ያሉትን በተኖች ሲነካ የሚሰጠው ፈጣን ምላሽ (ልክ በፎቶው እንዳለው)
+  // 🤖 Bot commands
+  bot.onText(/\/play/, (msg) => {
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+    bot.sendMessage(msg.chat.id, "🎮 ለመጫወት ከታች ያለውን ይጫኑ!", {
+      reply_markup: {
+        inline_keyboard: [[{ text: '🎮 አሁኑኑ ተጫወት (Play Now)', web_app: { url: webAppUrl } }]]
+      }
+    }).catch(() => {});
+  });
+
+  bot.onText(/\/balance/, async (msg) => {
+    try {
+      const user = await DB.getUserByTelegramId(msg.from.id);
+      if (!user) return;
+      const prof = await DB.getUserDetailedProfile(user.id);
+      const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+      const reply = 
+        `💼 <b>የኔ ሂሳብ (Wallet)</b>\n\n` +
+        `💵 <b>መጫወቻ ሂሳብ: ETB  ${prof.playOnlyBalance.toFixed(2)}</b>\n` +
+        `(የጀማሪ ቦነስና ለመጫወቻ ብቻ የሚጠቅም ሂሳብ | ወጪ የማይሆን!)\n\n` +
+        `🏆 <b>ዋና ሂሳብ: ETB  ${prof.cashableBalance.toFixed(2)}</b>\n` +
+        `(ያሸነፉት ወጪ የሚሆን! | በተጨማሪም ለመጫወቻ የሚጠቅም ሂሳብ)\n\n` +
+        `💰 <b>ጠቅላላ ሂሳብ: ETB  ${user.balance.toFixed(2)}</b>`;
+      bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
+    } catch (e) {}
+  });
+
+  bot.onText(/\/deposit/, (msg) => {
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+    const reply = 
+      `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
+      `🟢 <b>ቴሌብር (Telebirr):</b> <code>0997575739</code> (Ephrem Shitu)\n` +
+      `🟣 <b>CBE Birr / ንግድ ባንክ</b>\n\n` +
+      `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
+      `<b>አሞላሉ፦</b>\n` +
+      `1. በቴሌብር/ሲቢኢ ብር ይላኩ\n` +
+      `2. የደረሶትን የትራንዛክሽን መለያ ቁጥር (Txn ID) ይቅዱ\n` +
+      `3. ከታች <b>'🎮 ይጫወቱ'</b> ተጭነው Wallet ውስጥ የትራንዛክሽን ቁጥሩን ያስገቡ!`;
+    bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
+  });
+
+  bot.onText(/\/withdraw/, (msg) => {
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+    const reply = 
+      `📤 <b>ወጪ ለማድረግ (Withdraw)</b>\n\n` +
+      `📌 <b>ዝቅተኛው የማውጫ መጠን:</b> 225 ETB\n` +
+      `📌 <b>ቀሪ ተቀማጭ:</b> ቢያንስ 25 ETB መኖር አለበት\n` +
+      `📌 ብር ለማውጣት መጀመሪያ ቢያንስ አንድ ጊዜ 50 ETB ማስገባት ግዴታ ነው!\n\n` +
+      `ያሸነፉትን ገንዘብ ለማውጣት ከታች <b>'🎮 ይጫወቱ'</b> ተጭነው Wallet ውስጥ የቴሌብር ስልክዎን ያስገቡ!`;
+    bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
+  });
+
+  bot.onText(/\/invite/, (msg) => {
+    const refLink = `https://t.me/${detectedBotUsername}?start=ref_${msg.from.id}`;
+    const reply = 
+      `🔗 <b>ጓደኛዎን ይጋብዙ እና ያሸንፉ!</b>\n\n` +
+      `የእርስዎ መጋበዣ ሊንክ፦\n<code>${refLink}</code>\n\n` +
+      `🏆 <b>ሳምንታዊ የግብዣ ውድድር፦</b>\n` +
+      `በየሳምንቱ ብዙ ሰው በመጋበዝ ከ 1ኛ - 3ኛ ይውጡ፤ እስከ 500+ ETB የገንዘብ ሽልማት ያሸንፉ!`;
+    bot.sendMessage(msg.chat.id, reply, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '📲 ሊንኩን ለጓደኞችህ አጋራ (Share Link)', url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('🎮 ና የኮከብ ቢንጎ አብረን እንጫወት!')}` }]
+        ]
+      }
+    }).catch(() => {});
+  });
+
+  bot.onText(/\/help/, (msg) => {
+    const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
+    const reply = 
+      `📖 <b>የኮከብ ቢንጎ አጨዋወት መመሪያ:</b>\n\n` +
+      `1. በቴሌብር ሒሳብዎን ይሙሉ (Min: 50 ETB)\n` +
+      `2. ካርቴላ ይቁረጡ (ከ 1 እስከ 400 ባሉት ካርቴላዎች)\n` +
+      `3. ኳሶችን ይከታተሉ (Auto-daub ማብራት ይመረጣል)\n` +
+      `4. መስመር ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!`;
+    bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
+  });
+
   bot.on('message', async (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
     const chatId = msg.chat.id;
@@ -208,7 +296,6 @@ if (process.env.BOT_TOKEN) {
       const user = await DB.getUserByTelegramId(telegramId);
       if (!user) return;
 
-      // 1. 💰 ሂሳብ (ልክ በ Shen Bingo ፎቶው ላይ እንዳለው)
       if (text === '💰 ሂሳብ' || text.includes('ሂሳብ')) {
         const prof = await DB.getUserDetailedProfile(user.id);
         const reply = 
@@ -221,7 +308,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
-      // 2. 📥 ገቢ ለማድረግ
       if (text === '📥 ገቢ ለማድረግ') {
         const reply = 
           `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
@@ -235,7 +321,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
-      // 3. 📤 ወጪ ለማድረግ
       if (text === '📤 ወጪ ለማድረግ') {
         const reply = 
           `📤 <b>ወጪ ለማድረግ (Withdraw)</b>\n\n` +
@@ -246,7 +331,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
-      // 4. 🔗 ጋብዝ & አግኝ
       if (text === '🔗 ጋብዝ & አግኝ') {
         const refLink = `https://t.me/${detectedBotUsername}?start=ref_${telegramId}`;
         const reply = 
@@ -264,7 +348,6 @@ if (process.env.BOT_TOKEN) {
         });
       }
 
-      // 5. 🏆 ሳምንታዊ ውድድር
       if (text === '🏆 ሳምንታዊ ውድድር') {
         const contest = await DB.getWeeklyReferralLeaderboard();
         const reply = 
@@ -277,7 +360,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
-      // 6. 🆘 እርዳታ & 📜 ደንቦች
       if (text === '🆘 እርዳታ' || text === '📜 ደንቦች') {
         const reply = 
           `📖 <b>የኮከብ ቢንጎ አጨዋወት መመሪያ:</b>\n\n` +
@@ -320,7 +402,7 @@ function createRoomState(name, stake, callSpeed) {
     timer: 30,
     timerInterval: null,
     gameInterval: null,
-    cartelas: generate400Cartelas(), // 🎟️ 400 ካርቴላዎች
+    cartelas: generate400Cartelas(),
     takenCartelas: new Map(),
     calledNumbers: new Set(),
     uncalledNumbers: Array.from({ length: 75 }, (_, i) => i + 1),
@@ -448,7 +530,6 @@ function startRoomGame(roomName) {
       drawnCount: room.drawnCount
     });
 
-    // 🚨 አውቶማቲክ ቢንጎ መርማሪ
     const detectedWinners = [];
 
     for (const [cardId, cardInfo] of room.takenCartelas.entries()) {
@@ -473,7 +554,6 @@ function startRoomGame(roomName) {
       }
     }
 
-    // 🏆 አሸናፊዎች ሲገኙ እኩል ከፋፍሎ ክፍያ መፈጸም
     if (detectedWinners.length > 0) {
       room.winnerDeclared = true;
       room.state = 'FINISHED';
@@ -543,26 +623,36 @@ async function endGame(roomName, winnersData, fallbackMessage) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKET HANDLERS ====================
+// ==================== WEBSOCKET HANDLERS (STRICT AUTH) ====================
 io.on('connection', (socket) => {
-  socket.on('auth_user', async ({ username, initData, deviceId }) => {
+  // 🚨 እዚህ ጋር ጥብቅ ቁጥጥር ተደርጓል፦ ያለ ቴሌግራም የመጣን ሰው ዳታቤዝ ሳይነካ ውድቅ ያደርጋል!
+  socket.on('auth_user', async ({ initData }) => {
     try {
-      let telegramId = deviceId || `demo_${socket.id.substring(0, 5)}`;
-      let playerName = username || 'Player';
-
-      if (initData && process.env.BOT_TOKEN) {
-        const tgUser = verifyTelegramAuth(initData, process.env.BOT_TOKEN);
-        if (tgUser) {
-          telegramId = tgUser.id.toString();
-          playerName = tgUser.username ? `@${tgUser.username}` : (tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ''));
-        }
+      if (!initData || !process.env.BOT_TOKEN) {
+        socket.emit('auth_error', { message: '⛔ እባክዎን በቴሌግራም ቦት (@Kokeb_Bingo_Bot) በኩል ብቻ ይግቡ!' });
+        return socket.disconnect(true);
       }
+
+      const tgUser = verifyTelegramAuth(initData, process.env.BOT_TOKEN);
+      if (!tgUser) {
+        socket.emit('auth_error', { message: '⛔ የተሳሳተ የቴሌግራም መለያ (Invalid Session)!' });
+        return socket.disconnect(true);
+      }
+
+      const telegramId = tgUser.id.toString();
+      const playerName = tgUser.username ? `@${tgUser.username}` : (tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ''));
 
       const user = await DB.getOrCreateUser(telegramId, playerName, playerName);
 
       if (user.is_banned === 1) {
         socket.emit('account_banned', { message: '❌ የእርስዎ አካውንት በአድሚን ታግዷል!' });
         setTimeout(() => socket.disconnect(true), 500);
+        return;
+      }
+
+      // 📱 ስልኩን ያላረጋገጠ ሰው ወደ ጨዋታው እንዳይገባ መከልከል
+      if (!user.phone_number) {
+        socket.emit('phone_required', { message: '📲 እባክዎን መጀመሪያ ቦቱ ላይ ስልክ ቁጥርዎን ያረጋግጡ!' });
         return;
       }
 
@@ -738,7 +828,7 @@ io.on('connection', (socket) => {
       return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
     }
 
-    const cardGrid = room.cartelas[cardId];
+    const cardGrid = room.cartelas[cartelaId];
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
@@ -796,7 +886,6 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// 📊 የተጠቃሚ ፕሮፋይል ስታትስቲክስ API
 app.get('/api/user/profile', async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.status(400).json({ error: 'User ID is required' });
@@ -1329,7 +1418,6 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-// 📢 ማስታወቂያ በቴሌግራም መላኪያ
 app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
