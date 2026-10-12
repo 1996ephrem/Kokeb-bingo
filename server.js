@@ -206,7 +206,6 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
-  // 🤖 /play, /balance, /deposit, /withdraw, /invite, /help Command Handlers
   bot.onText(/\/play/, (msg) => {
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     bot.sendMessage(msg.chat.id, "🎮 ለመጫወት ከታች ያለውን ይጫኑ!", {
@@ -286,7 +285,6 @@ if (process.env.BOT_TOKEN) {
     bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
   });
 
-  // 🤖 ተጠቃሚው ከስር ያሉትን በተኖች ሲነካ የሚሰጠው ፈጣን ምላሽ
   bot.on('message', async (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
     const chatId = msg.chat.id;
@@ -395,7 +393,6 @@ if (process.env.BOT_TOKEN) {
         const result = await DB.claimMoneyRain(user.id, rainId);
         const prof = await DB.getUserDetailedProfile(user.id);
 
-        // Socket.IO update for live balance
         for (const [sockId, pInfo] of activeSockets.entries()) {
           if (pInfo.dbId === user.id) {
             pInfo.balance = result.newBalance;
@@ -680,7 +677,7 @@ async function endGame(roomName, winnersData, fallbackMessage) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKET HANDLERS ====================
+// ==================== WEBSOCKET HANDLERS (STRICT AUTH) ====================
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ initData }) => {
     try {
@@ -1356,7 +1353,7 @@ app.get('/api/admin/money-rain/list', adminAuth, async (req, res) => {
   }
 });
 
-// 🌧️ አድሚኑ ዝናብ ሲያዘንም ለሁሉም ተጫዋቾች ከነ Claim በተኑ የሚልክ
+// 🌧️ አዲስ ዝናብ ማዝነሚያ
 app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
   const { title, rewardAmount, maxUsers } = req.body;
   const reward = parseFloat(rewardAmount);
@@ -1370,7 +1367,6 @@ app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
     const rainTitle = title ? title.trim() : 'ልዩ የገንዘብ ዝናብ!';
     const rain = await DB.createMoneyRain(rainTitle, reward, max);
 
-    // 📩 ልክ በፎቶው እንዳለው የሚያምር መልዕክት
     const rainMessage = 
       `🌧️ <b>ይፍጠኑ | MONEY RAIN ALERT!</b> 🌧️\n\n` +
       `<b>${reward} ETB Free Play Bonus</b> - ነፃ የመጫወቻ ገንዘብ እየዘነበ ነው!\n` +
@@ -1383,7 +1379,6 @@ app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
       ]
     };
 
-    // በ Background ለሁሉም ተጫዋቾች መልዕክቱን መላክ
     (async () => {
       const tgIds = await DB.getAllTelegramIds();
       for (const tgId of tgIds) {
@@ -1401,6 +1396,17 @@ app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
       message: `የ ${reward} ETB የገንዘብ ዝናብ ለቀደሙ ${max} ሰዎች በተሳካ ሁኔታ ተለቋል!`
     });
 
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ⏹️ ንቁ የሆነውን ዝናብ በአድሚን ማቋረጫ API
+app.post('/api/admin/money-rain/stop', adminAuth, async (req, res) => {
+  const { rainId } = req.body;
+  try {
+    await DB.stopMoneyRain(rainId);
+    res.json({ success: true, message: 'የገንዘብ ዝናቡ በተሳካ ሁኔታ ተቋርጧል (ተዘግቷል)!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
