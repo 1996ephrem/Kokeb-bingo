@@ -91,6 +91,7 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 አጠቃላይ ዳሽቦርድ</button>
     <button class="tab-btn" onclick="switchTab('deposits')">📥 ማስገቢያዎች <span id="badge-deposits" class="badge-count">0</span></button>
     <button class="tab-btn" onclick="switchTab('withdrawals')">📤 ማውጫዎች <span id="badge-withdrawals" class="badge-count">0</span></button>
+    <button class="tab-btn" onclick="switchTab('rain')">🌧️ Money Rain</button>
     <button class="tab-btn" onclick="switchTab('contest')">🏆 የግብዣ ውድድር</button>
     <button class="tab-btn" onclick="switchTab('promos')">🎁 ፕሮሞኮድ</button>
     <button class="tab-btn" onclick="switchTab('archive')">📜 የዝውውር ማህደር</button>
@@ -153,6 +154,41 @@
           <tr><th>ተጫዋች</th><th>መንገድ (Method)</th><th>ስልክ / አካውንት</th><th>መጠን</th><th>ቀን</th><th>እርምጃዎች</th></tr>
         </thead>
         <tbody id="withdrawals-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 🌧️ TAB: MONEY RAIN (የገንዘብ ዝናብ) -->
+  <div id="tab-rain" class="panel-section">
+    <div class="box" style="max-width: 550px; margin-bottom: 14px;">
+      <h3>🌧️ አዲስ የገንዘብ ዝናብ ማዝነሚያ (Launch Money Rain)</h3>
+      <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 12px; line-height: 1.4;">
+        ይህንን ስትለቅ በቴሌግራም ቦቱ በኩል ለሁሉም ተጫዋቾች ከነ <b>[ 💰 ቦነስ ይቀበሉ (CLAIM) 💰 ]</b> በተኑ ይላካል፤ ተጫዋቾቹ በተኑን አንዴ ብቻ ነክተው ወደ ዋሌታቸው ይቀበላሉ!
+      </p>
+      <div style="margin-bottom: 8px;">
+        <label style="font-size: 11px; color:#8e8aa8;">የዝናቡ ርዕስ/ምክንያት (Title):</label>
+        <input type="text" id="rain-title-input" placeholder="ለምሳሌ፦ የቅዳሜ ልዩ የገንዘብ ዝናብ!" style="width: 100%;">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">ለአንድ ሰው የሚሰጥ ቦነስ (ETB):</label>
+          <input type="number" id="rain-amount-input" placeholder="ለምሳሌ፦ 10" style="width: 100%; color:#00ff87; font-weight:bold;">
+        </div>
+        <div>
+          <label style="font-size: 11px; color:#8e8aa8;">ለስንት ሰው (Max Users):</label>
+          <input type="number" id="rain-max-input" placeholder="ለምሳሌ፦ 500" style="width: 100%;" value="500">
+        </div>
+      </div>
+      <button class="btn-sm btn-gold" style="width: 100%; padding: 11px; font-size:12.5px;" onclick="createMoneyRain()">🌧️ ዝናቡን አዝንም (LAUNCH MONEY RAIN)</button>
+    </div>
+
+    <div class="box">
+      <h3>📋 የተዘነቡ የገንዘብ ዝናቦች ታሪክ</h3>
+      <table>
+        <thead>
+          <tr><th>መለያ</th><th>ርዕስ</th><th>የቦነስ መጠን</th><th>የወሰዱ/የተፈቀደ</th><th>ቀን</th><th>ሁኔታ</th></tr>
+        </thead>
+        <tbody id="rain-table-body"></tbody>
       </table>
     </div>
   </div>
@@ -244,6 +280,7 @@
           <option value="ALL">ሁሉም አይነት</option>
           <option value="DEPOSIT">📥 ማስገቢያዎች</option>
           <option value="WITHDRAW">📤 ማውጫዎች</option>
+          <option value="RAIN_BONUS">🌧️ የዝናብ ቦነስ</option>
           <option value="PROMO_BONUS">🎁 ፕሮሞኮድ ቦነስ</option>
           <option value="REFERRAL_CONTEST_PRIZE">🏆 የግብዣ ውድድር ሽልማት</option>
         </select>
@@ -317,7 +354,7 @@
     </div>
   </div>
 
-  <!-- 📢 TAB 8: BROADCAST (ቀጥታ በቴሌግራም መልዕክት መላኪያ) -->
+  <!-- TAB 8: BROADCAST -->
   <div id="tab-broadcast" class="panel-section">
     <div class="box" style="max-width: 550px;">
       <h3>📢 ለሁሉም ተጫዋቾች ቀጥታ በቴሌግራም መልዕክት ላክ (Direct Telegram Broadcast)</h3>
@@ -419,6 +456,7 @@
       if (tabId === 'archive') fetchTransactionArchive();
       if (tabId === 'promos') fetchPromoCodes();
       if (tabId === 'contest') fetchContestData();
+      if (tabId === 'rain') fetchMoneyRains();
     }
 
     async function fetchAdminData() {
@@ -551,6 +589,58 @@
         `).join('');
 
       } catch (err) { console.error(err); }
+    }
+
+    // 🌧️ ==================== MONEY RAIN (የገንዘብ ዝናብ) JS ====================
+    async function createMoneyRain() {
+      const title = document.getElementById('rain-title-input').value.trim();
+      const rewardAmount = document.getElementById('rain-amount-input').value.trim();
+      const maxUsers = document.getElementById('rain-max-input').value.trim();
+
+      if (!rewardAmount || !maxUsers) return alert("እባክዎን የቦነስ መጠን እና የተጠቃሚዎች ቁጥር ያስገቡ!");
+
+      if (!confirm(`እርግጠኛ ነዎት የ ${rewardAmount} ETB ዝናብ ለቀደሙ ${maxUsers} ሰዎች በቴሌግራም መልቀቅ ይፈልጋሉ?`)) return;
+
+      try {
+        const res = await fetch('/api/admin/money-rain/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ title, rewardAmount, maxUsers })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("🎉 " + data.message);
+          document.getElementById('rain-title-input').value = '';
+          document.getElementById('rain-amount-input').value = '';
+          fetchMoneyRains();
+        } else {
+          alert("❌ " + (data.error || "ዝናብ መልቀቅ አልተቻለም!"));
+        }
+      } catch (e) { alert("የሰርቨር ችግር!"); }
+    }
+
+    async function fetchMoneyRains() {
+      try {
+        const res = await fetch('/api/admin/money-rain/list', {
+          headers: { 'x-admin-pin': adminPin }
+        });
+        const data = await res.json();
+        const tbody = document.getElementById('rain-table-body');
+        if (data.list && data.list.length > 0) {
+          tbody.innerHTML = data.list.map(r => `
+            <tr>
+              <td>#${r.id}</td>
+              <td><b>${r.title}</b></td>
+              <td style="color:#00ff87; font-weight:bold;">${r.reward_amount} ETB</td>
+              <td><b>${r.claimed_count}</b> / ${r.max_users} ሰው</td>
+              <td><small>${new Date(r.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</small></td>
+              <td><span style="color:${r.claimed_count >= r.max_users ? '#ff4757' : '#00ff87'}; font-weight:bold;">${r.claimed_count >= r.max_users ? 'ተጠናቋል (FULL)' : 'ንቁ (ACTIVE)'}</span></td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#8e8aa8;">ምንም የተለቀቀ ዝናብ የለም</td></tr>`;
+        }
+      } catch (e) {}
     }
 
     // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር JS ====================
@@ -849,7 +939,6 @@
       fetchAdminData();
     }
 
-    // 📢 ለሁሉም ተጠቃሚዎች ቀጥታ በቴሌግራም መልዕክት መላኪያ
     async function sendBroadcast() {
       const message = document.getElementById('broadcast-msg').value.trim();
       if (!message) return alert("እባክዎን መልዕክት ያስገቡ!");
