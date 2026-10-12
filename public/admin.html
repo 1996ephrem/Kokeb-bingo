@@ -186,7 +186,7 @@
       <h3>📋 የተዘነቡ የገንዘብ ዝናቦች ታሪክ</h3>
       <table>
         <thead>
-          <tr><th>መለያ</th><th>ርዕስ</th><th>የቦነስ መጠን</th><th>የወሰዱ/የተፈቀደ</th><th>ቀን</th><th>ሁኔታ</th></tr>
+          <tr><th>መለያ</th><th>ርዕስ</th><th>የቦነስ መጠን</th><th>የወሰዱ/የተፈቀደ</th><th>ቀን</th><th>ሁኔታ</th><th>እርምጃ</th></tr>
         </thead>
         <tbody id="rain-table-body"></tbody>
       </table>
@@ -627,20 +627,50 @@
         const data = await res.json();
         const tbody = document.getElementById('rain-table-body');
         if (data.list && data.list.length > 0) {
-          tbody.innerHTML = data.list.map(r => `
-            <tr>
-              <td>#${r.id}</td>
-              <td><b>${r.title}</b></td>
-              <td style="color:#00ff87; font-weight:bold;">${r.reward_amount} ETB</td>
-              <td><b>${r.claimed_count}</b> / ${r.max_users} ሰው</td>
-              <td><small>${new Date(r.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</small></td>
-              <td><span style="color:${r.claimed_count >= r.max_users ? '#ff4757' : '#00ff87'}; font-weight:bold;">${r.claimed_count >= r.max_users ? 'ተጠናቋል (FULL)' : 'ንቁ (ACTIVE)'}</span></td>
-            </tr>
-          `).join('');
+          tbody.innerHTML = data.list.map(r => {
+            const isClosed = r.is_active === 0 || r.claimed_count >= r.max_users;
+            const statusText = r.is_active === 0 ? 'ተቋርጧል (CLOSED)' : (r.claimed_count >= r.max_users ? 'አልቋል (FULL)' : 'ንቁ (ACTIVE)');
+            const statusColor = r.is_active === 0 ? '#ff4757' : (r.claimed_count >= r.max_users ? '#f1c40f' : '#00ff87');
+
+            return `
+              <tr>
+                <td>#${r.id}</td>
+                <td><b>${r.title}</b></td>
+                <td style="color:#00ff87; font-weight:bold;">${r.reward_amount} ETB</td>
+                <td><b>${r.claimed_count}</b> / ${r.max_users} ሰው</td>
+                <td><small>${new Date(r.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</small></td>
+                <td><span style="color:${statusColor}; font-weight:bold;">${statusText}</span></td>
+                <td>
+                  ${!isClosed ? `<button class="btn-sm btn-red" onclick="stopMoneyRain(${r.id})">⏹️ አቋርጥ</button>` : '-'}
+                </td>
+              </tr>
+            `;
+          }).join('');
         } else {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#8e8aa8;">ምንም የተለቀቀ ዝናብ የለም</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#8e8aa8;">ምንም የተለቀቀ ዝናብ የለም</td></tr>`;
         }
       } catch (e) {}
+    }
+
+    async function stopMoneyRain(rainId) {
+      if (!confirm("ይህንን የገንዘብ ዝናብ ማቋረጥ ትፈልጋለህ? ከተቋረጠ በኋላ ማንም ተጫዋች መውሰድ አይችልም!")) return;
+
+      try {
+        const res = await fetch('/api/admin/money-rain/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ rainId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("🎉 " + data.message);
+          fetchMoneyRains();
+        } else {
+          alert("❌ " + (data.error || "ማቋረጥ አልተቻለም!"));
+        }
+      } catch (e) {
+        alert("የሰርቨር ችግር!");
+      }
     }
 
     // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር JS ====================
