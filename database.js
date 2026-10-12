@@ -87,6 +87,26 @@ async function initDB() {
         claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(promo_id, user_id)
       );
+
+      -- 🌧️ MONEY RAIN (የገንዘብ ዝናብ) ቴብሎች
+      CREATE TABLE IF NOT EXISTS money_rains (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        reward_amount NUMERIC(14, 2) NOT NULL,
+        max_users INT NOT NULL,
+        claimed_count INT DEFAULT 0,
+        is_active INT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS money_rain_claims (
+        id SERIAL PRIMARY KEY,
+        rain_id INT REFERENCES money_rains(id),
+        user_id INT REFERENCES users(id),
+        claimed_amount NUMERIC(14, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(rain_id, user_id)
+      );
     `);
 
     // የአድሚን ፒን
@@ -166,7 +186,7 @@ const DB = {
 
     if (tgCheck.rows.length > 0) {
       const tgUser = tgCheck.rows[0];
-      const newBal = parseFloat(tgUser.balance) + 15.0; // 15 ETB የመጫወቻ ቦነስ
+      const newBal = parseFloat(tgUser.balance) + 15.0;
 
       const upRes = await pool.query(
         'UPDATE users SET phone_number = $1, balance = $2, username = $3, first_name = $4 WHERE id = $5 RETURNING *',
@@ -334,7 +354,7 @@ const DB = {
 
   getUserTransactions: async (userId) => {
     const res = await pool.query(
-      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS', 'REFERRAL_CONTEST_PRIZE') ORDER BY id DESC LIMIT 20",
+      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS', 'REFERRAL_CONTEST_PRIZE', 'RAIN_BONUS') ORDER BY id DESC LIMIT 20",
       [userId]
     );
     return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
@@ -454,7 +474,6 @@ const DB = {
     }
   },
 
-  // 📢 የተመዘገቡ ተጫዋቾች የቴሌግራም ID ዝርዝር
   getAllTelegramIds: async () => {
     const res = await pool.query(
       "SELECT DISTINCT telegram_id FROM users WHERE telegram_id IS NOT NULL AND telegram_id NOT LIKE 'demo_%'"
@@ -462,7 +481,6 @@ const DB = {
     return res.rows.map(r => r.telegram_id);
   },
 
-  // 📊 የፕሮፋይል ስታትስቲክስ እና የ Cashable / Play-Only ዋሌት ስሌት (Real-Time)
   getUserDetailedProfile: async (userId) => {
     const uRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (uRes.rows.length === 0) throw new Error('User not found');
@@ -485,7 +503,6 @@ const DB = {
     const totalDeposited = parseFloat(stats.total_deposited);
     const hasDeposited = totalDeposited > 0;
 
-    // 💡 ህግ፡ ዲፖዚት ካላደረገ በሙሉ Play-Only ነው፤ ዲፖዚት ካደረገ በኋላ Cashable ይሆናል!
     const cashableBalance = hasDeposited ? user.balance : 0.00;
     const playOnlyBalance = hasDeposited ? 0.00 : user.balance;
 
@@ -506,7 +523,7 @@ const DB = {
     };
   },
 
-  // 🏆 ==================== ሳምንታዊ የሪፈራል ውድድር ====================
+  // 🏆 ሳምንታዊ የሪፈራል ውድድር
   getReferralContestConfig: async () => {
     const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('ref_prize_1', 'ref_prize_2', 'ref_prize_3', 'ref_contest_start')");
     const cfg = { prize1: 500, prize2: 300, prize3: 150, startDate: new Date(Date.now() - 7 * 86400000).toISOString() };
@@ -623,6 +640,69 @@ const DB = {
 
       await client.query('COMMIT');
       return { success: true, winners, newStartDate: nowStr };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 🌧️ ==================== MONEY RAIN (የገንዘብ ዝናብ) ====================
+  createMoneyRain: async (title, rewardAmount, maxUsers = 1000) => {
+    const res = await pool.query(
+      `INSERT INTO money_rains (title, reward_amount, max_users) 
+       VALUES ($1, $2, $3) RETURNING *`,
+      [title.trim(), parseFloat(rewardAmount), parseInt(maxUsers, 10)]
+    );
+    return res.rows[0];
+  },
+
+  getAllMoneyRains: async () => {
+    const res = await pool.query('SELECT * FROM money_rains ORDER BY id DESC LIMIT 30');
+    return res.rows.map(r => ({
+      ...r,
+      reward_amount: parseFloat(r.reward_amount)
+    }));
+  },
+
+  claimMoneyRain: async (userId, rainId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const rRes = await client.query('SELECT * FROM money_rains WHERE id = $1 FOR UPDATE', [rainId]);
+      if (rRes.rows.length === 0) throw new Error('RAIN_NOT_FOUND');
+      const rain = rRes.rows[0];
+
+      if (rain.is_active !== 1) throw new Error('RAIN_CLOSED');
+      if (rain.claimed_count >= rain.max_users) throw new Error('RAIN_FULL');
+
+      const cCheck = await client.query('SELECT id FROM money_rain_claims WHERE rain_id = $1 AND user_id = $2', [rainId, userId]);
+      if (cCheck.rows.length > 0) throw new Error('ALREADY_CLAIMED');
+
+      const reward = parseFloat(rain.reward_amount);
+
+      const uRes = await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance', [reward, userId]);
+      if (uRes.rows.length === 0) throw new Error('USER_NOT_FOUND');
+
+      await client.query('UPDATE money_rains SET claimed_count = claimed_count + 1 WHERE id = $1', [rainId]);
+      await client.query(
+        'INSERT INTO money_rain_claims (rain_id, user_id, claimed_amount) VALUES ($1, $2, $3)',
+        [rainId, userId, reward]
+      );
+      await client.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, $2, $3, $4, $5)',
+        [userId, 'RAIN_BONUS', reward, 'COMPLETED', `RAIN_${rainId}`]
+      );
+
+      await client.query('COMMIT');
+      return {
+        success: true,
+        rewardAmount: reward,
+        newBalance: parseFloat(uRes.rows[0].balance),
+        title: rain.title
+      };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
