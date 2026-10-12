@@ -109,7 +109,6 @@ async function initDB() {
       );
     `);
 
-    // የአድሚን ፒን
     const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
     if (pinRes.rows.length === 0) {
       const salt = crypto.randomBytes(16).toString('hex');
@@ -117,7 +116,6 @@ async function initDB() {
       await pool.query("INSERT INTO admin_config (key, value, salt) VALUES ('admin_pin', $1, $2)", [hash, salt]);
     }
 
-    // 🏆 የሳምንታዊ የግብዣ ውድድር መነሻ ቅንብሮች
     await pool.query(`
       INSERT INTO admin_config (key, value) VALUES ('ref_prize_1', '500') ON CONFLICT (key) DO NOTHING;
       INSERT INTO admin_config (key, value) VALUES ('ref_prize_2', '300') ON CONFLICT (key) DO NOTHING;
@@ -163,7 +161,6 @@ const DB = {
     return user;
   },
 
-  // 🎁 የ 15 ETB የመጫወቻ ቦነስ (Play-Only)
   registerVerifiedPhone: async (telegramId, username, firstName, phoneNumber) => {
     const phoneCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
     if (phoneCheck.rows.length > 0) {
@@ -301,7 +298,6 @@ const DB = {
     };
   },
 
-  // 📤 ዝቅተኛው ማውጫ 225 ETB
   requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
     const client = await pool.connect();
     try {
@@ -648,7 +644,7 @@ const DB = {
     }
   },
 
-  // 🌧️ ==================== MONEY RAIN (የገንዘብ ዝናብ) ====================
+  // 🌧️ ==================== MONEY RAIN ====================
   createMoneyRain: async (title, rewardAmount, maxUsers = 1000) => {
     const res = await pool.query(
       `INSERT INTO money_rains (title, reward_amount, max_users) 
@@ -664,6 +660,12 @@ const DB = {
       ...r,
       reward_amount: parseFloat(r.reward_amount)
     }));
+  },
+
+  // ⏹️ ንቁ የሆነውን ዝናብ በአድሚን ማቋረጫ ፈንክሽን
+  stopMoneyRain: async (rainId) => {
+    const res = await pool.query('UPDATE money_rains SET is_active = 0 WHERE id = $1', [rainId]);
+    return res.rowCount > 0;
   },
 
   claimMoneyRain: async (userId, rainId) => {
