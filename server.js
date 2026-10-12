@@ -51,6 +51,7 @@ function getAppBaseUrl() {
   return 'https://kokeb-bingo.onrender.com';
 }
 
+// 📱 ቋሚ የሜኑ አቀማመጥ (Reply Keyboard)
 function getBotMainMenu(webAppUrl) {
   return {
     reply_markup: {
@@ -205,7 +206,7 @@ if (process.env.BOT_TOKEN) {
     }
   });
 
-  // 🤖 Bot commands
+  // 🤖 /play, /balance, /deposit, /withdraw, /invite, /help Command Handlers
   bot.onText(/\/play/, (msg) => {
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     bot.sendMessage(msg.chat.id, "🎮 ለመጫወት ከታች ያለውን ይጫኑ!", {
@@ -285,6 +286,7 @@ if (process.env.BOT_TOKEN) {
     bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
   });
 
+  // 🤖 ተጠቃሚው ከስር ያሉትን በተኖች ሲነካ የሚሰጠው ፈጣን ምላሽ
   bot.on('message', async (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
     const chatId = msg.chat.id;
@@ -371,6 +373,61 @@ if (process.env.BOT_TOKEN) {
       }
 
     } catch (e) {}
+  });
+
+  // 🌧️ ተጫዋቾች "💰 ቦነስ ይቀበሉ (CLAIM) 💰" የሚለውን በተን ሲነኩ
+  bot.on('callback_query', async (query) => {
+    const data = query.data || '';
+    const telegramId = query.from.id.toString();
+
+    if (data.startsWith('claim_rain_')) {
+      const rainId = parseInt(data.replace('claim_rain_', ''), 10);
+
+      try {
+        const user = await DB.getUserByTelegramId(telegramId);
+        if (!user) {
+          return bot.answerCallbackQuery(query.id, {
+            text: '⚠️ እባክዎ መጀመሪያ ቦቱ ላይ /start ብለው ይመዝገቡ!',
+            show_alert: true
+          });
+        }
+
+        const result = await DB.claimMoneyRain(user.id, rainId);
+        const prof = await DB.getUserDetailedProfile(user.id);
+
+        // Socket.IO update for live balance
+        for (const [sockId, pInfo] of activeSockets.entries()) {
+          if (pInfo.dbId === user.id) {
+            pInfo.balance = result.newBalance;
+            io.to(sockId).emit('balance_updated', {
+              balance: result.newBalance,
+              cashableBalance: prof.cashableBalance,
+              playOnlyBalance: prof.playOnlyBalance
+            });
+          }
+        }
+
+        return bot.answerCallbackQuery(query.id, {
+          text: `🎉 እንኳን ደስ አለዎት! የ ${result.rewardAmount} ETB የዝናብ ቦነስ ተቀብለዋል! አጠቃላይ ባላንስዎ: ${result.newBalance} ETB`,
+          show_alert: true
+        });
+
+      } catch (err) {
+        let msg = '❌ ቦነሱን መውሰድ አልተቻለም!';
+        if (err.message === 'ALREADY_CLAIMED') {
+          msg = '⚠️ አስቀድመው ወስደዋል! አንድ ሰው ከአንድ ጊዜ በላይ መውሰድ አይችልም።';
+        } else if (err.message === 'RAIN_FULL') {
+          msg = '❌ ይቅርታ! የዚህ ዝናብ ቦነስ ሙሉ በሙሉ አልቋል!';
+        } else if (err.message === 'RAIN_CLOSED') {
+          msg = '⏳ ይህ የገንዘብ ዝናብ በአድሚን ተዘግቷል!';
+        }
+
+        return bot.answerCallbackQuery(query.id, {
+          text: msg,
+          show_alert: true
+        });
+      }
+    }
   });
 }
 
@@ -623,9 +680,8 @@ async function endGame(roomName, winnersData, fallbackMessage) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKET HANDLERS (STRICT AUTH) ====================
+// ==================== WEBSOCKET HANDLERS ====================
 io.on('connection', (socket) => {
-  // 🚨 እዚህ ጋር ጥብቅ ቁጥጥር ተደርጓል፦ ያለ ቴሌግራም የመጣን ሰው ዳታቤዝ ሳይነካ ውድቅ ያደርጋል!
   socket.on('auth_user', async ({ initData }) => {
     try {
       if (!initData || !process.env.BOT_TOKEN) {
@@ -650,7 +706,6 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // 📱 ስልኩን ያላረጋገጠ ሰው ወደ ጨዋታው እንዳይገባ መከልከል
       if (!user.phone_number) {
         socket.emit('phone_required', { message: '📲 እባክዎን መጀመሪያ ቦቱ ላይ ስልክ ቁጥርዎን ያረጋግጡ!' });
         return;
@@ -1288,6 +1343,66 @@ app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// 🌧️ ==================== MONEY RAIN (የገንዘብ ዝናብ) ADMIN APIs ====================
+app.get('/api/admin/money-rain/list', adminAuth, async (req, res) => {
+  try {
+    const list = await DB.getAllMoneyRains();
+    res.json({ success: true, list });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🌧️ አድሚኑ ዝናብ ሲያዘንም ለሁሉም ተጫዋቾች ከነ Claim በተኑ የሚልክ
+app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
+  const { title, rewardAmount, maxUsers } = req.body;
+  const reward = parseFloat(rewardAmount);
+  const max = parseInt(maxUsers, 10);
+
+  if (!reward || reward <= 0 || !max || max <= 0) {
+    return res.status(400).json({ error: 'ትክክለኛ የብር መጠንና የተጠቃሚዎች ቁጥር ያስገቡ!' });
+  }
+
+  try {
+    const rainTitle = title ? title.trim() : 'ልዩ የገንዘብ ዝናብ!';
+    const rain = await DB.createMoneyRain(rainTitle, reward, max);
+
+    // 📩 ልክ በፎቶው እንዳለው የሚያምር መልዕክት
+    const rainMessage = 
+      `🌧️ <b>ይፍጠኑ | MONEY RAIN ALERT!</b> 🌧️\n\n` +
+      `<b>${reward} ETB Free Play Bonus</b> - ነፃ የመጫወቻ ገንዘብ እየዘነበ ነው!\n` +
+      `<i>${rainTitle}</i>\n\n` +
+      `👇 <b>የቀደሙ ${max} ሰዎች ብቻ!</b>`;
+
+    const rainKeyboard = {
+      inline_keyboard: [
+        [{ text: '💰 ቦነስ ይቀበሉ (CLAIM) 💰', callback_data: `claim_rain_${rain.id}` }]
+      ]
+    };
+
+    // በ Background ለሁሉም ተጫዋቾች መልዕክቱን መላክ
+    (async () => {
+      const tgIds = await DB.getAllTelegramIds();
+      for (const tgId of tgIds) {
+        try {
+          if (bot && tgId && !String(tgId).startsWith('demo_')) {
+            await bot.sendMessage(tgId, rainMessage, { parse_mode: 'HTML', reply_markup: rainKeyboard });
+            await new Promise(r => setTimeout(r, 35));
+          }
+        } catch (e) {}
+      }
+    })();
+
+    res.json({
+      success: true,
+      message: `የ ${reward} ETB የገንዘብ ዝናብ ለቀደሙ ${max} ሰዎች በተሳካ ሁኔታ ተለቋል!`
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
