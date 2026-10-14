@@ -232,15 +232,15 @@ if (process.env.BOT_TOKEN) {
     } catch (e) {}
   });
 
+  // 📥 ዲፖዚት መረጃ - ቴሌብር 0972723976 NESREDINE ብቻ
   bot.onText(/\/deposit/, (msg) => {
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     const reply = 
       `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
-      `🟢 <b>ቴሌብር (Telebirr):</b> <code>0997575739</code> (Ephrem Shitu)\n` +
-      `🟣 <b>CBE Birr / ንግድ ባንክ</b>\n\n` +
+      `🟢 <b>ቴሌብር (Telebirr):</b> <code>0972723976</code> (NESREDINE)\n\n` +
       `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
       `<b>አሞላሉ፦</b>\n` +
-      `1. በቴሌብር/ሲቢኢ ብር ይላኩ\n` +
+      `1. በቴሌብር ብር ይላኩ\n` +
       `2. የደረሶትን የትራንዛክሽን መለያ ቁጥር (Txn ID) ይቅዱ\n` +
       `3. ከታች <b>'🎮 ይጫወቱ'</b> ተጭነው Wallet ውስጥ የትራንዛክሽን ቁጥሩን ያስገቡ!`;
     bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
@@ -285,6 +285,7 @@ if (process.env.BOT_TOKEN) {
     bot.sendMessage(msg.chat.id, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) }).catch(() => {});
   });
 
+  // 🤖 ከስር ያሉትን በተኖች ሲነኩ የሚሰጠው ምላሽ
   bot.on('message', async (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
     const chatId = msg.chat.id;
@@ -308,14 +309,14 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
+      // 📥 ገቢ ለማድረግ - ቴሌብር 0972723976 NESREDINE
       if (text === '📥 ገቢ ለማድረግ') {
         const reply = 
           `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
-          `🟢 <b>ቴሌብር (Telebirr):</b> <code>0997575739</code> (Ephrem Shitu)\n` +
-          `🟣 <b>CBE Birr / ንግድ ባንክ</b>\n\n` +
+          `🟢 <b>ቴሌብር (Telebirr):</b> <code>0972723976</code> (NESREDINE)\n\n` +
           `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
           `<b>አሞላሉ፦</b>\n` +
-          `1. በቴሌብር/ሲቢኢ ብር ይላኩ\n` +
+          `1. በቴሌብር ብር ይላኩ\n` +
           `2. የደረሶትን የትራንዛክሽን መለያ ቁጥር (Txn ID) ይቅዱ\n` +
           `3. ከታች <b>'🎮 ይጫወቱ'</b> ተጭነው Wallet ውስጥ የትራንዛክሽን ቁጥሩን ያስገቡ!`;
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
@@ -373,7 +374,6 @@ if (process.env.BOT_TOKEN) {
     } catch (e) {}
   });
 
-  // 🌧️ ተጫዋቾች "💰 ቦነስ ይቀበሉ (CLAIM) 💰" የሚለውን በተን ሲነኩ
   bot.on('callback_query', async (query) => {
     const data = query.data || '';
     const telegramId = query.from.id.toString();
@@ -1006,9 +1006,9 @@ app.post('/api/promo/claim', async (req, res) => {
   }
 });
 
-// 📥 ዝቅተኛው ማስገቢያ 50 ETB
+// 📥 ዝቅተኛው ማስገቢያ 50 ETB - በቴሌብር ብቻ
 app.post('/api/payment/deposit-request', async (req, res) => {
-  const { userId, amount, phoneNumber, txRef, method } = req.body;
+  const { userId, amount, phoneNumber, txRef } = req.body;
   const depositAmount = parseFloat(amount);
 
   if (!depositAmount || isNaN(depositAmount) || depositAmount < 50) {
@@ -1018,11 +1018,11 @@ app.post('/api/payment/deposit-request', async (req, res) => {
     return res.status(400).json({ error: 'እባክዎን የላኩበትን ትክክለኛ ስልክ ቁጥር ያስገቡ!' });
   }
   if (!txRef || txRef.trim().length < 4) {
-    return res.status(400).json({ error: 'እባክዎን ከቴሌብር/ሲቢኢ የደረሶትን የትራንዛክሽን ቁጥር (Txn ID) ያስገቡ!' });
+    return res.status(400).json({ error: 'እባክዎን ከቴሌብር የደረሶትን የትራንዛክሽን ቁጥር (Txn ID) ያስገቡ!' });
   }
 
   try {
-    const result = await DB.requestDeposit(userId, depositAmount, phoneNumber, txRef.trim(), method || 'TELEBIRR');
+    const result = await DB.requestDeposit(userId, depositAmount, phoneNumber, txRef.trim(), 'TELEBIRR');
 
     const userMsg = 
       `⏳ የማስገቢያ ጥያቄዎ ደርሶናል!\n\n` +
@@ -1052,18 +1052,18 @@ app.get('/api/payment/my-transactions', async (req, res) => {
 
 // 📤 ዝቅተኛው ማውጫ 225 ETB
 app.post('/api/payment/withdraw', async (req, res) => {
-  const { userId, amount, phoneNumber, method } = req.body;
+  const { userId, amount, phoneNumber } = req.body;
   const withdrawAmount = parseFloat(amount);
 
   if (!withdrawAmount || isNaN(withdrawAmount) || withdrawAmount < 225) {
     return res.status(400).json({ error: 'ዝቅተኛው የማውጫ መጠን 225 ETB ነው!' });
   }
   if (!phoneNumber || phoneNumber.length < 9) {
-    return res.status(400).json({ error: 'ትክክለኛ የስልክ ቁጥር ወይም የባንክ አካውንት ያስገቡ!' });
+    return res.status(400).json({ error: 'ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ!' });
   }
 
   try {
-    const result = await DB.requestWithdrawal(userId, withdrawAmount, phoneNumber, method || 'TELEBIRR');
+    const result = await DB.requestWithdrawal(userId, withdrawAmount, phoneNumber, 'TELEBIRR');
     const prof = await DB.getUserDetailedProfile(userId);
 
     for (const [sockId, pInfo] of activeSockets.entries()) {
@@ -1082,7 +1082,7 @@ app.post('/api/payment/withdraw', async (req, res) => {
         result.telegramId,
         `📤 የማውጣት ጥያቄዎ ተመዝግቧል!\n\n` +
         `💰 የተጠየቀው መጠን: ${withdrawAmount} ETB\n` +
-        `📱 የሚላክበት: ${phoneNumber} (${method || 'TELEBIRR'})\n\n` +
+        `📱 የሚላክበት የቴሌብር ስልክ: ${phoneNumber}\n\n` +
         `አድሚኑ ልኮ እንዳጠናቀቀ ማረጋገጫ ይደርስዎታል!`
       );
     }
@@ -1221,7 +1221,7 @@ app.post('/api/admin/approve-withdrawal', adminAuth, async (req, res) => {
         result.telegramId,
         `✅ እንኳን ደስ አለዎት! ክፍያዎ ተፈጽሟል!\n\n` +
         `💸 የወጣው መጠን: ${result.amount} ETB\n` +
-        `📱 የተላከበት: ${result.phoneNumber} (${result.paymentMethod})\n\n` +
+        `📱 የተላከበት: ${result.phoneNumber} (TELEBIRR)\n\n` +
         `ገቢ መደረጉን ያረጋግጡ። ስላሸነፉ እናመሰግናለን! 🌟`
       );
     }
@@ -1353,7 +1353,6 @@ app.get('/api/admin/money-rain/list', adminAuth, async (req, res) => {
   }
 });
 
-// 🌧️ አዲስ ዝናብ ማዝነሚያ
 app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
   const { title, rewardAmount, maxUsers } = req.body;
   const reward = parseFloat(rewardAmount);
@@ -1401,7 +1400,6 @@ app.post('/api/admin/money-rain/create', adminAuth, async (req, res) => {
   }
 });
 
-// ⏹️ ንቁ የሆነውን ዝናብ በአድሚን ማቋረጫ API
 app.post('/api/admin/money-rain/stop', adminAuth, async (req, res) => {
   const { rainId } = req.body;
   try {
