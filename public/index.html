@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Kokeb Live Bingo 🌟</title>
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Socket.IO Client SDK -->
   <script src="/socket.io/socket.io.js"></script>
 
   <style>
@@ -27,7 +25,6 @@
     body { background: var(--bg-color); color: #ffffff; min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; font-size: 13.5px; }
     body.with-nav { padding-bottom: 75px; }
 
-    /* 🎆 ZERO-LAG LIGHTWEIGHT FX CANVAS */
     #fx-canvas {
       position: fixed;
       top: 0;
@@ -101,7 +98,6 @@
     .btn-danger { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
     .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
 
-    /* 🎟️ 400 CARTELAS GRID WITH SMOOTH SCROLL */
     .cartelas-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 54vh; overflow-y: auto; padding-right: 2px; }
     .cartela-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
     .cartela-btn:active { transform: scale(0.94); }
@@ -211,10 +207,6 @@
       box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
     }
 
-    .method-selector { display: flex; gap: 8px; margin-bottom: 12px; }
-    .method-pill { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 10px; text-align: center; font-weight: bold; font-size: 12px; cursor: pointer; }
-    .method-pill.active { background: #7928ca; border-color: var(--accent-cyan); color: #fff; }
-
     .tx-table { width: 100%; border-collapse: collapse; font-size: 11px; }
     .tx-table td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 
@@ -237,6 +229,19 @@
   <!-- 🎆 FX CANVAS FOR CONFETTI & SPARKS -->
   <canvas id="fx-canvas"></canvas>
 
+  <!-- ⛔ TELEGRAM-ONLY LOCK OVERLAY -->
+  <div id="telegram-required-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #08051a; z-index: 999999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+    <div style="font-size: 56px; margin-bottom: 12px;">🌟</div>
+    <h2 style="color: var(--accent-gold); margin-bottom: 8px; font-size: 20px;">ኮከብ ቢንጎ (Kokeb Bingo)</h2>
+    <div style="background: rgba(255, 71, 87, 0.12); border: 1px dashed #ff4757; border-radius: 12px; padding: 14px; max-width: 310px; margin-bottom: 18px;">
+      <p style="font-size: 13px; color: #ff6b81; font-weight: bold; margin-bottom: 6px;">⛔ ይህ ጨዋታ በቴሌግራም ቦት ብቻ የሚሰራ ነው!</p>
+      <p style="font-size: 11.5px; color: #dcdde1; line-height: 1.5;">እባክዎን ከታች ያለውን ሰማያዊ በተን ተጭነው በቴሌግራም ቦት ይክፈቱት።</p>
+    </div>
+    <a href="https://t.me/Kokeb_Bingo_Bot" style="display: inline-block; width: 100%; max-width: 280px; padding: 12px; background: linear-gradient(135deg, #00e5ff, #0081ff); color: #08051a; font-weight: 900; text-decoration: none; border-radius: 12px; font-size: 14px; box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);">
+      🤖 በቴሌግራም ክፈት (Open in Bot)
+    </a>
+  </div>
+
   <!-- BAN OVERLAY -->
   <div id="banned-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #08051a; z-index: 99999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
     <div style="font-size: 60px; margin-bottom: 12px;">⛔</div>
@@ -251,7 +256,7 @@
         <h3 style="color: var(--accent-gold);">📖 የአጨዋወት መመሪያ</h3>
         <button class="btn-sm btn-danger" style="padding: 2px 8px;" onclick="closeGuide()">✕</button>
       </div>
-      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> <span>በቴሌብር ወይም CBE ብር ያስገቡ (Min: 50 ETB)።</span></div>
+      <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-green);">1. ሒሳብዎን ይሙሉ:</b> <span>በቴሌብር ብር ያስገቡ (Min: 50 ETB)።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-cyan);">2. ካርቴላ ይቁረጡ:</b> <span>ከ 1 እስከ 400 ያሉ ካርቴላዎችን ይምረጡ።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 6px;"><b style="color: var(--accent-gold);">3. ኳሶችን ይከታተሉ:</b> <span>Auto-Daub ማብራት ይመረጣል።</span></div>
       <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; margin-bottom: 8px;"><b style="color: var(--accent-pink);">4. አሸንፈው ብር ያውጡ:</b> <span>መስመር ሲሞላ ሲስተሙ በራሱ አውቶማቲክ አሸናፊ ያደርግዎታል!</span></div>
@@ -275,7 +280,7 @@
       <div class="app-logo-text" style="font-size: 28px; margin-bottom: 6px;">KOKEB BINGO</div>
       <div style="font-size: 40px; margin-bottom: 8px;">🌟</div>
       <h2 style="font-size: 20px; margin-bottom: 4px; color: #fff;">Welcome Player</h2>
-      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">የቀጥታ 75-ኳስ ኮከብ ቢንጎ በቴሌብር እና ሲቢኢ ብር።</p>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">የቀጥታ 75-ኳስ ኮከብ ቢንጎ በቴሌብር።</p>
       <button class="btn btn-success" style="width: 100%; padding: 12px;" onclick="authenticateUser()">🚀 ጀምር (LAUNCH HUB)</button>
     </div>
   </div>
@@ -335,7 +340,6 @@
       </div>
     </div>
 
-    <!-- 🎁 ፕሮሞኮድ ሳጥን በ Dashboard ላይ -->
     <div style="background: #140d38; border: 1px solid rgba(0,229,255,0.3); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="font-size: 11px; color: var(--accent-gold); font-weight: bold; margin-bottom: 6px;">🎁 ፕሮሞኮድ አለዎት? (Promo Code)</div>
       <div style="display: flex; gap: 6px;">
@@ -344,7 +348,6 @@
       </div>
     </div>
 
-    <!-- 🏆 ሳምንታዊ የግብዣ ውድድር ባነር -->
     <div class="feature-banner" onclick="openContestView()" style="border-color: rgba(255,215,0,0.35);">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 20px;">🏆</span>
@@ -396,7 +399,6 @@
       <button class="btn btn-gold" id="btn-claim-checkin" style="width: 100%; padding: 10px; font-size: 12px;" onclick="claimDailyStreak()">Claim Today's Bonus</button>
     </div>
 
-    <!-- 🎁 ፕሮሞኮድ ሳጥን በ Earn ገጽ ላይ -->
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
       <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold; margin-bottom: 6px;">🎁 የቦነስ ፕሮሞኮድ ካለዎት ያስገቡ:</div>
       <div style="display: flex; gap: 6px;">
@@ -496,13 +498,13 @@
       </div>
     </div>
 
-    <div class="method-selector">
-      <div class="method-pill active" id="pill-telebirr" onclick="selectPaymentMethod('TELEBIRR')">🟢 Telebirr</div>
-      <div class="method-pill" id="pill-cbe" onclick="selectPaymentMethod('CBE_BIRR')">🟣 CBE Birr</div>
+    <!-- 🟢 ቴሌብር ብቻ (TELEBIRR ONLY) -->
+    <div style="background: rgba(0,255,135,0.08); border: 1px solid var(--accent-green); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: bold; color: #00ff87;">
+      <span>🟢 የክፍያ መንገድ፦ በቴሌብር ብቻ (Telebirr Only)</span>
     </div>
 
     <div style="background: #140d38; border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-      <div style="font-size: 11px; color: #ffd700; font-weight: bold;">📥 ሒሳብ ሙላ (Deposit to 0997575739 Ephrem Shitu):</div>
+      <div style="font-size: 11px; color: #ffd700; font-weight: bold;" id="deposit-inst-label">📥 ሒሳብ ሙላ (በቴሌብር ወደ 0972723976 NESREDINE):</div>
       <input type="tel" id="deposit-phone-input" placeholder="የላኩበት ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="deposit-amount-input" placeholder="የላኩት የብር መጠን (ቢያንስ 50 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 6px; font-size: 11px;">
       <input type="text" id="deposit-ref-input" placeholder="የትራንዛክሽን መለያ ቁጥር (Txn ID/Ref)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
@@ -514,7 +516,7 @@
       <div style="font-size: 9.5px; color: #8e8aa8; margin-top: 2px; margin-bottom: 6px;">
         ℹ️ በእውነተኛ ብር አስገብተው ሲጫወቱ ያሸነፉትን ሙሉ ገንዘብ ማውጣት ይችላሉ። (25 ETB ተቀማጭ ግዴታ ነው)።
       </div>
-      <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ወይም የ CBE አካውንት" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
+      <input type="tel" id="withdraw-phone-input" placeholder="የቴሌብር ስልክ ቁጥር (09...)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin: 6px 0; font-size: 11px;">
       <input type="number" id="withdraw-amount-input" placeholder="የምናወጣው የብር መጠን (Min: 225 ETB)" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: #fff; margin-bottom: 8px; font-size: 11px;">
       <button class="btn btn-success" style="width: 100%; padding: 10px;" onclick="submitWithdrawal()">Withdraw</button>
     </div>
@@ -547,7 +549,6 @@
       <div style="font-size: 10.5px; color: var(--text-muted);">🔥 <span id="prof-streak-val">0</span> day streak · 🏆 0 win streak</div>
     </div>
 
-    <!-- 📊 REAL-TIME PROFILE STATS GRID -->
     <div class="profile-stats-grid">
       <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-cyan);" id="prof-games-played">0</div><div style="font-size: 10px; color: var(--text-muted);">Games played</div></div>
       <div class="profile-stat-box"><div style="font-size: 16px; font-weight: 900; color: var(--accent-green);" id="prof-games-won">0</div><div style="font-size: 10px; color: var(--text-muted);">Games won</div></div>
@@ -582,7 +583,6 @@
       <h3 id="lobby-status-banner">⏰ ROUND STARTS IN: <span id="cartela-timer" style="color: var(--accent-cyan);">25</span>s</h3>
       <div id="lobby-waiting-alert" style="display: none; color: #ffd700; font-size: 11.5px; font-weight: bold; margin-top: 4px;"></div>
     </div>
-    <!-- 400 CARTELAS CONTAINER -->
     <div class="cartelas-grid" id="cartelas-container"></div>
     <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()">ENTER ARENA (<span id="btn-cartela-count">0 Cards</span>)</button>
   </div>
@@ -595,14 +595,12 @@
       <div class="toggle-switch active" id="autodaub-toggle" onclick="toggleAutoDaub()"></div>
     </div>
 
-    <!-- 🎮 IN-GAME ARENA LIVE STATS BAR -->
     <div class="arena-live-bar" id="arena-live-bar">
       <div>🏆 ደራሽ: <b style="color: var(--accent-green);"><span id="arena-prize-pool">0</span> ETB</b></div>
       <div>🎟️ የተሸጡ: <b style="color: var(--accent-gold);"><span id="arena-cards-sold">0</span></b></div>
       <div id="arena-timer-box">⏰ ጅምር: <b style="color: var(--accent-cyan);"><span id="arena-timer-val">0</span>s</b></div>
     </div>
 
-    <!-- ⚠️ LEAVE NOTIFICATION BANNER -->
     <div class="arena-warning-banner" id="arena-warning-banner">
       📌 ማሳሰቢያ፦ ወደ ጨዋታው ገብተዋል፤ ዙሩ እስኪጠናቀቅ ድረስ ሜዳውን ለቀው አይውጡ!
     </div>
@@ -610,7 +608,6 @@
     <div class="game-layout">
       <div class="full-board"><div id="full-board-grid" style="display: flex; gap: 2px;"></div></div>
       <div class="right-section">
-        <!-- 🔮 3D BALL SPHERE -->
         <div class="call-sphere" id="call-sphere-3d">
           <div class="call-sphere-num" id="current-call">--</div>
           <div class="call-amharic-label" id="current-call-amharic"></div>
@@ -634,13 +631,11 @@
       <button id="tab-btn-refcontest" class="btn-sm" style="flex: 1; padding: 9px; background: rgba(255,255,255,0.06); color: #fff;" onclick="switchLeaderboardTab('contest')">🏆 የግብዣ ውድድር</button>
     </div>
 
-    <!-- 1. GAME WINS LEADERBOARD -->
     <div id="box-game-leaderboard">
       <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">በቢንጎ ከፍተኛ ብር ያሸነፉ ምርጥ ተጫዋቾች ዝርዝር:</div>
       <div id="real-leaderboard-container"></div>
     </div>
 
-    <!-- 2. WEEKLY REFERRAL CONTEST LEADERBOARD -->
     <div id="box-contest-leaderboard" style="display: none;">
       <div style="background: linear-gradient(135deg, #1b124a, #100a30); border: 1px solid rgba(255, 215, 0, 0.35); border-radius: 14px; padding: 12px; margin-bottom: 12px; text-align: center;">
         <h4 style="color: var(--accent-gold); margin-bottom: 6px;">🎁 የዚህ ሳምንት ሽልማቶች</h4>
@@ -688,7 +683,6 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT LOGIC -->
   <script>
     const socket = io();
     const tg = window.Telegram?.WebApp;
@@ -703,7 +697,6 @@
       playOnlyBalance: 0,
       lang: 'am',
       botUsername: 'Kokeb_Bingo_Bot',
-      selectedMethod: 'TELEBIRR',
       streak: 0
     };
 
@@ -719,7 +712,6 @@
     let gameState = { isLive: false, isSpectator: false, calledNumbers: new Set(), autoDaub: true, drawnCount: 0 };
     const ranges = { B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75] };
 
-    // 🎆 LIGHTWEIGHT CANVAS CONFETTI / GOLD BURST ENGINE
     const fxCanvas = document.getElementById('fx-canvas');
     const fxCtx = fxCanvas.getContext('2d');
     let fxParticles = [];
@@ -987,6 +979,13 @@
     }
 
     window.onload = () => {
+      const hasTelegramAuth = Boolean(tg?.initData && tg.initData.length > 5);
+
+      if (!hasTelegramAuth) {
+        document.getElementById('telegram-required-overlay').style.display = 'flex';
+        return;
+      }
+
       if (tg?.initDataUnsafe?.user) {
         const u = tg.initDataUnsafe.user;
         userState.name = u.username ? `@${u.username}` : (u.first_name + (u.last_name ? ` ${u.last_name}` : ''));
@@ -1002,11 +1001,22 @@
 
     function authenticateUser() {
       SoundFX.pop();
-      let deviceId = localStorage.getItem('kokeb_device_id') || ('dev_' + Math.random().toString(36).substring(2, 10));
-      localStorage.setItem('kokeb_device_id', deviceId);
-
-      socket.emit('auth_user', { username: userState.name, initData: tg?.initData || '', deviceId });
+      if (!tg?.initData) {
+        document.getElementById('telegram-required-overlay').style.display = 'flex';
+        return;
+      }
+      socket.emit('auth_user', { initData: tg.initData });
     }
+
+    socket.on('auth_error', (d) => {
+      alert(d.message || "የቴሌግራም ማረጋገጫ አልተሳካም!");
+      document.getElementById('telegram-required-overlay').style.display = 'flex';
+    });
+
+    socket.on('phone_required', (d) => {
+      alert(d.message || "📲 እባክዎን መጀመሪያ ቦቱ ላይ ስልክ ቁጥርዎን ያረጋግጡ!");
+      tg?.close();
+    });
 
     socket.on('auth_success', (u) => {
       userState.dbId = u.id;
@@ -1019,6 +1029,14 @@
 
       const myRefId = u.telegramId || u.id;
       document.getElementById('ref-link-display').innerText = `https://t.me/${userState.botUsername}?start=ref_${myRefId}`;
+
+      // 🚨 DYNAMIC PHONE INJECTION (ሰርቨሩ የላከውን አዲሱን ስልክ በቅጽበት ተካው!)
+      if (u.depositInfo) {
+        const depLabel = document.getElementById('deposit-inst-label');
+        if (depLabel) {
+          depLabel.innerText = `📥 ሒሳብ ሙላ (በቴሌብር ወደ ${u.depositInfo.phone} ${u.depositInfo.name}):`;
+        }
+      }
 
       updateCoinsDisplay();
       updateStreakUI(userState.streak, u.lastCheckinDate);
@@ -1117,7 +1135,6 @@
       }
     });
 
-    // 💡 የተስተካከለ፡ የ Cashable እና Play-only ዋሌት ማሳያ
     function updateCoinsDisplay() {
       document.getElementById('hub-coins').innerText = userState.coins.toFixed(2);
       document.getElementById('hub-coins-sub').innerText = userState.playOnlyBalance.toFixed(2);
@@ -1128,7 +1145,6 @@
       document.getElementById('cartela-coins').innerText = userState.coins.toFixed(2);
     }
 
-    // 📊 የፕሮፋይል ስታትስቲክስ ማሳያ
     function updateProfileStatsUI(stats) {
       if (!stats) return;
       const elPlayed = document.getElementById('prof-games-played');
@@ -1228,13 +1244,6 @@
       } catch (e) { alert("የሰርቨር ግንኙነት ችግር!"); }
     }
 
-    function selectPaymentMethod(m) {
-      SoundFX.pop();
-      userState.selectedMethod = m;
-      document.getElementById('pill-telebirr').classList.toggle('active', m === 'TELEBIRR');
-      document.getElementById('pill-cbe').classList.toggle('active', m === 'CBE_BIRR');
-    }
-
     async function submitDepositRequest() {
       const phone = document.getElementById('deposit-phone-input').value.trim();
       const amount = parseFloat(document.getElementById('deposit-amount-input').value.trim());
@@ -1246,7 +1255,7 @@
         const res = await fetch('/api/payment/deposit-request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userState.dbId, amount, phoneNumber: phone, txRef, method: userState.selectedMethod })
+          body: JSON.stringify({ userId: userState.dbId, amount, phoneNumber: phone, txRef, method: 'TELEBIRR' })
         });
         const data = await res.json();
         if (res.ok && data.success) {
@@ -1271,13 +1280,13 @@
         const res = await fetch('/api/payment/withdraw', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userState.dbId, amount, phoneNumber: phone, method: userState.selectedMethod })
+          body: JSON.stringify({ userId: userState.dbId, amount, phoneNumber: phone, method: 'TELEBIRR' })
         });
         const data = await res.json();
         if (res.ok && data.success) {
           userState.coins = parseFloat(data.remainingBalance);
           updateCoinsDisplay();
-          showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በ${userState.selectedMethod} ይላክሎታል።`, "⚡");
+          showModal("ማውጫ ተልኳል", `የ ${amount} ETB ማውጣት ጥያቄዎ ደርሶናል! በቴሌብር ይላክሎታል።`, "⚡");
           fetchMyTransactions();
           fetchUserProfileStats();
         } else {
@@ -1297,6 +1306,7 @@
             if (t.type === 'WITHDRAW') label = '📤 Withdraw';
             if (t.type === 'PROMO_BONUS') label = '✨ Promo Bonus';
             if (t.type === 'REFERRAL_CONTEST_PRIZE') label = '🏆 Contest Prize';
+            if (t.type === 'RAIN_BONUS') label = '🌧️ Rain Bonus';
             return `
               <tr>
                 <td><b>${label}</b></td>
@@ -1370,7 +1380,6 @@
       } catch (e) {}
     }
 
-    // ==================== LIVE GAME & SPECTATOR ENGINE ====================
     function goToCartelaSelection(roomName, cost) {
       SoundFX.pop();
       selectionState.roomName = roomName;
@@ -1471,7 +1480,6 @@
       }
     });
 
-    // 🎟️ 400 ካርቴላዎችን በግሪድ የመደርደር ፈንክሽን
     function renderCartelaGrid() {
       const c = document.getElementById('cartelas-container');
       c.innerHTML = '';
@@ -1486,11 +1494,9 @@
       }
     }
 
-    // 🚨 1. ባላንስ በቂ ካልሆነ ካርቴላ እንዳይመረጥ የሚከለክል ፈንክሽን
     function toggleCartela(id) {
       if (selectionState.takenCartelaIds.has(id)) return;
 
-      // ተጫዋቹ አዲስ ካርቴላ ለመምረጥ ሲነካ ባላንሱን መፈተሽ
       if (!selectionState.selectedCartelaIds.has(id)) {
         const nextTotalCost = (selectionState.selectedCartelaIds.size + 1) * selectionState.costPerCartela;
         if (nextTotalCost > userState.coins) {
@@ -1596,7 +1602,6 @@
       });
     }
 
-    // 🔮 3D BALL DRAWN WITH SPIN ANIMATION
     socket.on('ball_drawn', ({ number, letter, callString }) => {
       gameState.calledNumbers.add(number);
       SoundFX.ball();
@@ -1643,7 +1648,6 @@
       ids.forEach(id => socket.emit('claim_bingo', { roomName: selectionState.roomName, cartelaId: id }));
     }
 
-    // 🏆 አውቶማቲክ ቢንጎ እና በርካታ አሸናፊዎች ማሳወቂያ
     socket.on('game_finished', (d) => {
       gameState.isLive = false;
       document.getElementById('claim-bingo-btn').disabled = true;
