@@ -113,7 +113,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11px;
+      font-size: 10.5px;
     }
     .arena-warning-banner {
       background: rgba(255, 71, 87, 0.15);
@@ -529,7 +529,7 @@
     </div>
   </div>
 
-  <!-- VIEW 6: PROFILE TAB (REAL-TIME STATS) -->
+  <!-- VIEW 6: PROFILE TAB -->
   <div id="screen-profile" class="view-screen">
     <div class="profile-header-card">
       <div class="user-avatar-lg" style="width: 60px; height: 60px; margin: auto; font-size: 24px; margin-bottom: 8px;" id="prof-avatar-big">E</div>
@@ -572,7 +572,7 @@
     </div>
   </div>
 
-  <!-- VIEW 7: CARTELA SELECTION (400 CARDS) -->
+  <!-- VIEW 7: CARTELA SELECTION -->
   <div id="screen-cartela-select" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="cancelCartelaSelection()">← BACK</button>
@@ -587,7 +587,7 @@
     <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="confirmAndEnterArena()">ENTER ARENA (<span id="btn-cartela-count">0 Cards</span>)</button>
   </div>
 
-  <!-- VIEW 8: LIVE GAME ENGINE (PLAYER & SPECTATOR) -->
+  <!-- VIEW 8: LIVE GAME ENGINE -->
   <div id="screen-game" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="leaveCurrentGame()">🚪 LEAVE</button>
@@ -595,9 +595,11 @@
       <div class="toggle-switch active" id="autodaub-toggle" onclick="toggleAutoDaub()"></div>
     </div>
 
+    <!-- 🎮 IN-GAME ARENA LIVE STATS BAR (ከነ ኳስ መቁጠሪያው 1/75, 2/75...) -->
     <div class="arena-live-bar" id="arena-live-bar">
       <div>🏆 ደራሽ: <b style="color: var(--accent-green);"><span id="arena-prize-pool">0</span> ETB</b></div>
       <div>🎟️ የተሸጡ: <b style="color: var(--accent-gold);"><span id="arena-cards-sold">0</span></b></div>
+      <div>🎯 ኳስ: <b style="color: var(--accent-cyan);"><span id="arena-drawn-progress">0/75</span></b></div>
       <div id="arena-timer-box">⏰ ጅምር: <b style="color: var(--accent-cyan);"><span id="arena-timer-val">0</span>s</b></div>
     </div>
 
@@ -618,7 +620,7 @@
     </div>
   </div>
 
-  <!-- VIEW 9: LEADERBOARDS (GAME & REFERRAL CONTEST) -->
+  <!-- VIEW 9: LEADERBOARD -->
   <div id="screen-leaderboard" class="view-screen">
     <div class="top-brand-header">
       <button class="btn-sm btn-danger" onclick="switchNav('dashboard')">← BACK</button>
@@ -664,7 +666,6 @@
     </div>
   </div>
 
-  <!-- FLOATING 5-ITEM BOTTOM NAVIGATION BAR -->
   <div class="bottom-nav">
     <div class="nav-item active" onclick="switchNav('dashboard')" id="nav-dashboard">
       <div class="nav-icon">🏠</div><span>Home</span>
@@ -1030,7 +1031,6 @@
       const myRefId = u.telegramId || u.id;
       document.getElementById('ref-link-display').innerText = `https://t.me/${userState.botUsername}?start=ref_${myRefId}`;
 
-      // 🚨 DYNAMIC PHONE INJECTION (ሰርቨሩ የላከውን አዲሱን ስልክ በቅጽበት ተካው!)
       if (u.depositInfo) {
         const depLabel = document.getElementById('deposit-inst-label');
         if (depLabel) {
@@ -1398,6 +1398,10 @@
       document.getElementById('arena-cards-sold').innerText = d.takenCartelaIds.length;
       document.getElementById('arena-timer-val').innerText = d.timer;
 
+      // 🎯 የኳስ መቁጠሪያ (ምሳሌ: 12/75)
+      const drawnProg = document.getElementById('arena-drawn-progress');
+      if (drawnProg) drawnProg.innerText = `${d.drawnCount || 0}/75`;
+
       if (d.state === 'PLAYING') {
         gameState.isLive = true;
         gameState.isSpectator = true;
@@ -1602,7 +1606,8 @@
       });
     }
 
-    socket.on('ball_drawn', ({ number, letter, callString }) => {
+    // 🔮 3D BALL DRAWN WITH 1/75 PROGRESS COUNTER
+    socket.on('ball_drawn', ({ number, letter, callString, drawnCount }) => {
       gameState.calledNumbers.add(number);
       SoundFX.ball();
       SoundFX.speakCall(letter, number);
@@ -1616,6 +1621,12 @@
 
       document.getElementById('current-call').innerText = callString;
       document.getElementById('current-call-amharic').innerText = `${letter} ${getAmharicNumberWord(number)}`;
+
+      // 🎯 የኳስ መቁጠሪያውን ማዘመን (ምሳሌ: 12/75)
+      const drawnProg = document.getElementById('arena-drawn-progress');
+      if (drawnProg && drawnCount !== undefined) {
+        drawnProg.innerText = `${drawnCount}/75`;
+      }
 
       const bc = document.getElementById(`b-cell-${number}`);
       if (bc) bc.classList.add('called');
