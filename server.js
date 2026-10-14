@@ -25,17 +25,28 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 
+// 🚫 አሳሾችና ቴሌግራም ገጹን በሜሞሪ አስቀምጠው እንዳያስቀሩ ጥብቅ የ No-Cache ትዕዛዝ
 app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
   next();
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: false,
+  lastModified: false
+}));
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
@@ -51,7 +62,6 @@ function getAppBaseUrl() {
   return 'https://kokeb-bingo.onrender.com';
 }
 
-// 📱 ቋሚ የሜኑ አቀማመጥ (Reply Keyboard)
 function getBotMainMenu(webAppUrl) {
   return {
     reply_markup: {
@@ -232,7 +242,7 @@ if (process.env.BOT_TOKEN) {
     } catch (e) {}
   });
 
-  // 📥 ዲፖዚት መረጃ - ቴሌብር 0972723976 NESREDINE ብቻ
+  // 📥 ዲፖዚት መረጃ - ቴሌብር 0972723976 NESREDINE
   bot.onText(/\/deposit/, (msg) => {
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     const reply = 
@@ -309,7 +319,6 @@ if (process.env.BOT_TOKEN) {
         return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', ...getBotMainMenu(webAppUrl) });
       }
 
-      // 📥 ገቢ ለማድረግ - ቴሌብር 0972723976 NESREDINE
       if (text === '📥 ገቢ ለማድረግ') {
         const reply = 
           `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
@@ -677,7 +686,7 @@ async function endGame(roomName, winnersData, fallbackMessage) {
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
 
-// ==================== WEBSOCKET HANDLERS (STRICT AUTH) ====================
+// ==================== WEBSOCKET HANDLERS (STRICT AUTH & DYNAMIC INJECTION) ====================
 io.on('connection', (socket) => {
   socket.on('auth_user', async ({ initData }) => {
     try {
@@ -717,6 +726,7 @@ io.on('connection', (socket) => {
 
       const prof = await DB.getUserDetailedProfile(user.id);
 
+      // 💡 እዚህ ጋር ስልክ ቁጥሩን በቅጽበት (Socket.io) ለተጫዋቾች እንልካለን
       socket.emit('auth_success', {
         id: user.id,
         telegramId: user.telegram_id,
@@ -727,7 +737,13 @@ io.on('connection', (socket) => {
         stats: prof.stats,
         botUsername: detectedBotUsername,
         checkinStreak: user.checkin_streak || 0,
-        lastCheckinDate: user.last_checkin_date
+        lastCheckinDate: user.last_checkin_date,
+        depositInfo: {
+          phone: '0972723976',
+          name: 'NESREDINE',
+          minDeposit: 50,
+          minWithdraw: 225
+        }
       });
 
       broadcastRealRoomsStatus();
@@ -1006,7 +1022,7 @@ app.post('/api/promo/claim', async (req, res) => {
   }
 });
 
-// 📥 ዝቅተኛው ማስገቢያ 50 ETB - በቴሌብር ብቻ
+// 📥 ዝቅተኛው ማስገቢያ 50 ETB
 app.post('/api/payment/deposit-request', async (req, res) => {
   const { userId, amount, phoneNumber, txRef } = req.body;
   const depositAmount = parseFloat(amount);
@@ -1343,7 +1359,7 @@ app.post('/api/admin/referral-contest/payout', adminAuth, async (req, res) => {
   }
 });
 
-// 🌧️ ==================== MONEY RAIN (የገንዘብ ዝናብ) ADMIN APIs ====================
+// 🌧️ ==================== MONEY RAIN ADMIN APIs ====================
 app.get('/api/admin/money-rain/list', adminAuth, async (req, res) => {
   try {
     const list = await DB.getAllMoneyRains();
