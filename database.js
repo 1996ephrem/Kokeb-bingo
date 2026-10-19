@@ -68,20 +68,16 @@ async function initDB() {
         salt TEXT
       );
 
-      -- 🎁 መደበኛ እና ቪአይፒ ፕሮሞኮዶች (min_deposit_days ጨምሮ)
       CREATE TABLE IF NOT EXISTS promo_codes (
         id SERIAL PRIMARY KEY,
         code TEXT UNIQUE NOT NULL,
         reward_amount NUMERIC(14, 2) NOT NULL,
         max_users INT DEFAULT 100,
         used_count INT DEFAULT 0,
-        min_deposit_days INT DEFAULT 0, 
         expires_at TIMESTAMP,
         is_active INT DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-
-      ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS min_deposit_days INT DEFAULT 0;
 
       CREATE TABLE IF NOT EXISTS promo_claims (
         id SERIAL PRIMARY KEY,
@@ -523,6 +519,7 @@ const DB = {
     };
   },
 
+  // 🏆 ሳምንታዊ የሪፈራል ውድድር
   getReferralContestConfig: async () => {
     const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('ref_prize_1', 'ref_prize_2', 'ref_prize_3', 'ref_contest_start')");
     const cfg = { prize1: 500, prize2: 300, prize3: 150, startDate: new Date(Date.now() - 7 * 86400000).toISOString() };
@@ -647,7 +644,7 @@ const DB = {
     }
   },
 
-  // 🌧️ MONEY RAIN
+  // 🌧️ ==================== MONEY RAIN ====================
   createMoneyRain: async (title, rewardAmount, maxUsers = 1000) => {
     const res = await pool.query(
       `INSERT INTO money_rains (title, reward_amount, max_users) 
@@ -665,9 +662,10 @@ const DB = {
     }));
   },
 
+  // ⏹️ ንቁ የሆነውን ዝናብ በአድሚን ማቋረጫ ፈንክሽን
   stopMoneyRain: async (rainId) => {
     const res = await pool.query('UPDATE money_rains SET is_active = 0 WHERE id = $1', [rainId]);
-    return res.rowCount.length > 0 || res.rowCount > 0;
+    return res.rowCount > 0;
   },
 
   claimMoneyRain: async (userId, rainId) => {
@@ -715,17 +713,17 @@ const DB = {
     }
   },
 
-  // 🎁 PROMO CODES (ከነ ቪአይፒ / ዲፖዚት ማጣሪያ ጋር የተስተካከለ)
-  createPromoCode: async (code, rewardAmount, maxUsers = 50, expiryHours = 24, minDepositDays = 0) => {
+  // 🎁 ==================== PROMO CODES ====================
+  createPromoCode: async (code, rewardAmount, maxUsers = 50, expiryHours = 24) => {
     const cleanCode = code.trim().toUpperCase();
     const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000);
     const res = await pool.query(
-      `INSERT INTO promo_codes (code, reward_amount, max_users, expires_at, min_deposit_days) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO promo_codes (code, reward_amount, max_users, expires_at) 
+       VALUES ($1, $2, $3, $4) 
        ON CONFLICT (code) DO UPDATE 
-       SET reward_amount = $2, max_users = $3, expires_at = $4, min_deposit_days = $5, is_active = 1, used_count = 0 
+       SET reward_amount = $2, max_users = $3, expires_at = $4, is_active = 1, used_count = 0 
        RETURNING *`,
-      [cleanCode, rewardAmount, maxUsers, expiresAt, parseInt(minDepositDays, 10) || 0]
+      [cleanCode, rewardAmount, maxUsers, expiresAt]
     );
     return res.rows[0];
   },
@@ -735,7 +733,6 @@ const DB = {
     return res.rows.map(r => ({
       ...r,
       reward_amount: parseFloat(r.reward_amount),
-      min_deposit_days: r.min_deposit_days || 0,
       is_expired: new Date(r.expires_at) < new Date()
     }));
   },
@@ -762,21 +759,6 @@ const DB = {
 
       const cCheck = await client.query('SELECT id FROM promo_claims WHERE promo_id = $1 AND user_id = $2', [promo.id, userId]);
       if (cCheck.rows.length > 0) throw new Error('⚠️ ይህንን ፕሮሞኮድ አስቀድመው ተጠቅመዋል!');
-
-      // 🔍 ቪአይፒ / ዲፖዚት ማጣሪያ ማረጋገጫ (min_deposit_days > 0 ከሆነ)
-      const minDays = parseInt(promo.min_deposit_days, 10) || 0;
-      if (minDays > 0) {
-        const depCheck = await client.query(`
-          SELECT id FROM transactions 
-          WHERE user_id = $1 AND type = 'DEPOSIT' AND status = 'COMPLETED' 
-            AND created_at >= NOW() - INTERVAL '${minDays} days'
-          LIMIT 1
-        `, [userId]);
-
-        if (depCheck.rows.length === 0) {
-          throw new Error(`❌ ይህ የቪአይፒ ፕሮሞኮድ የሚሰራው ባለፉት ${minDays} ቀናት ውስጥ ዲፖዚት ላደረጉ ተጫዋቾች ብቻ ነው!`);
-        }
-      }
 
       const reward = parseFloat(promo.reward_amount);
 
