@@ -284,18 +284,52 @@ const DB = {
   },
 
   requestDeposit: async (userId, amount, phoneNumber, txRef, paymentMethod = 'TELEBIRR') => {
-    const res = await pool.query(
-      'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [userId, 'DEPOSIT', amount, 'PENDING', txRef, phoneNumber, paymentMethod]
-    );
-    const uRes = await pool.query('SELECT telegram_id, username, first_name FROM users WHERE id = $1', [userId]);
-    const user = uRes.rows[0] || {};
-    return { 
-      success: true, 
-      txId: res.rows[0].id, 
-      telegramId: user.telegram_id,
-      name: user.first_name || user.username
-    };
+    const cleanRef = String(txRef || '').trim();
+    const refKey = cleanRef.toUpperCase();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 🔒 Same Txn ID ያላቸው ጥያቄዎች በአንድ ጊዜ ቢመጡ እንኳ አንድ በአንድ እንዲስተናገዱ (concurrency safe)
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [refKey]);
+
+      // 🚫 ይህ Txn ID ቀድሞ በተሳካ ሁኔታ ጥቅም ላይ ውሎ ከሆነ (ወይም አድሚን እየጠበቀ ከሆነ) ውድቅ ይደረጋል
+      const dup = await client.query(
+        `SELECT status FROM transactions
+         WHERE type = 'DEPOSIT'
+           AND status IN ('COMPLETED', 'PENDING')
+           AND UPPER(TRIM(reference)) = $1
+         ORDER BY (status = 'COMPLETED') DESC
+         LIMIT 1`,
+        [refKey]
+      );
+      if (dup.rows.length > 0) {
+        const used = dup.rows[0].status === 'COMPLETED';
+        const err = new Error(used ? 'TXN_ALREADY_USED' : 'TXN_ALREADY_PENDING');
+        err.code = used ? 'TXN_USED' : 'TXN_PENDING';
+        throw err;
+      }
+
+      const res = await client.query(
+        'INSERT INTO transactions (user_id, type, amount, status, reference, phone_number, payment_method) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+        [userId, 'DEPOSIT', amount, 'PENDING', cleanRef, phoneNumber, paymentMethod]
+      );
+      const uRes = await client.query('SELECT telegram_id, username, first_name FROM users WHERE id = $1', [userId]);
+      const user = uRes.rows[0] || {};
+
+      await client.query('COMMIT');
+      return {
+        success: true,
+        txId: res.rows[0].id,
+        telegramId: user.telegram_id,
+        name: user.first_name || user.username
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
   requestWithdrawal: async (userId, amount, phoneNumber, paymentMethod = 'TELEBIRR') => {
@@ -375,6 +409,24 @@ const DB = {
       if (tRes.rows.length === 0) throw new Error('Transaction not found');
       const tx = tRes.rows[0];
       const amount = parseFloat(tx.amount);
+
+      // 🛡️ አድሚኑ በስህተት ተመሳሳይ Txn ID ያለውን ሁለተኛ ጥያቄ እንዳያጸድቅ መከላከያ
+      const refKey = String(tx.reference || '').trim().toUpperCase();
+      if (refKey) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [refKey]);
+        const used = await client.query(
+          `SELECT id FROM transactions
+           WHERE type = 'DEPOSIT' AND status = 'COMPLETED'
+             AND id <> $1 AND UPPER(TRIM(reference)) = $2
+           LIMIT 1`,
+          [txId, refKey]
+        );
+        if (used.rows.length > 0) {
+          const err = new Error('TXN_ALREADY_USED');
+          err.code = 'TXN_USED';
+          throw err;
+        }
+      }
 
       const uRes = await client.query(
         'UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance, telegram_id, first_name, username',
