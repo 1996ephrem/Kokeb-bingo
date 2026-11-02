@@ -60,6 +60,20 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 let detectedBotUsername = process.env.BOT_USERNAME || 'Kokeb_Bingo_Bot';
 let globalCommissionPercent = parseInt(process.env.HOUSE_COMMISSION_PERCENT, 10) || 15;
 
+// 💳 የክፍያ መረጃ እና የቦነስ ቅንብር (ከ DB ይጫናል፤ አድሚን ፓነል ላይ ይቀየራል)
+let paymentInfo = { phone: '0972723976', name: 'NESREDINE' };
+let bonusSettings = { enabled: true, percent: 100, max: 200, minDeposit: 50, wagerMultiplier: 3, firstOnly: true };
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function loadLiveSettings() {
+  await DB.ready;
+  paymentInfo = await DB.getPaymentSettings();
+  bonusSettings = await DB.getBonusSettings();
+}
+
 const failedPinAttempts = new Map();
 const activeSockets = new Map();
 
@@ -255,7 +269,7 @@ if (process.env.BOT_TOKEN) {
     const webAppUrl = `${getAppBaseUrl()}/?v=${Date.now()}`;
     const reply = 
       `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
-      `🟢 <b>ቴሌብር (Telebirr):</b> <code>0972723976</code> (NESREDINE)\n\n` +
+      `🟢 <b>ቴሌብር (Telebirr):</b> <code>${escapeHtml(paymentInfo.phone)}</code> (${escapeHtml(paymentInfo.name)})\n\n` +
       `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
       `<b>አሞላሉ፦</b>\n` +
       `1. በቴሌብር ብር ይላኩ\n` +
@@ -330,7 +344,7 @@ if (process.env.BOT_TOKEN) {
       if (text === '📥 ገቢ ለማድረግ') {
         const reply = 
           `📥 <b>ገቢ ለማድረግ (Deposit)</b>\n\n` +
-          `🟢 <b>ቴሌብር (Telebirr):</b> <code>0972723976</code> (NESREDINE)\n\n` +
+          `🟢 <b>ቴሌብር (Telebirr):</b> <code>${escapeHtml(paymentInfo.phone)}</code> (${escapeHtml(paymentInfo.name)})\n\n` +
           `📌 <b>ዝቅተኛው የማስገቢያ መጠን:</b> 50 ETB\n\n` +
           `<b>አሞላሉ፦</b>\n` +
           `1. በቴሌብር ብር ይላኩ\n` +
@@ -633,10 +647,23 @@ function startRoomGame(roomName) {
       const totalWinners = detectedWinners.length;
       const eachPrize = Math.max(1, Math.floor(prizePool / totalWinners));
 
-      for (const w of detectedWinners) {
-        w.prize = eachPrize;
+      detectedWinners.forEach(w => { w.prize = eachPrize; });
+
+      let newBalances = [];
+      try {
+        newBalances = await DB.settleRoundWithPayouts(
+          roomName,
+          detectedWinners.map(w => ({ userId: w.dbId, amount: eachPrize }))
+        );
+      } catch (err) {
+        console.error('Auto payout error:', err);
+      }
+
+      for (let i = 0; i < detectedWinners.length; i++) {
+        const w = detectedWinners[i];
         try {
-          const newBal = await DB.updateBalance(w.dbId, eachPrize, 'WIN', `${roomName} Bingo`);
+          const newBal = newBalances[i];
+          if (newBal === undefined) continue;
           w.newBalance = newBal;
 
           const prof = await DB.getUserDetailedProfile(w.dbId);
@@ -670,6 +697,10 @@ async function endGame(roomName, winnersData, fallbackMessage) {
   room.winnerDeclared = true;
   if (room.gameInterval) clearInterval(room.gameInterval);
 
+  if (!winnersData || winnersData.length === 0) {
+    try { await DB.settleRoomBets(roomName); } catch (e) { console.error('settleRoomBets error:', e.message); }
+  }
+
   let finishMsg = fallbackMessage || 'ጨዋታው ተጠናቋል!';
 
   if (winnersData && winnersData.length > 0) {
@@ -690,6 +721,35 @@ async function endGame(roomName, winnersData, fallbackMessage) {
 
   broadcastRealRoomsStatus();
   setTimeout(() => { startRoomLobby(roomName); }, 6000);
+}
+
+async function notifyRefunds(refunds, message) {
+  for (const r of refunds) {
+    for (const [sockId, pInfo] of activeSockets.entries()) {
+      if (pInfo.dbId === r.userId) {
+        pInfo.balance = r.newBalance;
+        try {
+          const prof = await DB.getUserDetailedProfile(r.userId);
+          io.to(sockId).emit('balance_updated', {
+            balance: r.newBalance,
+            cashableBalance: prof.cashableBalance,
+            playOnlyBalance: prof.playOnlyBalance
+          });
+        } catch (e) {}
+      }
+    }
+    sendTelegramNotification(r.telegramId, `${message}\n🪙 የተመለሰ: ${r.amount} ETB\n💰 ባላንስ: ${r.newBalance} ETB`, true);
+  }
+}
+
+// 🛡️ ሰርቨር ሲነሳ ያልተጠናቀቁ ውርርዶችን በራስ-ሰር መልስ
+async function recoverOrphanedBets() {
+  await DB.ready;
+  const refunds = await DB.refundActiveBets({ reason: 'Server Restart Refund' });
+  if (refunds.length > 0) {
+    console.log(`[+] Auto-refunded ${refunds.length} player(s) after restart`);
+    await notifyRefunds(refunds, '⚠️ ሰርቨሩ ዳግም ስለተነሳ ያልተጠናቀቀው ዙር ተሰርዟል፤ ውርርድዎ ሙሉ በሙሉ ተመላሽ ሆኗል!');
+  }
 }
 
 Object.keys(rooms).forEach(name => startRoomLobby(name));
@@ -746,11 +806,13 @@ io.on('connection', (socket) => {
         botUsername: detectedBotUsername,
         checkinStreak: user.checkin_streak || 0,
         lastCheckinDate: user.last_checkin_date,
+        wageringRemaining: prof.wageringRemaining,
         depositInfo: {
-          phone: '0972723976',
-          name: 'NESREDINE',
+          phone: paymentInfo.phone,
+          name: paymentInfo.name,
           minDeposit: 50,
-          minWithdraw: 225
+          minWithdraw: 225,
+          bonus: bonusSettings
         }
       });
 
@@ -802,7 +864,8 @@ io.on('connection', (socket) => {
 
       if (refundTotal > 0) {
         try {
-          const newBal = await DB.updateBalance(player.dbId, refundTotal, 'REFUND', `${roomName} Lobby Leave`);
+          const refunds = await DB.refundActiveBets({ userId: player.dbId, roomName, reason: `${roomName} Lobby Leave` });
+          const newBal = refunds.length > 0 ? refunds[0].newBalance : player.balance;
           player.balance = newBal;
           const prof = await DB.getUserDetailedProfile(player.dbId);
 
@@ -840,7 +903,7 @@ io.on('connection', (socket) => {
     }
 
     try {
-      const newBalance = await DB.updateBalance(player.dbId, -totalCost, 'BET', roomName);
+      const newBalance = await DB.placeBet(player.dbId, roomName, cartelaIds, room.stake);
       player.balance = newBalance;
       const prof = await DB.getUserDetailedProfile(player.dbId);
 
@@ -1168,6 +1231,8 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
 
     stats.onlinePlayers = activeSockets.size;
     stats.globalCommission = globalCommissionPercent;
+    stats.paymentInfo = paymentInfo;
+    stats.bonusSettings = bonusSettings;
     stats.activeRooms = {
       Beginner: { stake: rooms.Beginner.stake, state: rooms.Beginner.state, cardsSold: rooms.Beginner.takenCartelas.size, speed: rooms.Beginner.callSpeed, isPaused: rooms.Beginner.isPaused },
       Turbo: { stake: rooms.Turbo.stake, state: rooms.Turbo.state, cardsSold: rooms.Turbo.takenCartelas.size, speed: rooms.Turbo.callSpeed, isPaused: rooms.Turbo.isPaused },
@@ -1209,7 +1274,9 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
         io.to(sockId).emit('deposit_approved', {
           txId,
           amount: result.amount,
-          message: `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!`
+          bonus: result.bonus,
+          message: `🎉 የ ${result.amount} ETB ማስገቢያ ጥያቄዎ ጸድቋል፤ ሒሳብዎ ላይ ገቢ ሆኗል!` +
+            (result.bonus > 0 ? `\n🎁 የ ${result.bonus} ETB ቦነስ ተጨምሯል! ቦነሱን ለማውጣት ተጨማሪ ${result.wageringRemaining.toFixed(2)} ETB ካርቴላ መጫወት ይኖርብዎታል።` : '')
         });
       }
     }
@@ -1217,6 +1284,7 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
     const botMsg = 
       `🎉 እንኳን ደስ አለዎት! ዲፖዚትዎ ጸድቋል!\n` +
       `🎁 የ ${result.amount} ETB ክፍያ ወደ ዋሌትዎ ገቢ ሆኗል!\n` +
+      (result.bonus > 0 ? `✨ የዲፖዚት ቦነስ: +${result.bonus} ETB (ለማውጣት ተጨማሪ ${result.wageringRemaining.toFixed(2)} ETB መጫወት ያስፈልጋል)\n` : '') +
       `💰 አጠቃላይ ባላንስዎ: ${result.newBalance} ETB\n\n` +
       `ለመጫወት ከታች ያለውን '🎮 ይጫወቱ' በተን ይጫኑ!`;
 
@@ -1506,11 +1574,52 @@ app.get('/api/admin/user-profile/:id', adminAuth, async (req, res) => {
 });
 
 app.post('/api/admin/update-settings', adminAuth, async (req, res) => {
-  const { commission, beginnerStake, turboStake, vipStake } = req.body;
+  const { commission, beginnerStake, turboStake, vipStake, payPhone, payName, bonus } = req.body;
   if (commission !== undefined) globalCommissionPercent = parseInt(commission, 10);
   if (beginnerStake && rooms.Beginner) rooms.Beginner.stake = parseFloat(beginnerStake);
   if (turboStake && rooms.Turbo) rooms.Turbo.stake = parseFloat(turboStake);
   if (vipStake && rooms.VIP) rooms.VIP.stake = parseFloat(vipStake);
+
+  try {
+    const entries = {};
+
+    if (payPhone !== undefined || payName !== undefined) {
+      const phone = String(payPhone || '').replace(/\s+/g, '');
+      const name = String(payName || '').trim();
+      if (!/^[0-9+]{9,15}$/.test(phone)) {
+        return res.status(400).json({ error: '❌ የቴሌብር ስልክ ቁጥር ትክክል አይደለም!' });
+      }
+      if (!name || name.length > 40) {
+        return res.status(400).json({ error: '❌ የስም መስክ ባዶ ወይም ከ 40 ፊደል በላይ መሆን የለበትም!' });
+      }
+      entries.pay_phone = phone;
+      entries.pay_name = name;
+    }
+
+    if (bonus && typeof bonus === 'object') {
+      const pct = parseFloat(bonus.percent);
+      const max = parseFloat(bonus.max);
+      const minDep = parseFloat(bonus.minDeposit);
+      const mult = parseFloat(bonus.wagerMultiplier);
+      if (![pct, max, minDep, mult].every(n => Number.isFinite(n) && n >= 0) || pct > 300) {
+        return res.status(400).json({ error: '❌ የቦነስ ቁጥሮች ትክክል አይደሉም!' });
+      }
+      entries.bonus_enabled = bonus.enabled ? '1' : '0';
+      entries.bonus_percent = pct;
+      entries.bonus_max = max;
+      entries.bonus_min_deposit = minDep;
+      entries.bonus_wager_multiplier = mult;
+      entries.bonus_first_only = bonus.firstOnly ? '1' : '0';
+    }
+
+    if (Object.keys(entries).length > 0) {
+      await DB.saveSettings(entries);
+      paymentInfo = await DB.getPaymentSettings();
+      bonusSettings = await DB.getBonusSettings();
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 
   broadcastRealRoomsStatus();
   res.json({ success: true, message: 'ቅንብሩ በተሳካ ሁኔታ ተቀይሯል!' });
@@ -1556,7 +1665,7 @@ app.post('/api/admin/toggle-ban', adminAuth, async (req, res) => {
   }
 });
 
-app.post('/api/admin/room-control', adminAuth, (req, res) => {
+app.post('/api/admin/room-control', adminAuth, async (req, res) => {
   const { roomName, action } = req.body;
   const room = rooms[roomName];
   if (!room) return res.status(404).json({ error: 'Room not found' });
@@ -1569,6 +1678,11 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
       startRoomGame(roomName);
     }
   } else if (action === 'RESTART_LOBBY') {
+    if (room.gameInterval) clearInterval(room.gameInterval);
+    try {
+      const refunds = await DB.refundActiveBets({ roomName, reason: `${roomName} Admin Restart` });
+      await notifyRefunds(refunds, '🔄 ዙሩ በአድሚን ዳግም ተጀምሯል፤ ውርርድዎ ተመላሽ ሆኗል!');
+    } catch (e) { console.error('Restart refund error:', e.message); }
     startRoomLobby(roomName);
   }
 
@@ -1689,6 +1803,18 @@ app.post('/api/admin/change-pin', adminAuth, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Kokeb Live Bingo Server Running on port ${PORT}`);
-});
+(async () => {
+  try {
+    await loadLiveSettings();
+  } catch (err) {
+    console.error('[-] Loading settings failed (using defaults):', err.message);
+  }
+  try {
+    await recoverOrphanedBets();
+  } catch (err) {
+    console.error('[-] Startup bet recovery failed:', err.message);
+  }
+  server.listen(PORT, () => {
+    console.log(`🚀 Kokeb Live Bingo Server Running on port ${PORT}`);
+  });
+})();
