@@ -362,6 +362,15 @@
         እዚህ የምትጽፈው ማስታወቂያ ወይም ፕሮሞሽን በዳታቤዙ ውስጥ ላሉ <b>ሁሉም የተመዘገቡ ተጫዋቾች</b> (ጨዋታው ውስጥ ባይሆኑም እንኳ) በቴሌግራም ቦቱ ቀጥታ ከነ <b>[ 🎮 Play Now ]</b> በተኑ ይደርሳቸዋል!
       </p>
       <textarea id="broadcast-msg" rows="5" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); color:#fff; border-radius: 8px; border:1px solid rgba(255,255,255,0.1); margin-bottom: 12px; font-size: 12.5px; line-height: 1.5;" placeholder="ለምሳሌ፦ 🎉 ዛሬ ማታ ልዩ የቢንጎ ውድድር ተጀምሯል! አሁኑኑ ገብተው ካርቴላ ይቁረጡ..."></textarea>
+      <!-- 🖼️ BROADCAST PICTURE (ከተፈለገ) -->
+      <input type="file" id="broadcast-image-input" accept="image/*" style="display:none;" onchange="handleBroadcastImage(this)">
+      <button type="button" style="width: 100%; padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.07); color: #fff; border: 1px dashed rgba(255,255,255,0.3); border-radius: 8px; font-size: 12.5px; cursor: pointer;" onclick="document.getElementById('broadcast-image-input').click()">🖼️ ምስል ጨምር (Add Picture)</button>
+      <div id="broadcast-image-wrap" style="display: none; margin-bottom: 12px; text-align: center;">
+        <img id="broadcast-image-preview" alt="preview" style="max-width: 100%; max-height: 260px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);">
+        <div style="margin-top: 6px;">
+          <button type="button" style="padding: 6px 12px; background: rgba(255,71,87,0.15); color: #ff6b81; border: 1px solid rgba(255,71,87,0.4); border-radius: 6px; font-size: 11.5px; cursor: pointer;" onclick="clearBroadcastImage()">✖ ምስሉን አስወግድ</button>
+        </div>
+      </div>
       <button class="btn-sm btn-green" style="padding: 11px 20px; font-size: 12.5px; width: 100%;" onclick="sendBroadcast()">🚀 ማስታወቂያውን በቴሌግራም ላክ (SEND BROADCAST)</button>
     </div>
   </div>
@@ -895,11 +904,17 @@
 
     async function approveDeposit(txId) {
       if (!confirm("ይህንን ክፍያ በቴሌብርህ/CBE መግባቱን አረጋግጠሃል? (ማጽደቅ ትፈልጋለህ?)")) return;
-      await fetch('/api/admin/approve-deposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
-        body: JSON.stringify({ txId })
-      });
+      try {
+        const res = await fetch('/api/admin/approve-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
+          body: JSON.stringify({ txId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) alert(data.error || "ማጽደቅ አልተቻለም!");
+      } catch (e) {
+        alert("የሰርቨር ግንኙነት ችግር!");
+      }
       fetchAdminData();
     }
 
@@ -969,9 +984,61 @@
       fetchAdminData();
     }
 
+    let broadcastImageData = null;
+
+    function handleBroadcastImage(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!file.type || !file.type.startsWith('image/')) {
+        alert("እባክዎን ምስል ፋይል ብቻ ይምረጡ!");
+        input.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // ምስሉን ወደ ቢበዛ 1280px አሳንሶ JPEG ያደርገዋል (ፈጣንና ቀላል ለመላክ)
+          const MAX = 1280;
+          let w = img.width, h = img.height;
+          if (Math.max(w, h) > MAX) {
+            const s = MAX / Math.max(w, h);
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          broadcastImageData = canvas.toDataURL('image/jpeg', 0.85);
+          document.getElementById('broadcast-image-preview').src = broadcastImageData;
+          document.getElementById('broadcast-image-wrap').style.display = 'block';
+        };
+        img.onerror = () => {
+          alert("ምስሉን ማንበብ አልተቻለም፤ ሌላ ምስል ይሞክሩ!");
+          clearBroadcastImage();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearBroadcastImage() {
+      broadcastImageData = null;
+      document.getElementById('broadcast-image-input').value = '';
+      document.getElementById('broadcast-image-preview').src = '';
+      document.getElementById('broadcast-image-wrap').style.display = 'none';
+    }
+
     async function sendBroadcast() {
       const message = document.getElementById('broadcast-msg').value.trim();
-      if (!message) return alert("እባክዎን መልዕክት ያስገቡ!");
+      if (!message && !broadcastImageData) return alert("እባክዎን መልዕክት ወይም ምስል ያስገቡ!");
+      if (message.length > 1024 && broadcastImageData) {
+        if (!confirm("መልዕክቱ ከ 1024 ፊደል በላይ ነው፤ ምስሉ ብቻውን ተልኮ መልዕክቱ ከስር በሌላ መልዕክት ይላካል። ይቀጥል?")) return;
+      }
 
       if (!confirm("ይህ መልዕክት ለሁሉም የተመዘገቡ ተጫዋቾች ቀጥታ በቴሌግራም ቦቱ ይላካል፤ እርግጠኛ ነዎት?")) return;
 
@@ -979,12 +1046,13 @@
         const res = await fetch('/api/admin/broadcast', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
-          body: JSON.stringify({ message })
+          body: JSON.stringify({ message, image: broadcastImageData })
         });
         const data = await res.json();
         if (res.ok && data.success) {
           alert("🎉 " + data.message);
           document.getElementById('broadcast-msg').value = '';
+          clearBroadcastImage();
         } else {
           alert("❌ " + (data.error || "መልዕክቱን መላክ አልተቻለም!"));
         }
