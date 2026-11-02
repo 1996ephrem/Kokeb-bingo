@@ -350,6 +350,50 @@
         <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">💎 ቪአይፒ ክፍል ዋጋ (VIP Stake ETB):</label>
         <input type="number" id="cfg-vip-stake" style="width: 100%;" placeholder="100">
       </div>
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 14px 0;">
+      <h3>💳 የክፍያ መረጃ (Telebirr)</h3>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የቴሌብር ስልክ ቁጥር:</label>
+        <input type="text" id="cfg-pay-phone" style="width: 100%;" placeholder="0972723976">
+      </div>
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የአካውንት ስም:</label>
+        <input type="text" id="cfg-pay-name" style="width: 100%;" placeholder="NESREDINE">
+      </div>
+
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 14px 0;">
+      <h3>🎁 የዲፖዚት ቦነስ (Wagering ደንብ)</h3>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">ቦነስ:</label>
+        <select id="cfg-bonus-enabled" style="width: 100%;">
+          <option value="1">ክፍት (ON)</option>
+          <option value="0">ዝግ (OFF)</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">የቦነስ ፐርሰንት (%):</label>
+        <input type="number" id="cfg-bonus-percent" style="width: 100%;" placeholder="100">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">ከፍተኛ ቦነስ (ETB):</label>
+        <input type="number" id="cfg-bonus-max" style="width: 100%;" placeholder="200">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">ቦነስ የሚያስገኝ ዝቅተኛ ዲፖዚት (ETB):</label>
+        <input type="number" id="cfg-bonus-min" style="width: 100%;" placeholder="50">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">Wagering (ቦነሱ × ስንት ጊዜ መጫወት አለበት):</label>
+        <input type="number" id="cfg-bonus-mult" style="width: 100%;" placeholder="3">
+      </div>
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 11px; color: #8e8aa8; margin-bottom: 4px;">ለማን:</label>
+        <select id="cfg-bonus-first" style="width: 100%;">
+          <option value="1">የመጀመሪያ ዲፖዚት ብቻ</option>
+          <option value="0">ለእያንዳንዱ ዲፖዚት</option>
+        </select>
+      </div>
+
       <button class="btn-sm btn-gold" style="width: 100%; padding: 10px;" onclick="saveRoomSettings()">💾 ቅንብሮችን መዝግብ (SAVE CONFIG)</button>
     </div>
   </div>
@@ -510,6 +554,17 @@
           document.getElementById('cfg-beg-stake').value = data.stats.activeRooms.Beginner.stake;
           document.getElementById('cfg-turbo-stake').value = data.stats.activeRooms.Turbo.stake;
           document.getElementById('cfg-vip-stake').value = data.stats.activeRooms.VIP.stake;
+
+          const pi = data.stats.paymentInfo || {};
+          document.getElementById('cfg-pay-phone').value = pi.phone || '';
+          document.getElementById('cfg-pay-name').value = pi.name || '';
+          const bs = data.stats.bonusSettings || {};
+          document.getElementById('cfg-bonus-enabled').value = bs.enabled ? '1' : '0';
+          document.getElementById('cfg-bonus-percent').value = bs.percent ?? 100;
+          document.getElementById('cfg-bonus-max').value = bs.max ?? 200;
+          document.getElementById('cfg-bonus-min').value = bs.minDeposit ?? 50;
+          document.getElementById('cfg-bonus-mult').value = bs.wagerMultiplier ?? 3;
+          document.getElementById('cfg-bonus-first').value = bs.firstOnly ? '1' : '0';
         }
 
         document.getElementById('games-table-body').innerHTML = data.games.map(g => `
@@ -889,14 +944,25 @@
       const beginnerStake = document.getElementById('cfg-beg-stake').value;
       const turboStake = document.getElementById('cfg-turbo-stake').value;
       const vipStake = document.getElementById('cfg-vip-stake').value;
+      const payPhone = document.getElementById('cfg-pay-phone').value;
+      const payName = document.getElementById('cfg-pay-name').value;
+      const bonus = {
+        enabled: document.getElementById('cfg-bonus-enabled').value === '1',
+        percent: document.getElementById('cfg-bonus-percent').value,
+        max: document.getElementById('cfg-bonus-max').value,
+        minDeposit: document.getElementById('cfg-bonus-min').value,
+        wagerMultiplier: document.getElementById('cfg-bonus-mult').value,
+        firstOnly: document.getElementById('cfg-bonus-first').value === '1'
+      };
 
       try {
         const res = await fetch('/api/admin/update-settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-admin-pin': adminPin },
-          body: JSON.stringify({ commission, beginnerStake, turboStake, vipStake })
+          body: JSON.stringify({ commission, beginnerStake, turboStake, vipStake, payPhone, payName, bonus })
         });
         const data = await res.json();
+        if (!res.ok) { alert(data.error || "ቅንብሩን መመዝገብ አልተቻለም!"); return; }
         alert("🎉 " + data.message);
         fetchAdminData();
       } catch (e) { alert("ቅንብሩን መመዝገብ አልተቻለም!"); }
