@@ -38,6 +38,7 @@ async function initDB() {
       );
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS wagering_remaining NUMERIC(14, 2) DEFAULT 0;
 
       CREATE TABLE IF NOT EXISTS transactions (
         id SERIAL PRIMARY KEY,
@@ -107,6 +108,20 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(rain_id, user_id)
       );
+
+      -- 🛡️ የውርርድ ጥበቃ (ሰርቨር ቢጠፋ ተመላሽ ለማድረግ)
+      CREATE TABLE IF NOT EXISTS room_bets (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id),
+        room_name TEXT NOT NULL,
+        cartela_id INT NOT NULL,
+        stake NUMERIC(14, 2) NOT NULL,
+        wager_applied NUMERIC(14, 2) DEFAULT 0,
+        status TEXT DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE room_bets ADD COLUMN IF NOT EXISTS wager_applied NUMERIC(14, 2) DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_room_bets_status ON room_bets(status, room_name);
     `);
 
     const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
@@ -121,6 +136,14 @@ async function initDB() {
       INSERT INTO admin_config (key, value) VALUES ('ref_prize_2', '300') ON CONFLICT (key) DO NOTHING;
       INSERT INTO admin_config (key, value) VALUES ('ref_prize_3', '150') ON CONFLICT (key) DO NOTHING;
       INSERT INTO admin_config (key, value) VALUES ('ref_contest_start', CURRENT_TIMESTAMP::text) ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('pay_phone', '0972723976') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('pay_name', 'NESREDINE') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_enabled', '1') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_percent', '100') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_max', '200') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_min_deposit', '50') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_wager_multiplier', '3') ON CONFLICT (key) DO NOTHING;
+      INSERT INTO admin_config (key, value) VALUES ('bonus_first_only', '1') ON CONFLICT (key) DO NOTHING;
     `);
 
   } catch (err) {
@@ -128,7 +151,23 @@ async function initDB() {
   }
 }
 
-initDB();
+const BONUS_DEFAULTS = { enabled: true, percent: 100, max: 200, minDeposit: 50, wagerMultiplier: 3, firstOnly: true };
+
+function parseBonusRows(rows) {
+  const m = {};
+  for (const r of rows) m[r.key] = r.value;
+  const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : d; };
+  return {
+    enabled: m.bonus_enabled === undefined ? BONUS_DEFAULTS.enabled : m.bonus_enabled === '1',
+    percent: num(m.bonus_percent, BONUS_DEFAULTS.percent),
+    max: num(m.bonus_max, BONUS_DEFAULTS.max),
+    minDeposit: num(m.bonus_min_deposit, BONUS_DEFAULTS.minDeposit),
+    wagerMultiplier: num(m.bonus_wager_multiplier, BONUS_DEFAULTS.wagerMultiplier),
+    firstOnly: m.bonus_first_only === undefined ? BONUS_DEFAULTS.firstOnly : m.bonus_first_only === '1'
+  };
+}
+
+const dbReady = initDB();
 
 const DB = {
   getOrCreateUser: async (telegramId, username, firstName, referrerRef = null) => {
@@ -336,12 +375,17 @@ const DB = {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const uRes = await client.query('SELECT username, balance, is_banned, telegram_id FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      const uRes = await client.query('SELECT username, balance, is_banned, telegram_id, wagering_remaining FROM users WHERE id = $1 FOR UPDATE', [userId]);
       if (uRes.rows.length === 0) throw new Error('User not found');
       const user = uRes.rows[0];
       user.balance = parseFloat(user.balance);
 
       if (user.is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+
+      const wagerLeft = parseFloat(user.wagering_remaining) || 0;
+      if (wagerLeft > 0) {
+        throw new Error(`🔒 የዲፖዚት ቦነስ ስላገኙ ብር ለማውጣት መጀመሪያ ተጨማሪ ${wagerLeft.toFixed(2)} ETB ካርቴላ በመግዛት መጫወት አለብዎት!`);
+      }
 
       if (amount < 225) {
         throw new Error('❌ ዝቅተኛው የማውጫ መጠን 225 ETB ነው!');
@@ -384,7 +428,7 @@ const DB = {
 
   getUserTransactions: async (userId) => {
     const res = await pool.query(
-      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS', 'REFERRAL_CONTEST_PRIZE', 'RAIN_BONUS') ORDER BY id DESC LIMIT 20",
+      "SELECT * FROM transactions WHERE user_id = $1 AND type IN ('DEPOSIT', 'WITHDRAW', 'REFERRAL_BONUS', 'PROMO_BONUS', 'REFERRAL_CONTEST_PRIZE', 'RAIN_BONUS', 'DEPOSIT_BONUS') ORDER BY id DESC LIMIT 20",
       [userId]
     );
     return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
@@ -428,11 +472,39 @@ const DB = {
         }
       }
 
+      // 🎁 የዲፖዚት ቦነስ (wagering ደንብ ያለው)
+      await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [tx.user_id]);
+      const cfgRes = await client.query("SELECT key, value FROM admin_config WHERE key IN ('bonus_enabled', 'bonus_percent', 'bonus_max', 'bonus_min_deposit', 'bonus_wager_multiplier', 'bonus_first_only')");
+      const cfg = parseBonusRows(cfgRes.rows);
+
+      let bonus = 0;
+      let wagerAdd = 0;
+      if (cfg.enabled && cfg.percent > 0 && amount >= cfg.minDeposit) {
+        let eligible = true;
+        if (cfg.firstOnly) {
+          const prev = await client.query(
+            "SELECT 1 FROM transactions WHERE user_id = $1 AND type = 'DEPOSIT' AND status = 'COMPLETED' AND id <> $2 LIMIT 1",
+            [tx.user_id, txId]
+          );
+          eligible = prev.rows.length === 0;
+        }
+        if (eligible) {
+          bonus = Math.min(Math.round(amount * cfg.percent) / 100, cfg.max);
+          wagerAdd = Math.round(bonus * cfg.wagerMultiplier * 100) / 100;
+        }
+      }
+
       const uRes = await client.query(
-        'UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance, telegram_id, first_name, username',
-        [amount, tx.user_id]
+        'UPDATE users SET balance = balance + $1, wagering_remaining = wagering_remaining + $3 WHERE id = $2 RETURNING balance, wagering_remaining, telegram_id, first_name, username',
+        [amount + bonus, tx.user_id, wagerAdd]
       );
       await client.query("UPDATE transactions SET status = 'COMPLETED' WHERE id = $1", [txId]);
+      if (bonus > 0) {
+        await client.query(
+          "INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, 'DEPOSIT_BONUS', $2, 'COMPLETED', $3)",
+          [tx.user_id, bonus, `Deposit Bonus (tx ${txId})`]
+        );
+      }
 
       await client.query('COMMIT');
       const user = uRes.rows[0];
@@ -440,6 +512,8 @@ const DB = {
         success: true,
         userId: tx.user_id,
         amount,
+        bonus,
+        wageringRemaining: parseFloat(user.wagering_remaining) || 0,
         newBalance: parseFloat(user.balance),
         telegramId: user.telegram_id,
         name: user.first_name || user.username
@@ -522,6 +596,152 @@ const DB = {
     }
   },
 
+  // ⚙️ የክፍያ መረጃ እና የቦነስ ቅንብሮች (አድሚን ፓነል)
+  getPaymentSettings: async () => {
+    const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('pay_phone', 'pay_name')");
+    const m = {};
+    res.rows.forEach(r => { m[r.key] = r.value; });
+    return { phone: m.pay_phone || '0972723976', name: m.pay_name || 'NESREDINE' };
+  },
+
+  getBonusSettings: async () => {
+    const res = await pool.query("SELECT key, value FROM admin_config WHERE key IN ('bonus_enabled', 'bonus_percent', 'bonus_max', 'bonus_min_deposit', 'bonus_wager_multiplier', 'bonus_first_only')");
+    return parseBonusRows(res.rows);
+  },
+
+  saveSettings: async (entries) => {
+    for (const [key, value] of Object.entries(entries)) {
+      await pool.query(
+        'INSERT INTO admin_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+        [key, String(value)]
+      );
+    }
+  },
+
+  // 🛡️ ውርርድ + የውርርድ መዝገብ በአንድ transaction (+ የቦነስ wagering)
+  placeBet: async (userId, roomName, cartelaIds, stake) => {
+    const totalCost = cartelaIds.length * stake;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const uRes = await client.query('SELECT balance, is_banned, wagering_remaining FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      if (uRes.rows.length === 0) throw new Error('User not found');
+      if (uRes.rows[0].is_banned === 1) throw new Error('❌ ተጠቃሚው ታግዷል!');
+
+      const newBalance = parseFloat(uRes.rows[0].balance) - totalCost;
+      if (newBalance < 0) throw new Error('Insufficient balance');
+
+      let wagerLeft = parseFloat(uRes.rows[0].wagering_remaining) || 0;
+
+      await client.query('UPDATE users SET balance = $1 WHERE id = $2', [newBalance, userId]);
+      await client.query(
+        "INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, 'BET', $2, 'COMPLETED', $3)",
+        [userId, -totalCost, roomName]
+      );
+
+      for (const cartelaId of cartelaIds) {
+        const applied = Math.min(stake, wagerLeft);
+        wagerLeft = Math.round((wagerLeft - applied) * 100) / 100;
+        await client.query(
+          'INSERT INTO room_bets (user_id, room_name, cartela_id, stake, wager_applied) VALUES ($1, $2, $3, $4, $5)',
+          [userId, roomName, cartelaId, stake, applied]
+        );
+      }
+      await client.query('UPDATE users SET wagering_remaining = $1 WHERE id = $2', [wagerLeft, userId]);
+
+      await client.query('COMMIT');
+      return newBalance;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  refundActiveBets: async ({ userId = null, roomName = null, reason = 'Refund' } = {}) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const flipped = await client.query(
+        `UPDATE room_bets SET status = 'REFUNDED'
+         WHERE status = 'ACTIVE'
+           AND ($1::int IS NULL OR user_id = $1)
+           AND ($2::text IS NULL OR room_name = $2)
+         RETURNING user_id, stake, wager_applied`,
+        [userId, roomName]
+      );
+
+      const totals = new Map();
+      const wagerBack = new Map();
+      for (const r of flipped.rows) {
+        totals.set(r.user_id, (totals.get(r.user_id) || 0) + parseFloat(r.stake));
+        wagerBack.set(r.user_id, (wagerBack.get(r.user_id) || 0) + (parseFloat(r.wager_applied) || 0));
+      }
+
+      const results = [];
+      for (const [uid, amount] of totals.entries()) {
+        const u = await client.query(
+          'UPDATE users SET balance = balance + $1, wagering_remaining = wagering_remaining + $3 WHERE id = $2 RETURNING balance, telegram_id',
+          [amount, uid, wagerBack.get(uid) || 0]
+        );
+        await client.query(
+          "INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, 'REFUND', $2, 'COMPLETED', $3)",
+          [uid, amount, reason]
+        );
+        results.push({
+          userId: uid,
+          telegramId: u.rows[0].telegram_id,
+          amount,
+          newBalance: parseFloat(u.rows[0].balance)
+        });
+      }
+
+      await client.query('COMMIT');
+      return results;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 🏆 አሸናፊዎችን መክፈል + የዙሩን ውርርዶች መዝጋት (በአንድ transaction - ድርብ ክፍያ እንዳይኖር)
+  settleRoundWithPayouts: async (roomName, payouts) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("UPDATE room_bets SET status = 'SETTLED' WHERE room_name = $1 AND status = 'ACTIVE'", [roomName]);
+
+      const balances = [];
+      for (const p of payouts) {
+        const u = await client.query(
+          'UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance',
+          [p.amount, p.userId]
+        );
+        await client.query(
+          "INSERT INTO transactions (user_id, type, amount, status, reference) VALUES ($1, 'WIN', $2, 'COMPLETED', $3)",
+          [p.userId, p.amount, `${roomName} Bingo`]
+        );
+        balances.push(parseFloat(u.rows[0].balance));
+      }
+
+      await client.query('COMMIT');
+      return balances;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  // አሸናፊ ሳይኖር ዙሩ ሲያልቅ ውርርዶችን መዝጋት
+  settleRoomBets: async (roomName) => {
+    await pool.query("UPDATE room_bets SET status = 'SETTLED' WHERE room_name = $1 AND status = 'ACTIVE'", [roomName]);
+  },
+
   getAllTelegramIds: async () => {
     const res = await pool.query(
       "SELECT DISTINCT telegram_id FROM users WHERE telegram_id IS NOT NULL AND telegram_id NOT LIKE 'demo_%'"
@@ -556,6 +776,7 @@ const DB = {
 
     return {
       user,
+      wageringRemaining: parseFloat(user.wagering_remaining) || 0,
       cashableBalance,
       playOnlyBalance,
       hasDeposited,
@@ -994,4 +1215,5 @@ const DB = {
   }
 };
 
+DB.ready = dbReady;
 module.exports = DB;
