@@ -34,7 +34,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// 📦 ብሮድካስት ላይ ምስል (base64) ስለሚላክ ለዚያ መንገድ ብቻ ትልቅ ገደብ (ሌሎቹ በነባሩ ገደብ ይቀጥላሉ)
+const jsonSmall = express.json();
+const jsonLarge = express.json({ limit: '8mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/broadcast' && req.headers['x-admin-pin']) {
+    return jsonLarge(req, res, next);
+  }
+  return jsonSmall(req, res, next);
+});
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false
@@ -1051,6 +1059,16 @@ app.post('/api/payment/deposit-request', async (req, res) => {
 
     res.json({ success: true, message: 'የማስገቢያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! አድሚኑ እንደተመለከተው ባላንስዎ ይሞላል።' });
   } catch (err) {
+    if (err.code === 'TXN_USED') {
+      return res.status(409).json({
+        error: '❌ ይህ Txn ID ቀድሞ ጥቅም ላይ ውሏል! ድጋሚ መጠቀም አይቻልም።\n(This Txn ID has already been used once, you can not use it again.)'
+      });
+    }
+    if (err.code === 'TXN_PENDING') {
+      return res.status(409).json({
+        error: '⏳ ይህ Txn ID ቀድሞ ገብቷል፤ አድሚኑ እስኪያረጋግጠው ይጠብቁ።\n(This Txn ID was already submitted and is waiting for admin approval.)'
+      });
+    }
     res.status(400).json({ error: 'ጥያቄውን መላክ አልተቻለም!' });
   }
 });
@@ -1205,6 +1223,11 @@ app.post('/api/admin/approve-deposit', adminAuth, async (req, res) => {
     sendTelegramNotification(result.telegramId, botMsg, true);
     res.json({ success: true, message: 'ማስገቢያው ጸድቋል፤ ለተጫዋቹ ገቢ ተደርጓል!' });
   } catch (err) {
+    if (err.code === 'TXN_USED') {
+      return res.status(409).json({
+        error: '🚫 ይህ Txn ID ቀድሞ ጸድቆ ጥቅም ላይ ውሏል! ድጋሚ ማጽደቅ አይቻልም — እባክዎ ጥያቄውን ውድቅ (Reject) ያድርጉት።\n(This Txn ID was already used in an approved deposit. Please reject this request.)'
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1553,11 +1576,44 @@ app.post('/api/admin/room-control', adminAuth, (req, res) => {
   res.json({ success: true, message: `${roomName} ${action} ተፈጽሟል!` });
 });
 
-app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
-  const { message } = req.body;
-  if (!message) return res.status(400).json({ error: 'Message is required' });
+// Telegram HTML ፓርስ ካልተሳካ (ለምሳሌ ያልተዘጋ < ምልክት) በተራ ጽሁፍ እንደገና ይሞክራል
+async function sendWithHtmlFallback(sendFn, opts) {
+  try {
+    return await sendFn(opts);
+  } catch (err) {
+    if (/parse entities/i.test(err.message || '')) {
+      const plain = { ...opts };
+      delete plain.parse_mode;
+      return await sendFn(plain);
+    }
+    throw err;
+  }
+}
 
-  io.emit('admin_broadcast', { message });
+app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
+  const message = String((req.body && req.body.message) || '').trim();
+  const imageData = req.body && req.body.image;
+
+  if (!message && !imageData) {
+    return res.status(400).json({ error: 'Message or image is required' });
+  }
+
+  // 🖼️ ምስል ካለ (data:image/...;base64,....) ወደ Buffer እንቀይራለን
+  let photoBuffer = null;
+  if (imageData) {
+    const raw = String(imageData);
+    const comma = raw.indexOf(',');
+    const header = comma > -1 ? raw.slice(0, comma) : '';
+    if (!/^data:image\/(jpeg|png|webp);base64$/i.test(header)) {
+      return res.status(400).json({ error: 'ምስሉ JPG, PNG ወይም WEBP መሆን አለበት!' });
+    }
+    photoBuffer = Buffer.from(raw.slice(comma + 1), 'base64');
+    if (photoBuffer.length === 0 || photoBuffer.length > 8 * 1024 * 1024) {
+      return res.status(400).json({ error: 'የምስሉ መጠን ከ 8MB መብለጥ የለበትም!' });
+    }
+  }
+
+  if (message) io.emit('admin_broadcast', { message });
 
   try {
     const tgIds = await DB.getAllTelegramIds();
@@ -1571,21 +1627,51 @@ app.post('/api/admin/broadcast', adminAuth, async (req, res) => {
 
     (async () => {
       let sentCount = 0;
+      let failedCount = 0;
+      let cachedFileId = null; // የመጀመሪያው ላይ ከተሰቀለ በኋላ ለሌሎች file_id ብቻ ነው የምንጠቀመው (ፈጣን)
+      const CAPTION_LIMIT = 1024;
+      const captionFits = message.length <= CAPTION_LIMIT;
+
       for (const tgId of tgIds) {
+        if (!bot || !tgId || String(tgId).startsWith('demo_')) continue;
         try {
-          if (bot && tgId && !String(tgId).startsWith('demo_')) {
-            await bot.sendMessage(tgId, `📢 <b>መልዕክት ከአድሚን</b>\n\n${message}`, options);
-            sentCount++;
-            await new Promise(r => setTimeout(r, 35));
+          if (photoBuffer) {
+            const photoSource = cachedFileId || photoBuffer;
+            const photoOpts = captionFits
+              ? { ...options, caption: message }
+              : {};
+
+            const sentMsg = await sendWithHtmlFallback(
+              (o) => bot.sendPhoto(tgId, photoSource, o, { filename: 'broadcast.jpg', contentType: 'image/jpeg' }),
+              photoOpts
+            );
+
+            if (!cachedFileId && sentMsg && Array.isArray(sentMsg.photo) && sentMsg.photo.length > 0) {
+              cachedFileId = sentMsg.photo[sentMsg.photo.length - 1].file_id;
+            }
+
+            // መልዕክቱ ከ 1024 ፊደል ከበለጠ ከምስሉ ቀጥሎ እንደ ሌላ መልዕክት ይላካል
+            if (message && !captionFits) {
+              await sendWithHtmlFallback((o) => bot.sendMessage(tgId, message, o), options);
+            }
+          } else {
+            await sendWithHtmlFallback(
+              (o) => bot.sendMessage(tgId, `📢 <b>መልዕክት ከአድሚን</b>\n\n${message}`, o),
+              options
+            );
           }
-        } catch (err) {}
+          sentCount++;
+        } catch (err) {
+          failedCount++;
+        }
+        await new Promise(r => setTimeout(r, 35));
       }
-      console.log(`[+] Broadcast sent to ${sentCount}/${tgIds.length} Telegram users.`);
+      console.log(`[+] Broadcast${photoBuffer ? ' (with image)' : ''} sent to ${sentCount}/${tgIds.length} Telegram users. Failed: ${failedCount}`);
     })();
 
     res.json({
       success: true,
-      message: `ማስታወቂያው ለ ${tgIds.length} ተጠቃሚዎች በቴሌግራም መላክ ጀምሯል!`
+      message: `ማስታወቂያው${photoBuffer ? ' (ከምስል ጋር)' : ''} ለ ${tgIds.length} ተጠቃሚዎች በቴሌግራም መላክ ጀምሯል!`
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
