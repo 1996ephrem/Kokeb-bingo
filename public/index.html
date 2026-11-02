@@ -696,6 +696,7 @@
       coins: 0,
       cashableBalance: 0,
       playOnlyBalance: 0,
+      wageringRemaining: 0,
       lang: 'am',
       botUsername: 'Kokeb_Bingo_Bot',
       streak: 0
@@ -1025,6 +1026,7 @@
       userState.coins = parseFloat(u.balance) || 0;
       userState.cashableBalance = parseFloat(u.cashableBalance) || 0;
       userState.playOnlyBalance = parseFloat(u.playOnlyBalance) || 0;
+      userState.wageringRemaining = parseFloat(u.wageringRemaining) || 0;
       userState.streak = u.checkinStreak || 0;
       userState.botUsername = u.botUsername || 'Kokeb_Bingo_Bot';
 
@@ -1034,7 +1036,12 @@
       if (u.depositInfo) {
         const depLabel = document.getElementById('deposit-inst-label');
         if (depLabel) {
-          depLabel.innerText = `📥 ሒሳብ ሙላ (በቴሌብር ወደ ${u.depositInfo.phone} ${u.depositInfo.name}):`;
+          const b = u.depositInfo.bonus;
+          const bonusTxt = (b && b.enabled && b.percent > 0)
+            ? `\n🎁 ${b.firstOnly ? 'የመጀመሪያ ዲፖዚት ' : ''}${b.percent}% ቦነስ (ቢያንስ ${b.minDeposit} ETB፣ ቦነሱ ${b.wagerMultiplier}x መጫወት ያስፈልጋል)`
+            : '';
+          depLabel.style.whiteSpace = 'pre-line';
+          depLabel.innerText = `📥 ሒሳብ ሙላ (በቴሌብር ወደ ${u.depositInfo.phone} ${u.depositInfo.name}):${bonusTxt}`;
         }
       }
 
@@ -1141,7 +1148,9 @@
       document.getElementById('wallet-balance').innerText = userState.coins.toFixed(2);
       document.getElementById('playonly-balance').innerText = userState.playOnlyBalance.toFixed(2);
       document.getElementById('cashable-balance').innerText = userState.cashableBalance.toFixed(2);
-      document.getElementById('cashable-txt').innerText = `${userState.cashableBalance.toFixed(2)} Birr cashable`;
+      document.getElementById('cashable-txt').innerText = userState.wageringRemaining > 0
+        ? `🔒 ${userState.wageringRemaining.toFixed(2)} Birr to play before withdraw`
+        : `${userState.cashableBalance.toFixed(2)} Birr cashable`;
       document.getElementById('cartela-coins').innerText = userState.coins.toFixed(2);
     }
 
@@ -1167,6 +1176,7 @@
           userState.coins = parseFloat(data.user.balance) || 0;
           userState.cashableBalance = parseFloat(data.cashableBalance) || 0;
           userState.playOnlyBalance = parseFloat(data.playOnlyBalance) || 0;
+          userState.wageringRemaining = parseFloat(data.wageringRemaining) || 0;
           updateCoinsDisplay();
           updateProfileStatsUI(data.stats);
         }
@@ -1307,6 +1317,7 @@
             if (t.type === 'PROMO_BONUS') label = '✨ Promo Bonus';
             if (t.type === 'REFERRAL_CONTEST_PRIZE') label = '🏆 Contest Prize';
             if (t.type === 'RAIN_BONUS') label = '🌧️ Rain Bonus';
+            if (t.type === 'DEPOSIT_BONUS') label = '🎁 Deposit Bonus';
             return `
               <tr>
                 <td><b>${label}</b></td>
