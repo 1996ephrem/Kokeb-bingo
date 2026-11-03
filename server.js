@@ -16,7 +16,7 @@ const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 
 const DB = require('./database');
-const { generate400Cartelas, validateBingo } = require('./gameEngine');
+const { generateCartela, validateBingo } = require('./gameEngine');
 const { verifyTelegramAuth } = require('./telegramAuth');
 
 const app = express();
@@ -487,8 +487,10 @@ function createRoomState(name, stake, callSpeed) {
     timer: 30,
     timerInterval: null,
     gameInterval: null,
-    cartelas: generate400Cartelas(),
+    cartelas: {},
     takenCartelas: new Map(),
+    notifiedSoon: false,
+    notifiedTelegram: false,
     calledNumbers: new Set(),
     uncalledNumbers: Array.from({ length: 75 }, (_, i) => i + 1),
     drawnCount: 0,
@@ -502,6 +504,12 @@ const rooms = {
   Turbo: createRoomState('Turbo', 25, 1400),
   VIP: createRoomState('VIP', 100, 2500)
 };
+
+// ⚡ ካርቴላው የሚፈጠረው ተጫዋቹ ሲገዛው ብቻ ነው (400 ካርዶችን ለሁሉም አንልክም)
+function getRoomCard(room, id) {
+  if (!room.cartelas[id]) room.cartelas[id] = generateCartela();
+  return room.cartelas[id];
+}
 
 function broadcastRealRoomsStatus() {
   const status = {};
@@ -519,6 +527,64 @@ function broadcastRealRoomsStatus() {
   io.emit('all_rooms_update', status);
 }
 
+// ==================== 🔔 LOBBY START NOTIFICATIONS ====================
+const lobbyNotifyCooldown = new Map(); // userId -> last Telegram push time
+const LOBBY_NOTIFY_COOLDOWN_MS = 10 * 60 * 1000;
+let lobbyTargetsCache = { at: 0, rows: [] };
+
+function lobbySnapshot(roomName) {
+  const room = rooms[roomName];
+  const players = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId)).size;
+  return {
+    roomName,
+    stake: room.stake,
+    cardsSold: room.takenCartelas.size,
+    players,
+    needPlayers: Math.max(0, 3 - players),
+    prize: Math.floor(room.takenCartelas.size * room.stake * ((100 - globalCommissionPercent) / 100))
+  };
+}
+
+// በመተግበሪያው ውስጥ ላሉ ሁሉም ተጫዋቾች (ባንዲራ/ባነር)
+function notifyLobbyInApp(roomName) {
+  const room = rooms[roomName];
+  if (!room || room.state !== 'LOBBY') return;
+  io.emit('lobby_starting_soon', { ...lobbySnapshot(roomName), seconds: room.timer });
+}
+
+// መተግበሪያውን ለዘጉ (opt-in ለገቡ) ተጫዋቾች በቴሌግራም
+async function notifyLobbyTelegram(roomName) {
+  const room = rooms[roomName];
+  if (!room || !bot) return;
+  try {
+    if (Date.now() - lobbyTargetsCache.at > 60000) {
+      lobbyTargetsCache = { at: Date.now(), rows: await DB.getLobbyNotifyTargets() };
+    }
+    const snap = lobbySnapshot(roomName);
+    const inRoom = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId));
+    const online = new Set(Array.from(activeSockets.values()).map(p => p.dbId));
+    const now = Date.now();
+
+    const targets = lobbyTargetsCache.rows
+      .filter(t => !inRoom.has(t.id) && !online.has(t.id) && now - (lobbyNotifyCooldown.get(t.id) || 0) > LOBBY_NOTIFY_COOLDOWN_MS)
+      .slice(0, 500);
+
+    const msg =
+      `🔔 <b>${escapeHtml(roomName)} ክፍል ጨዋታ ሊጀምር ነው!</b>\n` +
+      `🎟️ ${snap.cardsSold} ካርዶች ተሸጠዋል | 🏆 ሽልማት: ${snap.prize} ETB\n` +
+      `💰 የካርድ ዋጋ: ${snap.stake} ETB\n` +
+      (snap.needPlayers > 0 ? `👥 ለመጀመር ${snap.needPlayers} ተጫዋች ይፈለጋል!\n` : '') +
+      `\nአሁኑኑ ይግቡ 👇`;
+
+    targets.forEach((t, idx) => {
+      lobbyNotifyCooldown.set(t.id, now);
+      setTimeout(() => sendTelegramNotification(t.telegram_id, msg, true), idx * 60);
+    });
+  } catch (err) {
+    console.warn('[!] Lobby Telegram notify failed:', err.message);
+  }
+}
+
 function startRoomLobby(roomName) {
   const room = rooms[roomName];
   if (!room || room.isPaused) return;
@@ -530,11 +596,12 @@ function startRoomLobby(roomName) {
   room.uncalledNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
   room.drawnCount = 0;
   room.takenCartelas.clear();
-  room.cartelas = generate400Cartelas();
+  room.cartelas = {};
+  room.notifiedSoon = false;
+  room.notifiedTelegram = false;
 
   io.to(roomName).emit('room_reset', {
     roomName,
-    cartelas: room.cartelas,
     timer: room.timer,
     stake: room.stake
   });
@@ -548,6 +615,17 @@ function startRoomLobby(roomName) {
     room.timer--;
     io.to(roomName).emit('lobby_timer_tick', { timer: room.timer, roomName });
 
+    if (room.takenCartelas.size > 0) {
+      if (room.timer === 20 && !room.notifiedTelegram) {
+        room.notifiedTelegram = true;
+        notifyLobbyTelegram(roomName);
+      }
+      if (room.timer === 10 && !room.notifiedSoon) {
+        room.notifiedSoon = true;
+        notifyLobbyInApp(roomName);
+      }
+    }
+
     if (room.timer <= 0) {
       const uniquePlayerIds = new Set(Array.from(room.takenCartelas.values()).map(c => c.dbId));
 
@@ -556,6 +634,7 @@ function startRoomLobby(roomName) {
         startRoomGame(roomName);
       } else if (room.takenCartelas.size > 0) {
         room.timer = 20;
+        room.notifiedSoon = false;
         io.to(roomName).emit('lobby_waiting_players', {
           message: `⏳ ጨዋታው እንዲጀምር ቢያንስ 3 ተጫዋቾች ያስፈልጋሉ! (${uniquePlayerIds.size}/3 ተጫዋቾች ገብተዋል)`,
           currentPlayers: uniquePlayerIds.size,
@@ -807,6 +886,7 @@ io.on('connection', (socket) => {
         checkinStreak: user.checkin_streak || 0,
         lastCheckinDate: user.last_checkin_date,
         wageringRemaining: prof.wageringRemaining,
+        notifyLobby: !!user.notify_lobby,
         depositInfo: {
           phone: paymentInfo.phone,
           name: paymentInfo.name,
@@ -819,6 +899,17 @@ io.on('connection', (socket) => {
       broadcastRealRoomsStatus();
     } catch (err) {
       socket.emit('error_message', 'Authentication failed');
+    }
+  });
+
+  socket.on('set_lobby_notify', async ({ enabled }) => {
+    const player = activeSockets.get(socket.id);
+    if (!player) return;
+    try {
+      await DB.setLobbyNotify(player.dbId, !!enabled);
+      socket.emit('lobby_notify_saved', { enabled: !!enabled });
+    } catch (e) {
+      socket.emit('error_message', 'ቅንብሩን መመዝገብ አልተቻለም!');
     }
   });
 
@@ -840,7 +931,6 @@ io.on('connection', (socket) => {
       state: room.state,
       timer: room.timer,
       stake: room.stake,
-      cartelas: room.cartelas,
       takenCartelaIds: Array.from(room.takenCartelas.keys()),
       calledNumbers: calledArr,
       lastBall: lastNum ? { number: lastNum, letter: lastLetter, callString: `${lastLetter}-${lastNum}` } : null,
@@ -897,26 +987,37 @@ io.on('connection', (socket) => {
       return socket.emit('error_message', 'ይቅርታ! ጨዋታው ተጀምሯል፤ እባክዎ ቀጣዩን ዙር ይጠብቁ!');
     }
 
-    const totalCost = cartelaIds.length * room.stake;
+    if (!Array.isArray(cartelaIds) || cartelaIds.length === 0 || cartelaIds.length > 400) {
+      return socket.emit('error_message', 'የተሳሳተ የካርቴላ ምርጫ ነው!');
+    }
+    cartelaIds = cartelaIds.map(Number);
+    if (cartelaIds.some(id => !Number.isInteger(id) || id < 1 || id > 400) || new Set(cartelaIds).size !== cartelaIds.length) {
+      return socket.emit('error_message', 'የተሳሳተ የካርቴላ ምርጫ ነው!');
+    }
+
     if (cartelaIds.some(id => room.takenCartelas.has(id))) {
       return socket.emit('error_message', 'አንዱ ካርቴላ ቀድሞ በሌላ ተጫዋች ተይዟል!');
     }
+
+    // 🔒 ክፍያው እስኪጠናቀቅ ካርቴላዎቹን ወዲያው መያዝ (ሁለት ሰው አንድ ካርድ እንዳይገዛ)
+    cartelaIds.forEach(id => {
+      const markedMatrix = Array.from({ length: 5 }, () => Array(5).fill(false));
+      markedMatrix[2][2] = true;
+      room.takenCartelas.set(id, {
+        socketId: socket.id,
+        dbId: player.dbId,
+        username: player.username,
+        markedMatrix
+      });
+    });
 
     try {
       const newBalance = await DB.placeBet(player.dbId, roomName, cartelaIds, room.stake);
       player.balance = newBalance;
       const prof = await DB.getUserDetailedProfile(player.dbId);
 
-      cartelaIds.forEach(id => {
-        const markedMatrix = Array.from({ length: 5 }, () => Array(5).fill(false));
-        markedMatrix[2][2] = true;
-        room.takenCartelas.set(id, {
-          socketId: socket.id,
-          dbId: player.dbId,
-          username: player.username,
-          markedMatrix
-        });
-      });
+      const boughtCards = {};
+      cartelaIds.forEach(id => { boughtCards[id] = getRoomCard(room, id); });
 
       const totalPot = room.takenCartelas.size * room.stake;
       const prizePool = Math.floor(totalPot * ((100 - globalCommissionPercent) / 100));
@@ -926,6 +1027,7 @@ io.on('connection', (socket) => {
         cashableBalance: prof.cashableBalance,
         playOnlyBalance: prof.playOnlyBalance,
         boughtIds: cartelaIds,
+        cartelas: boughtCards,
         roomName,
         prizePool,
         totalCards: room.takenCartelas.size,
@@ -941,6 +1043,10 @@ io.on('connection', (socket) => {
 
       broadcastRealRoomsStatus();
     } catch (err) {
+      cartelaIds.forEach(id => {
+        const c = room.takenCartelas.get(id);
+        if (c && c.socketId === socket.id) room.takenCartelas.delete(id);
+      });
       socket.emit('error_message', err.message || 'ግዢው አልተሳካም');
     }
   });
@@ -968,6 +1074,7 @@ io.on('connection', (socket) => {
     }
 
     const cardGrid = room.cartelas[cartelaId];
+    if (!cardGrid) return socket.emit('error_message', 'የተሳሳተ ካርቴላ ጥሪ ነው!');
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         if (cardGrid[r][c] === '★' || room.calledNumbers.has(cardGrid[r][c])) {
@@ -1191,6 +1298,68 @@ app.post('/api/payment/withdraw', async (req, res) => {
 });
 
 // ==================== ADMIN MIDDLEWARE & ENDPOINTS ====================
+// ==================== 🧾 ADMIN AUDIT LOG ====================
+const AUDIT_ROUTES = {
+  '/api/admin/approve-deposit': 'APPROVE_DEPOSIT',
+  '/api/admin/reject-deposit': 'REJECT_DEPOSIT',
+  '/api/admin/approve-withdrawal': 'APPROVE_WITHDRAWAL',
+  '/api/admin/reject-withdrawal': 'REJECT_WITHDRAWAL',
+  '/api/admin/adjust-balance': 'ADJUST_BALANCE',
+  '/api/admin/toggle-ban': 'TOGGLE_BAN',
+  '/api/admin/update-settings': 'UPDATE_SETTINGS',
+  '/api/admin/room-control': 'ROOM_CONTROL',
+  '/api/admin/change-pin': 'CHANGE_PIN',
+  '/api/admin/broadcast': 'BROADCAST',
+  '/api/admin/create-promo': 'CREATE_PROMO',
+  '/api/admin/delete-promo': 'DELETE_PROMO',
+  '/api/admin/money-rain/create': 'MONEY_RAIN_CREATE',
+  '/api/admin/money-rain/stop': 'MONEY_RAIN_STOP',
+  '/api/admin/referral-contest/payout': 'REFERRAL_PAYOUT',
+  '/api/admin/referral-contest/update-prizes': 'REFERRAL_PRIZES'
+};
+
+function cleanAdminName(raw) {
+  const n = String(raw || '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 30);
+  return n || 'unknown';
+}
+
+app.use('/api/admin', (req, res, next) => {
+  const action = req.method === 'POST' ? AUDIT_ROUTES[req.originalUrl.split('?')[0]] : null;
+  if (!action) return next();
+
+  const body = req.body || {};
+  const adminName = cleanAdminName(req.headers['x-admin-name']);
+  const ip = req.ip || req.connection?.remoteAddress || '';
+
+  res.on('finish', async () => {
+    if (res.statusCode >= 400) return;
+    try {
+      let targetUserId = body.userId ? parseInt(body.userId, 10) : null;
+      let txId = body.txId ? parseInt(body.txId, 10) : null;
+      let amount = body.amount !== undefined && body.amount !== '' ? parseFloat(body.amount) : null;
+      let details = null;
+
+      if (txId) {
+        const t = await DB.getTransactionBrief(txId);
+        if (t) { targetUserId = t.user_id; amount = parseFloat(t.amount); details = `${t.type} ${t.status} ref:${t.reference || '-'}`; }
+      }
+      if (action === 'ADJUST_BALANCE') details = `reason: ${String(body.reason || 'Admin action').slice(0, 200)}`;
+      if (action === 'ROOM_CONTROL') details = `${body.roomName || ''} → ${body.action || ''}`;
+      if (action === 'UPDATE_SETTINGS') {
+        const keys = Object.keys(body).filter(k => body[k] !== undefined && body[k] !== '');
+        details = `fields: ${keys.join(', ')}` + (body.commission !== undefined ? ` | commission=${body.commission}%` : '');
+      }
+      if (action === 'BROADCAST') details = String(body.message || '').slice(0, 120);
+      if (!Number.isFinite(amount)) amount = null;
+
+      await DB.addAuditLog({ adminName, ip, action, targetUserId: Number.isInteger(targetUserId) ? targetUserId : null, txId: Number.isInteger(txId) ? txId : null, amount, details });
+    } catch (e) {
+      console.warn('[!] Audit log failed:', e.message);
+    }
+  });
+  next();
+});
+
 async function adminAuth(req, res, next) {
   const pin = req.headers['x-admin-pin'] || req.query.pin;
   if (!pin) return res.status(401).json({ error: 'PIN required' });
@@ -1221,6 +1390,76 @@ app.post('/api/admin/verify-pin', async (req, res) => {
     failedPinAttempts.set(ip, attempt);
     const left = 5 - attempt.count;
     return res.status(401).json({ success: false, error: left > 0 ? `❌ የተሳሳተ ፒን! ${left} ሙከራ ቀርቶታል` : '🚨 5 ጊዜ ተሳስቷል! ለ 5 ደቂቃ ታግደዋል!' });
+  }
+});
+
+function csvCell(v) {
+  let t = v === null || v === undefined ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; // CSV/Excel formula injection guard
+  return `"${t.replace(/"/g, '""')}"`;
+}
+function toCsv(headers, rows) {
+  return '\uFEFF' + [headers.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(','))).join('\r\n');
+}
+function validDate(d) { return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')); }
+
+app.get('/api/admin/reports/profit', adminAuth, async (req, res) => {
+  try {
+    const offset = parseInt(process.env.REPORT_UTC_OFFSET_HOURS, 10);
+    const tzOffset = Number.isFinite(offset) ? offset : 3; // ኢትዮጵያ UTC+3
+    const today = new Date(Date.now() + tzOffset * 3600 * 1000).toISOString().slice(0, 10);
+    const weekAgo = new Date(Date.now() + tzOffset * 3600 * 1000 - 6 * 86400000).toISOString().slice(0, 10);
+    const from = validDate(req.query.from) ? req.query.from : weekAgo;
+    const to = validDate(req.query.to) ? req.query.to : today;
+
+    const report = await DB.getProfitReport(from, to, tzOffset);
+
+    if (req.query.format === 'csv') {
+      const rows = [];
+      report.perRoom.forEach(r => rows.push([r.day, r.room, r.bets, r.refunds, r.prizes, r.wins, r.profit, r.margin + '%']));
+      rows.push(['TOTAL', 'ALL', report.totals.bets, report.totals.refunds, report.totals.prizes, report.totals.wins, report.totals.profit, '']);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="profit-report_${from}_to_${to}.csv"`);
+      return res.send(toCsv(['Date', 'Room', 'Bets (ETB)', 'Refunds (ETB)', 'Prizes paid (ETB)', 'Wins', 'House profit (ETB)', 'Margin'], rows));
+    }
+    res.json({ success: true, from, to, ...report });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/audit-log', adminAuth, async (req, res) => {
+  try {
+    const isCsv = req.query.format === 'csv';
+    const rows = await DB.getAuditLog({ limit: isCsv ? 5000 : 200, search: req.query.search || '', action: req.query.action || 'ALL' });
+    if (isCsv) {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="admin-audit-log.csv"');
+      return res.send(toCsv(
+        ['Time', 'Admin', 'IP', 'Action', 'User ID', 'Username', 'Tx ID', 'Amount', 'Details'],
+        rows.map(r => [new Date(r.created_at).toISOString(), r.admin_name, r.ip, r.action, r.target_user_id, r.target_username, r.tx_id, r.amount, r.details])
+      ));
+    }
+    res.json({ success: true, log: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/fraud-flags', adminAuth, async (req, res) => {
+  try {
+    const flags = await DB.getFraudFlags();
+    if (req.query.format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="fraud-flags.csv"');
+      return res.send(toCsv(
+        ['Severity', 'Type', 'Key', 'Detail', 'Users'],
+        flags.map(f => [f.severity, f.type, f.key, f.detail, f.users.map(u => `#${u.id} ${u.username || u.firstName || ''}`).join(' | ')])
+      ));
+    }
+    res.json({ success: true, flags });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
