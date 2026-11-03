@@ -57,6 +57,7 @@
       <div style="font-size: 40px; margin-bottom: 8px;">🌟</div>
       <h2 style="color: #ffd700; margin-bottom: 6px;">Kokeb Admin Lock</h2>
       <p style="font-size: 11.5px; color: #8e8aa8; margin-bottom: 16px;">የአድሚን ፒን ቁጥር ያስገቡ (Default: 1234)</p>
+      <input type="text" id="admin-name-input" placeholder="Your name (ስምዎ)" maxlength="30" style="width: 100%; margin-bottom: 10px; text-align: center; font-size: 14px;">
       <input type="password" id="admin-pin-input" placeholder="Enter PIN" style="width: 100%; margin-bottom: 10px; text-align: center; font-size: 16px; letter-spacing: 4px;">
       <button class="btn-sm btn-purple" style="width: 100%; padding: 10px; font-size: 13px;" onclick="verifyAndLogin()">🔓 ክፈት (UNLOCK)</button>
       <div id="pin-error-msg" class="error-text">❌ የተሳሳተ ፒን ቁጥር ነው!</div>
@@ -95,6 +96,9 @@
     <button class="tab-btn" onclick="switchTab('contest')">🏆 የግብዣ ውድድር</button>
     <button class="tab-btn" onclick="switchTab('promos')">🎁 ፕሮሞኮድ</button>
     <button class="tab-btn" onclick="switchTab('archive')">📜 የዝውውር ማህደር</button>
+    <button class="tab-btn" onclick="switchTab('reports')">📈 ሪፖርት</button>
+    <button class="tab-btn" onclick="switchTab('audit')">🧾 የአድሚን መዝገብ</button>
+    <button class="tab-btn" onclick="switchTab('fraud')">🚩 የማጭበርበር ምልክት</button>
     <button class="tab-btn" onclick="switchTab('rooms')">🎮 ክፍሎች</button>
     <button class="tab-btn" onclick="switchTab('users')">👥 ተጠቃሚዎች</button>
     <button class="tab-btn" onclick="switchTab('settings')">⚙️ ዋጋ & ኮሚሽን</button>
@@ -301,6 +305,70 @@
     </div>
   </div>
 
+  <!-- TAB: PROFIT REPORTS -->
+  <div id="tab-reports" class="panel-section">
+    <div class="box">
+      <h3>📈 የትርፍ ሪፖርት (Daily & Per-Room)</h3>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
+        <input type="date" id="rep-from">
+        <input type="date" id="rep-to">
+        <button class="btn-sm btn-purple" onclick="fetchProfitReport()">🔄 አሳይ</button>
+        <button class="btn-sm btn-gold" onclick="downloadCsv('/api/admin/reports/profit', {from: 'rep-from', to: 'rep-to'}, 'profit-report.csv')">⬇️ CSV</button>
+      </div>
+      <div id="rep-totals" style="font-size: 13px; margin-bottom: 12px; color: #ffd700; font-weight: bold;"></div>
+      <h4 style="margin: 8px 0;">በቀን</h4>
+      <div style="overflow-x: auto;"><table>
+        <thead><tr><th>ቀን</th><th>ውርርድ</th><th>ተመላሽ</th><th>ሽልማት</th><th>አሸናፊ</th><th>ትርፍ</th><th>%</th></tr></thead>
+        <tbody id="rep-daily-body"></tbody>
+      </table></div>
+      <h4 style="margin: 14px 0 8px;">በክፍል</h4>
+      <div style="overflow-x: auto;"><table>
+        <thead><tr><th>ቀን</th><th>ክፍል</th><th>ውርርድ</th><th>ተመላሽ</th><th>ሽልማት</th><th>ትርፍ</th><th>%</th></tr></thead>
+        <tbody id="rep-room-body"></tbody>
+      </table></div>
+      <p style="font-size: 10.5px; color: #8e8aa8; margin-top: 10px;">ትርፍ = ውርርድ − ተመላሽ − ለአሸናፊዎች የተከፈለ ሽልማት። ቀናት በኢትዮጵያ ሰዓት (UTC+3) ናቸው።</p>
+    </div>
+  </div>
+
+  <!-- TAB: AUDIT LOG -->
+  <div id="tab-audit" class="panel-section">
+    <div class="box">
+      <h3>🧾 የአድሚን ድርጊቶች መዝገብ</h3>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+        <select id="audit-action" onchange="fetchAuditLog()">
+          <option value="ALL">ሁሉም ድርጊት</option>
+          <option value="ADJUST_BALANCE">💰 Balance Adjust</option>
+          <option value="APPROVE_DEPOSIT">✅ Approve Deposit</option>
+          <option value="REJECT_DEPOSIT">❌ Reject Deposit</option>
+          <option value="APPROVE_WITHDRAWAL">✅ Approve Withdrawal</option>
+          <option value="REJECT_WITHDRAWAL">❌ Reject Withdrawal</option>
+          <option value="TOGGLE_BAN">🚫 Ban / Unban</option>
+          <option value="UPDATE_SETTINGS">⚙️ Settings</option>
+          <option value="ROOM_CONTROL">🎮 Room Control</option>
+          <option value="CHANGE_PIN">🔐 Change PIN</option>
+        </select>
+        <input type="text" id="audit-search" placeholder="በአድሚን ስም ወይም ተጠቃሚ ፈልግ..." oninput="fetchAuditLog()" style="flex: 1;">
+        <button class="btn-sm btn-gold" onclick="downloadCsv('/api/admin/audit-log', {action: 'audit-action', search: 'audit-search'}, 'admin-audit-log.csv')">⬇️ CSV</button>
+      </div>
+      <div style="overflow-x: auto;"><table>
+        <thead><tr><th>ሰዓት</th><th>አድሚን</th><th>ድርጊት</th><th>ተጠቃሚ</th><th>መጠን</th><th>ዝርዝር</th><th>IP</th></tr></thead>
+        <tbody id="audit-body"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- TAB: FRAUD FLAGS -->
+  <div id="tab-fraud" class="panel-section">
+    <div class="box">
+      <h3>🚩 የማጭበርበር ምልክቶች</h3>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn-sm btn-purple" onclick="fetchFraudFlags()">🔄 አድስ</button>
+        <button class="btn-sm btn-gold" onclick="downloadCsv('/api/admin/fraud-flags', {}, 'fraud-flags.csv')">⬇️ CSV</button>
+      </div>
+      <div id="fraud-list"></div>
+    </div>
+  </div>
+
   <!-- TAB 5: ROOMS CONTROL -->
   <div id="tab-rooms" class="panel-section">
     <div class="box">
@@ -433,6 +501,18 @@
   <!-- JAVASCRIPT -->
   <script>
     let adminPin = sessionStorage.getItem('kokeb_admin_pin') || '';
+    let adminName = sessionStorage.getItem('kokeb_admin_name') || '';
+
+    // 🧾 በእያንዳንዱ የአድሚን ጥያቄ ላይ የአድሚኑን ስም በራስ-ሰር ይጨምራል (Audit Log)
+    (function () {
+      const origFetch = window.fetch.bind(window);
+      window.fetch = (url, opts = {}) => {
+        if (opts.headers && opts.headers['x-admin-pin'] && adminName) {
+          opts.headers = { ...opts.headers, 'x-admin-name': encodeURIComponent(adminName) };
+        }
+        return origFetch(url, opts);
+      };
+    })();
     let lastPendingCount = 0;
 
     function playNotificationChime() {
@@ -454,9 +534,11 @@
 
     async function verifyAndLogin() {
       const pin = document.getElementById('admin-pin-input').value;
+      const nameVal = document.getElementById('admin-name-input').value.trim();
       const errorMsg = document.getElementById('pin-error-msg');
       errorMsg.style.display = 'none';
 
+      if (!nameVal) { errorMsg.innerText = "እባክዎን ስምዎን ያስገቡ!"; errorMsg.style.display = 'block'; return; }
       if (!pin) { errorMsg.innerText = "እባክዎን ፒን ያስገቡ!"; errorMsg.style.display = 'block'; return; }
 
       try {
@@ -468,7 +550,9 @@
         const data = await res.json();
         if (res.ok && data.success) {
           adminPin = pin;
+          adminName = nameVal;
           sessionStorage.setItem('kokeb_admin_pin', pin);
+          sessionStorage.setItem('kokeb_admin_name', nameVal);
           document.getElementById('login-overlay').style.display = 'none';
           fetchAdminData();
         } else {
@@ -497,8 +581,107 @@
     function lockAndLogout() {
       adminPin = '';
       sessionStorage.removeItem('kokeb_admin_pin');
+      sessionStorage.removeItem('kokeb_admin_name');
       document.getElementById('admin-pin-input').value = '';
       document.getElementById('login-overlay').style.display = 'flex';
+    }
+
+    // ==================== 📈 REPORTS / AUDIT / FRAUD ====================
+    function esc(v) {
+      return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    const money = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+    async function downloadCsv(basePath, paramIds, filename) {
+      const params = new URLSearchParams({ format: 'csv' });
+      Object.entries(paramIds).forEach(([k, id]) => {
+        const v = document.getElementById(id)?.value;
+        if (v) params.set(k, v);
+      });
+      try {
+        const res = await fetch(`${basePath}?${params}`, { headers: { 'x-admin-pin': adminPin } });
+        if (!res.ok) return alert('CSV ማውረድ አልተቻለም!');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      } catch (e) { alert('CSV ማውረድ አልተቻለም!'); }
+    }
+
+    async function fetchProfitReport() {
+      if (!adminPin) return;
+      const from = document.getElementById('rep-from').value;
+      const to = document.getElementById('rep-to').value;
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      try {
+        const res = await fetch(`/api/admin/reports/profit?${qs}`, { headers: { 'x-admin-pin': adminPin } });
+        const d = await res.json();
+        if (!res.ok) return;
+        if (!from) document.getElementById('rep-from').value = d.from;
+        if (!to) document.getElementById('rep-to').value = d.to;
+        document.getElementById('rep-totals').innerText =
+          `ጠቅላላ ውርርድ: ${money(d.totals.bets)} · ተመላሽ: ${money(d.totals.refunds)} · ሽልማት: ${money(d.totals.prizes)} · ትርፍ: ${money(d.totals.profit)} ETB`;
+        const profitColor = (p) => p >= 0 ? '#00ff87' : '#ff4757';
+        document.getElementById('rep-daily-body').innerHTML = d.daily.map(r =>
+          `<tr><td>${esc(r.day)}</td><td>${money(r.bets)}</td><td>${money(r.refunds)}</td><td>${money(r.prizes)}</td><td>${r.wins}</td><td style="color:${profitColor(r.profit)};font-weight:bold;">${money(r.profit)}</td><td>${r.margin}%</td></tr>`
+        ).join('') || '<tr><td colspan="7" style="text-align:center;color:#8e8aa8;">ዳታ የለም</td></tr>';
+        document.getElementById('rep-room-body').innerHTML = d.perRoom.map(r =>
+          `<tr><td>${esc(r.day)}</td><td><b>${esc(r.room)}</b></td><td>${money(r.bets)}</td><td>${money(r.refunds)}</td><td>${money(r.prizes)}</td><td style="color:${profitColor(r.profit)};font-weight:bold;">${money(r.profit)}</td><td>${r.margin}%</td></tr>`
+        ).join('') || '<tr><td colspan="7" style="text-align:center;color:#8e8aa8;">ዳታ የለም</td></tr>';
+      } catch (e) {}
+    }
+
+    async function fetchAuditLog() {
+      if (!adminPin) return;
+      const qs = new URLSearchParams({
+        action: document.getElementById('audit-action').value,
+        search: document.getElementById('audit-search').value
+      });
+      try {
+        const res = await fetch(`/api/admin/audit-log?${qs}`, { headers: { 'x-admin-pin': adminPin } });
+        const d = await res.json();
+        if (!res.ok) return;
+        document.getElementById('audit-body').innerHTML = d.log.map(r => `
+          <tr>
+            <td style="white-space:nowrap;">${esc(new Date(r.created_at).toLocaleString())}</td>
+            <td><b>${esc(r.admin_name)}</b></td>
+            <td>${esc(r.action)}</td>
+            <td>${r.target_user_id ? '#' + esc(r.target_user_id) + ' ' + esc(r.target_username || '') : '-'}</td>
+            <td>${r.amount !== null ? money(r.amount) : '-'}</td>
+            <td style="max-width:220px;word-break:break-word;">${esc(r.details || '')}</td>
+            <td style="font-size:10px;">${esc(r.ip)}</td>
+          </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:#8e8aa8;">መዝገብ የለም</td></tr>';
+      } catch (e) {}
+    }
+
+    async function fetchFraudFlags() {
+      if (!adminPin) return;
+      const box = document.getElementById('fraud-list');
+      try {
+        const res = await fetch('/api/admin/fraud-flags', { headers: { 'x-admin-pin': adminPin } });
+        const d = await res.json();
+        if (!res.ok) return;
+        if (d.flags.length === 0) { box.innerHTML = '<div style="color:#00ff87;padding:10px;">✅ ምንም የማጭበርበር ምልክት አልተገኘም</div>'; return; }
+        box.innerHTML = d.flags.map(f => `
+          <div style="border:1px solid ${f.severity === 'high' ? '#ff4757' : '#ffd700'};border-radius:10px;padding:10px;margin-bottom:10px;">
+            <div style="font-weight:bold;">${f.severity === 'high' ? '🔴' : '🟡'} ${esc(f.type)} <span style="color:#8e8aa8;font-weight:normal;">· ${esc(f.key)}</span></div>
+            <div style="font-size:12px;margin:4px 0 8px;">${esc(f.detail)}</div>
+            ${f.users.map(u => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,0.06);">
+                <span style="font-size:12px;">#${u.id} ${esc(u.username || u.firstName || '')} · ${money(u.balance)} ETB ${u.isBanned ? '🚫' : ''}</span>
+                <span>
+                  <button class="btn-sm btn-purple" onclick="openUserProfile(${u.id})">👁️</button>
+                  <button class="btn-sm" style="background:#ff4757;color:#fff;" onclick="toggleBan(${u.id}).then(fetchFraudFlags)">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                </span>
+              </div>`).join('')}
+          </div>`).join('');
+      } catch (e) {}
     }
 
     function switchTab(tabId) {
@@ -510,6 +693,9 @@
       if (tabId === 'promos') fetchPromoCodes();
       if (tabId === 'contest') fetchContestData();
       if (tabId === 'rain') fetchMoneyRains();
+      if (tabId === 'reports') fetchProfitReport();
+      if (tabId === 'audit') fetchAuditLog();
+      if (tabId === 'fraud') fetchFraudFlags();
     }
 
     async function fetchAdminData() {
