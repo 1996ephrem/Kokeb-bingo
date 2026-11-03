@@ -561,6 +561,10 @@
         <div><b>Automatic play</b><div style="font-size: 10px; color: var(--text-muted);">Mark numbers and claim bingo for me</div></div>
         <div class="toggle-switch active" id="prof-autodaub" onclick="toggleAutoDaub()"></div>
       </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <div><b>Game alerts 🔔</b><div style="font-size: 10px; color: var(--text-muted);">Telegram message when a room is about to start</div></div>
+        <div class="toggle-switch" id="prof-lobby-notify" onclick="toggleLobbyNotify()"></div>
+      </div>
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;" onclick="toggleLanguage()">
         <div><b>Language (ቋንቋ)</b><div style="font-size: 10px; color: var(--text-muted);">Switch English / አማርኛ</div></div>
         <span id="prof-lang-txt" style="color: var(--accent-cyan); font-weight: bold;">አማርኛ ></span>
@@ -828,6 +832,42 @@
       SoundFX.pop();
     }
 
+    function toggleLobbyNotify() {
+      const el = document.getElementById('prof-lobby-notify');
+      const next = !el.classList.contains('active');
+      el.classList.toggle('active', next);
+      SoundFX.pop();
+      socket.emit('set_lobby_notify', { enabled: next });
+    }
+
+    let lobbyBannerTimer = null;
+    function showLobbyBanner(d) {
+      let b = document.getElementById('lobby-soon-banner');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'lobby-soon-banner';
+        b.style.cssText = 'position:fixed;top:10px;left:10px;right:10px;z-index:9999;background:linear-gradient(135deg,#7928ca,#ff0080);color:#fff;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:bold;box-shadow:0 6px 24px rgba(0,0,0,.5);display:none;cursor:pointer;';
+        document.body.appendChild(b);
+      }
+      b.innerHTML = `🔔 ${d.roomName} — starting in ~${d.seconds}s!<div style="font-size:11px;font-weight:normal;margin-top:2px;">🎟️ ${d.cardsSold} cards · 🏆 ${d.prize} ETB · ${d.stake} ETB/card${d.needPlayers > 0 ? ` · 👥 needs ${d.needPlayers} more` : ''}</div>`;
+      b.onclick = () => { b.style.display = 'none'; goToCartelaSelection(d.roomName, d.stake); };
+      b.style.display = 'block';
+      SoundFX.pop();
+      clearTimeout(lobbyBannerTimer);
+      lobbyBannerTimer = setTimeout(() => { b.style.display = 'none'; }, 8000);
+    }
+
+    socket.on('lobby_starting_soon', (d) => {
+      // ተጫዋቹ አስቀድሞ በዚሁ ክፍል ውስጥ ካለ ባነር አያሳይም
+      if (gameState.isLive) return; // በጨዋታ መሃል ባነር አናሳይም
+      if (selectionState.roomName === d.roomName && document.getElementById('screen-cartela-select')?.classList.contains('active')) return;
+      showLobbyBanner(d);
+    });
+
+    socket.on('lobby_notify_saved', ({ enabled }) => {
+      document.getElementById('prof-lobby-notify')?.classList.toggle('active', !!enabled);
+    });
+
     function toggleAutoDaub() {
       gameState.autoDaub = !gameState.autoDaub;
       document.getElementById('autodaub-toggle').classList.toggle('active', gameState.autoDaub);
@@ -1027,6 +1067,7 @@
       userState.cashableBalance = parseFloat(u.cashableBalance) || 0;
       userState.playOnlyBalance = parseFloat(u.playOnlyBalance) || 0;
       userState.wageringRemaining = parseFloat(u.wageringRemaining) || 0;
+      document.getElementById('prof-lobby-notify')?.classList.toggle('active', !!u.notifyLobby);
       userState.streak = u.checkinStreak || 0;
       userState.botUsername = u.botUsername || 'Kokeb_Bingo_Bot';
 
@@ -1402,7 +1443,6 @@
     }
 
     socket.on('room_snapshot', (d) => {
-      selectionState.generatedCombinations = d.cartelas;
       selectionState.takenCartelaIds = new Set(d.takenCartelaIds);
 
       document.getElementById('arena-prize-pool').innerText = d.prizePool;
@@ -1480,7 +1520,7 @@
 
     socket.on('room_reset', (data) => {
       if (selectionState.roomName === data.roomName) {
-        selectionState.generatedCombinations = data.cartelas;
+        selectionState.generatedCombinations = {};
         selectionState.takenCartelaIds.clear();
         selectionState.selectedCartelaIds.clear();
 
@@ -1543,6 +1583,8 @@
     }
 
     socket.on('cartelas_bought_success', (d) => {
+      // ⚡ የገዛናቸው ካርዶች ብቻ ከሰርቨር ይመጣሉ
+      Object.assign(selectionState.generatedCombinations, d.cartelas || {});
       userState.coins = parseFloat(d.balance) || 0;
       if (d.cashableBalance !== undefined) userState.cashableBalance = parseFloat(d.cashableBalance);
       if (d.playOnlyBalance !== undefined) userState.playOnlyBalance = parseFloat(d.playOnlyBalance);
