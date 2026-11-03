@@ -39,6 +39,7 @@ async function initDB() {
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS wagering_remaining NUMERIC(14, 2) DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_lobby BOOLEAN DEFAULT FALSE;
 
       CREATE TABLE IF NOT EXISTS transactions (
         id SERIAL PRIMARY KEY,
@@ -122,6 +123,20 @@ async function initDB() {
       );
       ALTER TABLE room_bets ADD COLUMN IF NOT EXISTS wager_applied NUMERIC(14, 2) DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_room_bets_status ON room_bets(status, room_name);
+
+      -- 🧾 የአድሚን ድርጊቶች መዝገብ (Audit Log)
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id SERIAL PRIMARY KEY,
+        admin_name TEXT,
+        ip TEXT,
+        action TEXT NOT NULL,
+        target_user_id INT,
+        tx_id INT,
+        amount NUMERIC(14, 2),
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at);
     `);
 
     const pinRes = await pool.query("SELECT * FROM admin_config WHERE key = 'admin_pin'");
@@ -594,6 +609,171 @@ const DB = {
     } finally {
       client.release();
     }
+  },
+
+  // ==================== 🔔 LOBBY NOTIFY ====================
+  setLobbyNotify: async (userId, enabled) => {
+    await pool.query('UPDATE users SET notify_lobby = $1 WHERE id = $2', [!!enabled, userId]);
+  },
+
+  getLobbyNotifyTargets: async () => {
+    const res = await pool.query(
+      "SELECT id, telegram_id FROM users WHERE notify_lobby = TRUE AND is_banned = 0 AND telegram_id IS NOT NULL AND LEFT(telegram_id, 5) <> 'demo_'"
+    );
+    return res.rows;
+  },
+
+  // ==================== 🧾 AUDIT LOG ====================
+  getTransactionBrief: async (txId) => {
+    const res = await pool.query('SELECT user_id, type, amount, status, reference FROM transactions WHERE id = $1', [txId]);
+    return res.rows[0] || null;
+  },
+
+  addAuditLog: async ({ adminName, ip, action, targetUserId = null, txId = null, amount = null, details = null }) => {
+    await pool.query(
+      'INSERT INTO admin_audit_log (admin_name, ip, action, target_user_id, tx_id, amount, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [adminName, ip, action, targetUserId, txId, amount, details]
+    );
+  },
+
+  getAuditLog: async ({ limit = 200, search = '', action = 'ALL' } = {}) => {
+    const params = [];
+    let where = 'WHERE 1=1';
+    if (action && action !== 'ALL') {
+      params.push(action);
+      where += ` AND a.action = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (a.admin_name ILIKE $${params.length} OR a.details ILIKE $${params.length} OR u.username ILIKE $${params.length} OR CAST(a.target_user_id AS TEXT) = REPLACE($${params.length}, '%', ''))`;
+    }
+    params.push(Math.min(parseInt(limit, 10) || 200, 5000));
+    const res = await pool.query(
+      `SELECT a.*, u.username AS target_username
+       FROM admin_audit_log a LEFT JOIN users u ON u.id = a.target_user_id
+       ${where} ORDER BY a.id DESC LIMIT $${params.length}`,
+      params
+    );
+    return res.rows;
+  },
+
+  // ==================== 📊 PROFIT REPORT ====================
+  getProfitReport: async (fromDate, toDate, offsetHours = 3) => {
+    const res = await pool.query(
+      `SELECT
+         to_char((created_at + ($3::int * INTERVAL '1 hour'))::date, 'YYYY-MM-DD') AS day,
+         CASE
+           WHEN type = 'BET' THEN reference
+           WHEN type = 'WIN' THEN REPLACE(reference, ' Bingo', '')
+           WHEN reference = 'Server Restart Refund' THEN '(restart refunds)'
+           ELSE split_part(reference, ' ', 1)
+         END AS room,
+         COALESCE(SUM(CASE WHEN type = 'BET' THEN ABS(amount) END), 0) AS bets,
+         COALESCE(SUM(CASE WHEN type = 'REFUND' THEN amount END), 0) AS refunds,
+         COALESCE(SUM(CASE WHEN type = 'WIN' THEN amount END), 0) AS prizes,
+         COUNT(CASE WHEN type = 'WIN' THEN 1 END) AS wins
+       FROM transactions
+       WHERE status = 'COMPLETED'
+         AND (
+           type IN ('BET', 'WIN')
+           OR (type = 'REFUND' AND (reference LIKE '% Lobby Leave' OR reference LIKE '% Admin Restart' OR reference = 'Server Restart Refund'))
+         )
+         AND (created_at + ($3::int * INTERVAL '1 hour'))::date BETWEEN $1::date AND $2::date
+       GROUP BY 1, 2
+       ORDER BY 1 DESC, 2`,
+      [fromDate, toDate, offsetHours]
+    );
+
+    const perRoom = res.rows.map(r => {
+      const bets = parseFloat(r.bets), refunds = parseFloat(r.refunds), prizes = parseFloat(r.prizes);
+      const net = bets - refunds;
+      return {
+        day: r.day, room: r.room, bets, refunds, prizes,
+        wins: parseInt(r.wins, 10),
+        profit: net - prizes,
+        margin: net > 0 ? Math.round(((net - prizes) / net) * 1000) / 10 : 0
+      };
+    });
+
+    const dayMap = new Map();
+    for (const r of perRoom) {
+      const d = dayMap.get(r.day) || { day: r.day, bets: 0, refunds: 0, prizes: 0, wins: 0, profit: 0 };
+      d.bets += r.bets; d.refunds += r.refunds; d.prizes += r.prizes; d.wins += r.wins; d.profit += r.profit;
+      dayMap.set(r.day, d);
+    }
+    const daily = Array.from(dayMap.values()).map(d => {
+      const net = d.bets - d.refunds;
+      return { ...d, margin: net > 0 ? Math.round((d.profit / net) * 1000) / 10 : 0 };
+    });
+
+    const totals = daily.reduce((t, d) => ({
+      bets: t.bets + d.bets, refunds: t.refunds + d.refunds, prizes: t.prizes + d.prizes, wins: t.wins + d.wins, profit: t.profit + d.profit
+    }), { bets: 0, refunds: 0, prizes: 0, wins: 0, profit: 0 });
+
+    return { daily, perRoom, totals };
+  },
+
+  // ==================== 🚩 FRAUD FLAGS ====================
+  getFraudFlags: async () => {
+    const flags = [];
+
+    const sharedProfile = await pool.query(
+      `SELECT phone_number AS key, array_agg(id) AS ids FROM users
+       WHERE phone_number IS NOT NULL AND phone_number <> ''
+       GROUP BY phone_number HAVING COUNT(*) >= 2`
+    );
+    sharedProfile.rows.forEach(r => flags.push({
+      type: 'SHARED_PROFILE_PHONE', severity: 'high', key: r.key, userIds: r.ids,
+      detail: `${r.ids.length} አካውንቶች አንድ ስልክ ቁጥር ይጠቀማሉ`
+    }));
+
+    const sharedWithdraw = await pool.query(
+      `SELECT phone_number AS key, array_agg(DISTINCT user_id) AS ids FROM transactions
+       WHERE type = 'WITHDRAW' AND phone_number IS NOT NULL AND phone_number <> '' AND status <> 'REJECTED'
+       GROUP BY phone_number HAVING COUNT(DISTINCT user_id) >= 2`
+    );
+    sharedWithdraw.rows.forEach(r => flags.push({
+      type: 'SHARED_WITHDRAW_PHONE', severity: 'high', key: r.key, userIds: r.ids,
+      detail: `${r.ids.length} አካውንቶች ወደ አንድ ስልክ ብር አውጥተዋል`
+    }));
+
+    const sharedDeposit = await pool.query(
+      `SELECT phone_number AS key, array_agg(DISTINCT user_id) AS ids FROM transactions
+       WHERE type = 'DEPOSIT' AND phone_number IS NOT NULL AND phone_number <> ''
+       GROUP BY phone_number HAVING COUNT(DISTINCT user_id) >= 3`
+    );
+    sharedDeposit.rows.forEach(r => flags.push({
+      type: 'SHARED_DEPOSIT_PHONE', severity: 'medium', key: r.key, userIds: r.ids,
+      detail: `${r.ids.length} አካውንቶች ከአንድ ስልክ ቁጥር ዲፖዚት አድርገዋል`
+    }));
+
+    const failed = await pool.query(
+      `SELECT user_id, COUNT(*) AS cnt FROM transactions
+       WHERE type = 'DEPOSIT' AND status = 'REJECTED' AND created_at > NOW() - INTERVAL '24 hours'
+       GROUP BY user_id HAVING COUNT(*) >= 3`
+    );
+    failed.rows.forEach(r => flags.push({
+      type: 'REPEATED_FAILED_DEPOSITS', severity: parseInt(r.cnt, 10) >= 5 ? 'high' : 'medium',
+      key: `user ${r.user_id}`, userIds: [r.user_id],
+      detail: `በ 24 ሰዓት ውስጥ ${r.cnt} ውድቅ የተደረጉ ዲፖዚቶች`
+    }));
+
+    const allIds = Array.from(new Set(flags.flatMap(f => f.userIds)));
+    let userMap = new Map();
+    if (allIds.length > 0) {
+      const uRes = await pool.query(
+        'SELECT id, username, first_name, balance, is_banned FROM users WHERE id = ANY($1::int[])',
+        [allIds]
+      );
+      userMap = new Map(uRes.rows.map(u => [u.id, {
+        id: u.id, username: u.username, firstName: u.first_name,
+        balance: parseFloat(u.balance), isBanned: u.is_banned === 1
+      }]));
+    }
+
+    return flags
+      .map(f => ({ type: f.type, severity: f.severity, key: f.key, detail: f.detail, users: f.userIds.map(id => userMap.get(id)).filter(Boolean) }))
+      .sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'high' ? -1 : 1));
   },
 
   // ⚙️ የክፍያ መረጃ እና የቦነስ ቅንብሮች (አድሚን ፓነል)
